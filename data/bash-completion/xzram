@@ -1,0 +1,42 @@
+# bash completion for xzram
+
+_xzram() {
+    local cur prev words cword
+    _init_completion || return
+
+    local commands="status detect doctor zram swapfile swap sysctl apply rollback"
+    local zram_cmds="show set disable"
+    local swapfile_cmds="list create resize remove"
+    local swap_cmds="list on off"
+    local sysctl_cmds="show set"
+
+    case "${words[1]}" in
+        zram)
+            if [[ $cword -eq 2 ]]; then
+                COMPREPLY=($(compgen -W "$zram_cmds" -- "$cur"))
+            fi
+            ;;
+        swapfile)
+            if [[ $cword -eq 2 ]]; then
+                COMPREPLY=($(compgen -W "$swapfile_cmds" -- "$cur"))
+            fi
+            ;;
+        swap)
+            if [[ $cword -eq 2 ]]; then
+                COMPREPLY=($(compgen -W "$swap_cmds" -- "$cur"))
+            fi
+            ;;
+        sysctl)
+            if [[ $cword -eq 2 ]]; then
+                COMPREPLY=($(compgen -W "$sysctl_cmds" -- "$cur"))
+            fi
+            ;;
+        *)
+            if [[ $cword -eq 1 ]]; then
+                COMPREPLY=($(compgen -W "$commands" -- "$cur"))
+            fi
+            ;;
+    esac
+}
+
+complete -F _xzram xzram

@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC
+ "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<policyconfig>
+  <vendor>XZram</vendor>
+  <vendor_url>https://github.com/xzram/xzram</vendor_url>
+
+  <action id="io.github.xzram.zram.configure">
+    <description>Configure ZRAM swap</description>
+    <message>Authentication is required to configure ZRAM swap</message>
+    <icon_name>drive-harddisk</icon_name>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/libexec/xzram-helper</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">zram.configure</annotate>
+  </action>
+
+  <action id="io.github.xzram.zram.disable">
+    <description>Disable ZRAM swap</description>
+    <message>Authentication is required to disable ZRAM swap</message>
+    <icon_name>drive-harddisk</icon_name>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/libexec/xzram-helper</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">zram.disable</annotate>
+  </action>
+
+  <action id="io.github.xzram.swapfile.create">
+    <description>Create swap file</description>
+    <message>Authentication is required to create a swap file</message>
+    <icon_name>drive-harddisk</icon_name>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/libexec/xzram-helper</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">swapfile.create</annotate>
+  </action>
+
+  <action id="io.github.xzram.swapfile.remove">
+    <description>Remove swap file</description>
+    <message>Authentication is required to remove a swap file</message>
+    <icon_name>drive-harddisk</icon_name>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/libexec/xzram-helper</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">swapfile.remove</annotate>
+  </action>
+
+  <action id="io.github.xzram.swapfile.resize">
+    <description>Resize swap file</description>
+    <message>Authentication is required to resize a swap file</message>
+    <icon_name>drive-harddisk</icon_name>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/libexec/xzram-helper</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">swapfile.resize</annotate>
+  </action>
+
+  <action id="io.github.xzram.swap.activate">
+    <description>Activate or deactivate swap</description>
+    <message>Authentication is required to change swap state</message>
+    <icon_name>drive-harddisk</icon_name>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/libexec/xzram-helper</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">swap.activate</annotate>
+  </action>
+
+  <action id="io.github.xzram.sysctl.set">
+    <description>Set kernel memory tuning parameters</description>
+    <message>Authentication is required to change kernel memory parameters</message>
+    <icon_name>preferences-system</icon_name>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/libexec/xzram-helper</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">sysctl.set</annotate>
+  </action>
+
+  <action id="io.github.xzram.apply">
+    <description>Apply swap configuration</description>
+    <message>Authentication is required to apply swap configuration</message>
+    <icon_name>drive-harddisk</icon_name>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/libexec/xzram-helper</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">apply</annotate>
+  </action>
+
+  <action id="io.github.xzram.rollback">
+    <description>Rollback swap configuration</description>
+    <message>Authentication is required to rollback swap configuration</message>
+    <icon_name>drive-harddisk</icon_name>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/libexec/xzram-helper</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">rollback</annotate>
+  </action>
+</policyconfig>

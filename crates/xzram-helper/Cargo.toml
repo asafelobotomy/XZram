@@ -1,0 +1,19 @@
+[package]
+name = "xzram-helper"
+description = "Privileged helper for xzram (polkit-gated)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "xzram-helper"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+xzram = { path = "../xzram" }
