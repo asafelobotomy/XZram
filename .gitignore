@@ -1,0 +1,12 @@
+/target/
+**/*.rs.bk
+*.pdb
+Cargo.lock
+*.pkg.tar.zst
+srcpkg/
+pkg/
+.debhelper/
+debian/files
+debian/*.debhelper
+debian/*.substvars
+rpmbuild/
