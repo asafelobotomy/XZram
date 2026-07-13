@@ -1,0 +1,12 @@
+{
+  "recommendations": [
+    "rust-lang.rust-analyzer",
+    "tamasfe.even-better-toml",
+    "serayuzgur.crates",
+    "vadimcn.vscode-lldb",
+    "redhat.vscode-yaml",
+    "redhat.vscode-xml",
+    "timonwong.shellcheck",
+    "DavidAnson.vscode-markdownlint"
+  ]
+}
