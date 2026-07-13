@@ -82,23 +82,10 @@ impl SwapfileBackendTrait for SwapfileBackend {
 
         let path = Path::new(&config.path);
 
-        if let Ok(status) = swapfile_btrfs::check_nodatacow(path) {
-            if status.on_btrfs && !status.ready {
-                swapfile_btrfs::prepare_nodatacow(path, true)?;
-            }
-        }
-        swapfile_btrfs::ensure_ready_for_swapfile(path)?;
-
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)?;
-        }
-
-        let size_bytes = config.size_mb * 1024 * 1024;
-        create_swapfile(path, size_bytes)?;
+        swapfile_btrfs::create_allocated_swapfile(path, config.size_mb)?;
 
         fs::set_permissions(path, std::os::unix::fs::PermissionsExt::from_mode(0o600))?;
 
-        crate::apply::run_command("mkswap", &[&config.path])?;
         crate::apply::run_command(
             "swapon",
             &["-p", &config.priority.to_string(), &config.path],
@@ -126,37 +113,14 @@ impl SwapfileBackendTrait for SwapfileBackend {
         crate::validation::validate_swapfile_path(path)?;
         let priority = self.priority_for_path(path)?;
         crate::apply::run_command("swapoff", &[path])?;
-        let size_bytes = size_mb * 1024 * 1024;
-        create_swapfile(Path::new(path), size_bytes)?;
-        fs::set_permissions(path, std::os::unix::fs::PermissionsExt::from_mode(0o600))?;
-        crate::apply::run_command("mkswap", &[path])?;
+        swapfile_btrfs::create_allocated_swapfile(Path::new(path), size_mb)?;
+        fs::set_permissions(
+            Path::new(path),
+            std::os::unix::fs::PermissionsExt::from_mode(0o600),
+        )?;
         crate::apply::run_command("swapon", &["-p", &priority.to_string(), path])?;
         Ok(())
     }
-}
-
-fn create_swapfile(path: &Path, size_bytes: u64) -> Result<()> {
-    let output = std::process::Command::new("fallocate")
-        .args(["-l", &size_bytes.to_string(), &path.to_string_lossy()])
-        .output();
-
-    match output {
-        Ok(o) if o.status.success() => return Ok(()),
-        _ => {}
-    }
-
-    let count_mb = size_bytes / (1024 * 1024);
-    crate::apply::run_command(
-        "dd",
-        &[
-            "if=/dev/zero",
-            &format!("of={}", path.display()),
-            "bs=1M",
-            &format!("count={count_mb}"),
-            "status=progress",
-        ],
-    )?;
-    Ok(())
 }
 
 fn add_fstab_entry(path: &str, priority: i32) -> Result<()> {

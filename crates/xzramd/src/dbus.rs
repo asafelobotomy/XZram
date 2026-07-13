@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use tracing::info;
 use xzram::apply::{
-    apply_pending, clear_pending, load_pending, pending_is_empty, stage, PendingConfig,
-    SwapfileConfig, SwapfileResizeConfig, ZramConfig,
+    clear_pending, load_pending, pending_is_empty, stage, PendingConfig, SwapfileConfig,
+    SwapfileResizeConfig, ZramConfig,
 };
 use xzram::backend::{available_swapfile_backend, ensure_zram_backend};
 use xzram::detect;
@@ -247,21 +247,19 @@ impl Manager {
 
     async fn apply(&self, #[zbus(header)] hdr: Header<'_>) -> zbus::fdo::Result<Vec<String>> {
         authorize(&self.connection, &hdr, "io.github.xzram.apply").await?;
-        let result = apply_pending().map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
-        Ok(result.messages)
+        crate::privileged::run_helper("apply", "{}")
     }
 
     async fn rollback(&self, #[zbus(header)] hdr: Header<'_>) -> zbus::fdo::Result<Vec<String>> {
         authorize(&self.connection, &hdr, "io.github.xzram.snapshot.restore").await?;
-        let result =
-            snapshot::rollback().map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
-        Ok(result.messages)
+        crate::privileged::run_helper("rollback", "{}")
     }
 
     async fn list_snapshots(
         &self,
     ) -> zbus::fdo::Result<HashMap<String, zbus::zvariant::OwnedValue>> {
-        let list = snapshot::list_snapshots().map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
+        let list =
+            snapshot::list_snapshots().map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
         Ok(json_map(&list))
     }
 
@@ -269,7 +267,8 @@ impl Manager {
         &self,
         id: &str,
     ) -> zbus::fdo::Result<HashMap<String, zbus::zvariant::OwnedValue>> {
-        let meta = snapshot::get_snapshot(id).map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
+        let meta =
+            snapshot::get_snapshot(id).map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
         Ok(json_map(&meta))
     }
 
@@ -292,9 +291,8 @@ impl Manager {
         id: &str,
     ) -> zbus::fdo::Result<Vec<String>> {
         authorize(&self.connection, &hdr, "io.github.xzram.snapshot.restore").await?;
-        let result = snapshot::restore_snapshot(id)
-            .map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
-        Ok(result.messages)
+        let payload = serde_json::json!({ "id": id }).to_string();
+        crate::privileged::run_helper("snapshot.restore", &payload)
     }
 
     async fn delete_snapshot(
@@ -358,15 +356,9 @@ impl Manager {
         config_json: &str,
     ) -> zbus::fdo::Result<()> {
         authorize(&self.connection, &hdr, "io.github.xzram.zram.configure").await?;
-        let config: ZramConfig = serde_json::from_str(config_json)
+        let _: ZramConfig = serde_json::from_str(config_json)
             .map_err(|e| zbus::fdo::Error::InvalidArgs(e.to_string()))?;
-        let backend = ensure_zram_backend().map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
-        backend
-            .configure(&config)
-            .map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
-        backend
-            .apply()
-            .map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
+        crate::privileged::run_helper("zram.configure", config_json)?;
         Ok(())
     }
 
@@ -380,10 +372,7 @@ impl Manager {
             .map_err(|e| zbus::fdo::Error::InvalidArgs(e.to_string()))?;
         validation::validate_swapfile_config(&config)
             .map_err(|e| zbus::fdo::Error::InvalidArgs(e.to_string()))?;
-        let backend = available_swapfile_backend();
-        backend
-            .create(&config)
-            .map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
+        crate::privileged::run_helper("swapfile.create", config_json)?;
         Ok(())
     }
 }

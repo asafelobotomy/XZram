@@ -174,6 +174,91 @@ pub fn ensure_ready_for_swapfile(path: &Path) -> Result<()> {
     )))
 }
 
+pub fn is_btrfs_path(path: &Path) -> bool {
+    filesystem_for_path(path)
+        .map(|fstype| fstype == "btrfs")
+        .unwrap_or(false)
+}
+
+fn btrfs_mkswapfile_available() -> bool {
+    std::process::Command::new("btrfs")
+        .arg("filesystem")
+        .arg("mkswapfile")
+        .arg("--help")
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
+}
+
+/// Allocate and format a swapfile, using btrfs-native creation when appropriate.
+pub fn create_allocated_swapfile(path: &Path, size_mb: u64) -> Result<()> {
+    if size_mb == 0 {
+        return Err(XzramError::Validation(
+            "swapfile size must be greater than 0 MiB".into(),
+        ));
+    }
+
+    prepare_nodatacow(path, true)?;
+    ensure_ready_for_swapfile(path)?;
+    remove_stale_swapfile(path)?;
+
+    if is_btrfs_path(path) && btrfs_mkswapfile_available() {
+        let path_str = path.to_string_lossy();
+        let size = format!("{size_mb}M");
+        apply::run_command(
+            "btrfs",
+            &[
+                "filesystem",
+                "mkswapfile",
+                "--size",
+                &size,
+                &path_str,
+            ],
+        )?;
+        return Ok(());
+    }
+
+    let size_bytes = size_mb * 1024 * 1024;
+    allocate_swapfile_bytes(path, size_bytes)?;
+    apply::run_command("mkswap", &[&path.to_string_lossy()])?;
+    Ok(())
+}
+
+fn remove_stale_swapfile(path: &Path) -> Result<()> {
+    if !path.exists() {
+        return Ok(());
+    }
+    let path_str = path.to_string_lossy();
+    let _ = apply::run_command("swapoff", &[&path_str]);
+    std::fs::remove_file(path)?;
+    Ok(())
+}
+
+fn allocate_swapfile_bytes(path: &Path, size_bytes: u64) -> Result<()> {
+    let output = std::process::Command::new("fallocate")
+        .args(["-l", &size_bytes.to_string(), &path.to_string_lossy()])
+        .output();
+
+    if let Ok(o) = output {
+        if o.status.success() {
+            return Ok(());
+        }
+    }
+
+    let count_mb = size_bytes / (1024 * 1024);
+    apply::run_command(
+        "dd",
+        &[
+            "if=/dev/zero",
+            &format!("of={}", path.display()),
+            "bs=1M",
+            &format!("count={count_mb}"),
+            "status=none",
+        ],
+    )?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

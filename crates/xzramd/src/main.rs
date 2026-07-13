@@ -1,4 +1,5 @@
 mod dbus;
+mod privileged;
 
 use anyhow::Result;
 use tracing_subscriber::EnvFilter;

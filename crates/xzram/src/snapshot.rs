@@ -11,6 +11,7 @@ use crate::apply::{self, ApplyResult, PendingConfig};
 use crate::backend::available_swapfile_backend;
 use crate::error::{Result, XzramError};
 use crate::status::{self, ZramDevice};
+use crate::swapfile_btrfs;
 
 pub const SNAPSHOTS_DIR: &str = "snapshots";
 pub const DEFAULT_KEEP: usize = 50;
@@ -141,11 +142,7 @@ pub fn create_snapshot(
         }
     }
 
-    let id = format!(
-        "{}-{}",
-        chrono_like_id(),
-        trigger.as_str()
-    );
+    let id = format!("{}-{}", chrono_like_id(), trigger.as_str());
     let label = label
         .map(str::to_string)
         .unwrap_or_else(|| default_label(trigger, pending));
@@ -293,7 +290,9 @@ pub fn restore_snapshot(id: &str) -> Result<ApplyResult> {
     let meta = get_snapshot(id)?;
     let dir = snapshots_root().join(&meta.id);
     if !dir.exists() {
-        return Err(XzramError::NotFound(format!("snapshot directory missing: {id}")));
+        return Err(XzramError::NotFound(format!(
+            "snapshot directory missing: {id}"
+        )));
     }
 
     let mut messages = Vec::new();
@@ -481,10 +480,7 @@ pub fn pending_summary(pending: &PendingConfig) -> String {
         parts.push("disable ZRAM".into());
     }
     if let Some(ref zram) = pending.zram {
-        let algo = zram
-            .compression_algorithm
-            .as_deref()
-            .unwrap_or("default");
+        let algo = zram.compression_algorithm.as_deref().unwrap_or("default");
         let size = zram.zram_size.as_deref().unwrap_or("default size");
         parts.push(format!("ZRAM ({algo}, {size})"));
     }
@@ -564,41 +560,13 @@ fn recreate_missing_swapfiles(meta: &SnapshotMeta, messages: &mut Vec<String>) -
         if path.exists() {
             continue;
         }
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)?;
-        }
-        let size_bytes = sf.size_mb * 1024 * 1024;
-        create_swapfile_bytes(path, size_bytes)?;
+        swapfile_btrfs::create_allocated_swapfile(path, sf.size_mb)?;
         fs::set_permissions(path, std::os::unix::fs::PermissionsExt::from_mode(0o600))?;
-        apply::run_command("mkswap", &[&sf.path])?;
         messages.push(format!(
             "Recreated swapfile {} ({} MiB)",
             sf.path, sf.size_mb
         ));
     }
-    Ok(())
-}
-
-fn create_swapfile_bytes(path: &Path, size_bytes: u64) -> Result<()> {
-    let output = std::process::Command::new("fallocate")
-        .args(["-l", &size_bytes.to_string(), &path.to_string_lossy()])
-        .output();
-    if let Ok(o) = output {
-        if o.status.success() {
-            return Ok(());
-        }
-    }
-    let count_mb = size_bytes / (1024 * 1024);
-    apply::run_command(
-        "dd",
-        &[
-            "if=/dev/zero",
-            &format!("of={}", path.display()),
-            "bs=1M",
-            &format!("count={count_mb}"),
-            "status=none",
-        ],
-    )?;
     Ok(())
 }
 

@@ -1,15 +1,12 @@
 #!/usr/bin/env bash
-# Uninstall and reinstall xzram system components (requires root).
+# Remove xzram system install (requires root). Leaves /var/lib/xzram data intact.
 set -euo pipefail
-
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$ROOT"
 
 echo "==> Stopping xzramd"
 systemctl stop xzramd.service 2>/dev/null || true
 systemctl disable xzramd.service 2>/dev/null || true
 
-echo "==> Removing old system files"
+echo "==> Removing system files"
 rm -f /usr/bin/xzram /usr/bin/xzram-qt
 rm -f /usr/libexec/xzram-helper /usr/libexec/xzramd
 rm -f /usr/lib/systemd/system/xzramd.service
@@ -20,13 +17,11 @@ rm -f /usr/share/bash-completion/completions/xzram
 rm -f /usr/share/applications/io.github.XZram.desktop
 rm -f /usr/share/metainfo/io.github.XZram.metainfo.xml
 
-echo "==> Building and installing (CLI, daemon, GUI)"
-make install
-make install-post
-
 systemctl daemon-reload
-echo "==> Done. Installed binaries:"
-command -v xzram && xzram --version 2>/dev/null || true
-command -v xzram-qt || echo "  WARNING: xzram-qt not in PATH"
-echo "==> xzramd status:"
-systemctl status xzramd.service --no-pager || true
+busctl call org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus ReloadConfig 2>/dev/null || true
+
+echo "==> Done. Remaining xzram binaries (should be none):"
+command -v xzram || echo "  xzram: not found"
+command -v xzram-qt || echo "  xzram-qt: not found"
+systemctl is-active xzramd.service 2>&1 || true
+echo "Data dir preserved at /var/lib/xzram (remove manually to purge snapshots)"

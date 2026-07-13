@@ -4,20 +4,25 @@ LIBEXECDIR ?= $(PREFIX)/libexec
 DATADIR ?= $(PREFIX)/share
 SYSTEMDUNITDIR ?= $(PREFIX)/lib/systemd/system
 
-.PHONY: all build test install install-post clean
+.PHONY: all build build-gui test install install-post clean
 
 all: build
 
 build:
 	cargo build --release
 
+build-gui:
+	cmake -S gui -B build-gui
+	cmake --build build-gui
+
 test:
 	cargo test
 
-install: build
+install: build build-gui
 	install -Dm755 target/release/xzram $(DESTDIR)$(BINDIR)/xzram
 	install -Dm755 target/release/xzram-helper $(DESTDIR)$(LIBEXECDIR)/xzram-helper
 	install -Dm755 target/release/xzramd $(DESTDIR)$(LIBEXECDIR)/xzramd
+	install -Dm755 build-gui/xzram-qt/xzram-qt $(DESTDIR)$(BINDIR)/xzram-qt
 	install -Dm644 data/io.github.xzram.policy $(DESTDIR)$(DATADIR)/polkit-1/actions/io.github.xzram.policy
 	install -Dm644 data/bash-completion/xzram $(DESTDIR)$(DATADIR)/bash-completion/completions/xzram
 	install -Dm644 data/io.github.XZram.service $(DESTDIR)$(SYSTEMDUNITDIR)/xzramd.service
@@ -28,7 +33,7 @@ install: build
 
 install-post:
 	systemctl daemon-reload
-	systemctl enable xzramd.service
+	systemctl enable --now xzramd.service
 
 clean:
 	cargo clean

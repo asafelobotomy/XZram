@@ -13,6 +13,7 @@ ProtectHome=yes
 ProtectKernelTunables=yes
 ProtectControlGroups=yes
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+# Apply/restore run xzram-helper in a transient unit (see xzramd privileged.rs).
 ReadWritePaths=/var/lib/xzram
 SystemCallFilter=@system-service
 
