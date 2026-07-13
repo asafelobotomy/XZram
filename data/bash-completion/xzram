@@ -4,36 +4,74 @@ _xzram() {
     local cur prev words cword
     _init_completion || return
 
-    local commands="status detect doctor zram swapfile swap sysctl apply rollback"
-    local zram_cmds="show set disable"
-    local swapfile_cmds="list create resize remove"
+    local commands="status detect doctor zram swapfile swap sysctl pending daemon defaults apply rollback"
+    local zram_cmds="show set disable migrate"
+    local swapfile_cmds="list create resize remove check prepare"
     local swap_cmds="list on off"
     local sysctl_cmds="show set"
+    local pending_cmds="show clear"
+    local daemon_cmds="start"
+    local defaults_cmds="recommend stage apply"
 
     case "${words[1]}" in
         zram)
-            if [[ $cword -eq 2 ]]; then
-                COMPREPLY=($(compgen -W "$zram_cmds" -- "$cur"))
-            fi
+            case $cword in
+                2) COMPREPLY=($(compgen -W "$zram_cmds" -- "$cur")) ;;
+                3)
+                    if [[ ${words[2]} == "set" ]]; then
+                        COMPREPLY=($(compgen -W "--device --size --algorithm --priority --now" -- "$cur"))
+                    elif [[ ${words[2]} == "disable" || ${words[2]} == "migrate" ]]; then
+                        COMPREPLY=($(compgen -W "--now" -- "$cur"))
+                    fi
+                    ;;
+                *) COMPREPLY=($(compgen -W "--device --size --algorithm --priority --now --json" -- "$cur")) ;;
+            esac
             ;;
         swapfile)
-            if [[ $cword -eq 2 ]]; then
-                COMPREPLY=($(compgen -W "$swapfile_cmds" -- "$cur"))
-            fi
+            case $cword in
+                2) COMPREPLY=($(compgen -W "$swapfile_cmds" -- "$cur")) ;;
+                *)
+                    COMPREPLY=($(compgen -W "--size-mb --priority --now --json" -- "$cur"))
+                    ;;
+            esac
             ;;
         swap)
-            if [[ $cword -eq 2 ]]; then
-                COMPREPLY=($(compgen -W "$swap_cmds" -- "$cur"))
-            fi
+            case $cword in
+                2) COMPREPLY=($(compgen -W "$swap_cmds" -- "$cur")) ;;
+            esac
             ;;
         sysctl)
+            case $cword in
+                2) COMPREPLY=($(compgen -W "$sysctl_cmds" -- "$cur")) ;;
+                *)
+                    COMPREPLY=($(compgen -W "--swappiness --watermark-boost-factor --watermark-scale-factor --page-cluster --zram-defaults --now --json" -- "$cur"))
+                    ;;
+            esac
+            ;;
+        pending)
             if [[ $cword -eq 2 ]]; then
-                COMPREPLY=($(compgen -W "$sysctl_cmds" -- "$cur"))
+                COMPREPLY=($(compgen -W "$pending_cmds" -- "$cur"))
+            fi
+            ;;
+        daemon)
+            if [[ $cword -eq 2 ]]; then
+                COMPREPLY=($(compgen -W "$daemon_cmds" -- "$cur"))
+            fi
+            ;;
+        defaults)
+            if [[ $cword -eq 2 ]]; then
+                COMPREPLY=($(compgen -W "$defaults_cmds" -- "$cur"))
+            elif [[ $cword -eq 3 && ${words[2]} == "apply" ]]; then
+                COMPREPLY=($(compgen -W "--yes --json --dbus" -- "$cur"))
+            else
+                COMPREPLY=($(compgen -W "--json --dbus" -- "$cur"))
             fi
             ;;
         *)
             if [[ $cword -eq 1 ]]; then
                 COMPREPLY=($(compgen -W "$commands" -- "$cur"))
+            else
+                COMPREPLY=($(compgen -W "--json --dbus --now" -- "$cur"))
             fi
             ;;
     esac

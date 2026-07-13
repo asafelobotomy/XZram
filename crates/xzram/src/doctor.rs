@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+use crate::checks;
 use crate::detect::{detect, ZramBackend};
 use crate::error::Result;
 use crate::status::status;
@@ -18,6 +19,14 @@ pub struct DoctorIssue {
     pub code: String,
     pub message: String,
     pub suggestion: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub action: Option<DoctorAction>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", tag = "type")]
+pub enum DoctorAction {
+    PrepareBtrfsSwapfile { path: String },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -37,6 +46,19 @@ pub fn doctor() -> Result<DoctorReport> {
             code: "non_systemd".into(),
             message: format!("Init system is '{}', not systemd", detection.init_system),
             suggestion: Some("XZram v1 targets systemd-based distros".into()),
+            action: None,
+        });
+    }
+
+    if !detection.etc_writable || detection.immutable_os {
+        issues.push(DoctorIssue {
+            severity: IssueSeverity::Warning,
+            code: "immutable_etc".into(),
+            message: "/etc is not writable on this system".into(),
+            suggestion: Some(
+                "On immutable distros, layer packages with rpm-ostree or use a writable overlay before applying XZram changes".into(),
+            ),
+            action: None,
         });
     }
 
@@ -46,6 +68,7 @@ pub fn doctor() -> Result<DoctorReport> {
             code: "no_zram".into(),
             message: "No zram backend detected and no active zram devices".into(),
             suggestion: Some("Install zram-generator and run 'xzram zram set'".into()),
+            action: None,
         });
     }
 
@@ -60,14 +83,43 @@ pub fn doctor() -> Result<DoctorReport> {
                 "Install package: {}",
                 crate::detect::zram_generator_package_name(detection.package_manager)
             )),
+            action: None,
+        });
+    }
+
+    if detection.zram_backend == ZramBackend::ZramTools {
+        issues.push(DoctorIssue {
+            severity: IssueSeverity::Warning,
+            code: "zram_tools_legacy".into(),
+            message: "Legacy zram-tools configuration detected".into(),
+            suggestion: Some(
+                "Run 'xzram zram migrate' to stage zram-generator config, then 'xzram apply'"
+                    .into(),
+            ),
+            action: None,
+        });
+    }
+
+    if crate::migrate::zramswap_service_active() {
+        issues.push(DoctorIssue {
+            severity: IssueSeverity::Info,
+            code: "zramswap_service_active".into(),
+            message: "Legacy zramswap.service is still active".into(),
+            suggestion: Some(
+                "Run 'xzram zram migrate' and apply to disable zram-tools in favor of zram-generator"
+                    .into(),
+            ),
+            action: None,
         });
     }
 
     check_zswap(&mut issues);
-    check_hibernation(&mut issues);
+    check_hibernation(&mut issues, &status.swaps);
     check_filesystem_swapfile(&mut issues, detection.root_filesystem.as_deref());
+    check_btrfs_swapfile_nodatacow(&mut issues);
     check_swap_priorities(&mut issues, &status.swaps);
     check_zram_zswap_conflict(&mut issues, &status.zram_devices);
+    let _ = crate::swap_partition::check_missing_swap_partitions(&mut issues);
 
     let healthy = !issues.iter().any(|i| i.severity == IssueSeverity::Error);
 
@@ -75,47 +127,32 @@ pub fn doctor() -> Result<DoctorReport> {
 }
 
 fn check_zswap(issues: &mut Vec<DoctorIssue>) {
-    let enabled_path = std::path::Path::new("/sys/module/zswap/parameters/enabled");
-    if let Ok(content) = std::fs::read_to_string(enabled_path) {
-        let enabled = content.trim();
-        if enabled == "Y" || enabled == "1" {
-            issues.push(DoctorIssue {
-                severity: IssueSeverity::Warning,
-                code: "zswap_enabled".into(),
-                message: "zswap is enabled and may interfere with zram effectiveness".into(),
-                suggestion: Some(
-                    "Disable zswap: echo 0 | sudo tee /sys/module/zswap/parameters/enabled, \
-                     or add zswap.enabled=0 to kernel cmdline"
-                        .into(),
-                ),
-            });
-        }
+    if checks::zswap_enabled() == Some(true) {
+        issues.push(DoctorIssue {
+            severity: IssueSeverity::Warning,
+            code: "zswap_enabled".into(),
+            message: "zswap is enabled and may interfere with zram effectiveness".into(),
+            suggestion: Some(
+                "Disable zswap: echo 0 | sudo tee /sys/module/zswap/parameters/enabled, \
+                 or add zswap.enabled=0 to kernel cmdline"
+                    .into(),
+            ),
+            action: None,
+        });
     }
 }
 
-fn check_hibernation(issues: &mut Vec<DoctorIssue>) {
-    let resume_path = std::path::Path::new("/sys/power/resume");
-    if let Ok(resume) = std::fs::read_to_string(resume_path) {
-        let resume = resume.trim();
-        if !resume.is_empty() && resume != "0:0" {
-            let stat = status().ok();
-            if let Some(stat) = stat {
-                for swap in &stat.swaps {
-                    if swap.name.contains("zram") {
-                        issues.push(DoctorIssue {
-                            severity: IssueSeverity::Warning,
-                            code: "hibernate_zram".into(),
-                            message: "Hibernation is configured but zram swap is active".into(),
-                            suggestion: Some(
-                                "Hibernation requires disk-backed swap as resume device, not zram"
-                                    .into(),
-                            ),
-                        });
-                        break;
-                    }
-                }
-            }
-        }
+fn check_hibernation(issues: &mut Vec<DoctorIssue>, swaps: &[crate::status::SwapEntry]) {
+    if checks::hibernation_zram_conflict(swaps) {
+        issues.push(DoctorIssue {
+            severity: IssueSeverity::Warning,
+            code: "hibernate_zram".into(),
+            message: "Hibernation resume device points to zram".into(),
+            suggestion: Some(
+                "Hibernation requires disk-backed swap as resume device, not zram".into(),
+            ),
+            action: None,
+        });
     }
 }
 
@@ -126,9 +163,10 @@ fn check_filesystem_swapfile(issues: &mut Vec<DoctorIssue>, fstype: Option<&str>
             code: "btrfs_root".into(),
             message: "Root filesystem is btrfs; swapfiles require nodatacow".into(),
             suggestion: Some(
-                "Before creating swapfile: chattr +C <dir> and ensure file is not copy-on-write"
+                "Before creating a swapfile: xzram swapfile prepare <path> (sets chattr +C on the parent directory)"
                     .into(),
             ),
+            action: None,
         });
     }
     if let Some("zfs") = fstype {
@@ -137,53 +175,83 @@ fn check_filesystem_swapfile(issues: &mut Vec<DoctorIssue>, fstype: Option<&str>
             code: "zfs_root".into(),
             message: "Root filesystem is ZFS; swapfiles have special requirements".into(),
             suggestion: Some("Prefer a dedicated swap partition or zvol on ZFS systems".into()),
+            action: None,
+        });
+    }
+}
+
+fn check_btrfs_swapfile_nodatacow(issues: &mut Vec<DoctorIssue>) {
+    let backend = crate::backend::available_swapfile_backend();
+    let Ok(files) = backend.list() else {
+        return;
+    };
+
+    for file in files {
+        let path = std::path::Path::new(&file.path);
+        let Ok(status) = crate::swapfile_btrfs::check_nodatacow(path) else {
+            continue;
+        };
+        if !status.on_btrfs || status.ready {
+            continue;
+        }
+        issues.push(DoctorIssue {
+            severity: IssueSeverity::Warning,
+            code: "btrfs_swapfile_nodatacow".into(),
+            message: format!(
+                "Swapfile {} is on btrfs without nodatacow: {}",
+                file.path, status.message
+            ),
+            suggestion: Some(format!("xzram swapfile prepare {}", file.path)),
+            action: Some(DoctorAction::PrepareBtrfsSwapfile {
+                path: file.path.clone(),
+            }),
         });
     }
 }
 
 fn check_swap_priorities(issues: &mut Vec<DoctorIssue>, swaps: &[crate::status::SwapEntry]) {
-    if swaps.len() < 2 {
+    if !checks::priority_inverted(swaps) {
         return;
     }
 
-    let zram_swaps: Vec<_> = swaps.iter().filter(|s| s.name.contains("zram")).collect();
-    let disk_swaps: Vec<_> = swaps.iter().filter(|s| !s.name.contains("zram")).collect();
+    let zram_prio = swaps
+        .iter()
+        .filter(|s| s.name.contains("zram"))
+        .map(|s| s.priority)
+        .max()
+        .unwrap_or(0);
+    let disk_prio = swaps
+        .iter()
+        .filter(|s| !s.name.contains("zram"))
+        .map(|s| s.priority)
+        .max()
+        .unwrap_or(0);
 
-    if !zram_swaps.is_empty() && !disk_swaps.is_empty() {
-        let zram_prio = zram_swaps.iter().map(|s| s.priority).max().unwrap_or(0);
-        let disk_prio = disk_swaps.iter().map(|s| s.priority).max().unwrap_or(0);
-        if disk_prio >= zram_prio {
-            issues.push(DoctorIssue {
-                severity: IssueSeverity::Warning,
-                code: "priority_inverted".into(),
-                message: format!("Disk swap priority ({disk_prio}) >= zram priority ({zram_prio})"),
-                suggestion: Some(
-                    "Set zram swap-priority higher (e.g. 100) than disk swap (e.g. 10)".into(),
-                ),
-            });
-        }
-    }
+    issues.push(DoctorIssue {
+        severity: IssueSeverity::Warning,
+        code: "priority_inverted".into(),
+        message: format!("Disk swap priority ({disk_prio}) >= zram priority ({zram_prio})"),
+        suggestion: Some(
+            "Set zram swap-priority higher (e.g. 100) than disk swap (e.g. 10)".into(),
+        ),
+        action: None,
+    });
 }
 
 fn check_zram_zswap_conflict(
     issues: &mut Vec<DoctorIssue>,
     zram_devices: &[crate::status::ZramDevice],
 ) {
-    if zram_devices.is_empty() {
+    if !checks::zram_zswap_conflict(zram_devices) {
         return;
     }
-    let zswap_path = std::path::Path::new("/sys/module/zswap/parameters/enabled");
-    if let Ok(content) = std::fs::read_to_string(zswap_path) {
-        if content.trim() == "Y" {
-            issues.push(DoctorIssue {
-                severity: IssueSeverity::Error,
-                code: "zram_zswap_conflict".into(),
-                message: "Both zram and zswap are active; zram compression is largely bypassed"
-                    .into(),
-                suggestion: Some("Disable zswap before using zram".into()),
-            });
-        }
-    }
+    issues.push(DoctorIssue {
+        severity: IssueSeverity::Error,
+        code: "zram_zswap_conflict".into(),
+        message: "Both zram and zswap are active; zram compression is largely bypassed".into(),
+        suggestion: Some("Disable zswap before using zram".into()),
+        action: None,
+    });
 }
 
 #[cfg(test)]

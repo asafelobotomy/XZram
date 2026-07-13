@@ -33,6 +33,11 @@ flowchart LR
 GetStatus() -> a{sv}           # StatusReport as JSON
 GetDetection() -> a{sv}        # DetectionReport
 RunDoctor() -> a{sv}           # DoctorReport
+GetZramConfig() -> a{sv}       # ZramConfig (or null)
+ListSwapfiles() -> a{sv}       # SwapfileConfig[]
+ListSwaps() -> a{sv}           # merged active + fstab partition swaps
+GetSysctl() -> a{sv}           # SysctlValues
+GetPending() -> a{sv}          # PendingConfig (or null)
 ConfigureZram(s config)        # polkit: io.github.xzram.zram.configure
 DisableZram()                  # polkit: io.github.xzram.zram.disable
 CreateSwapfile(s path, t size) # polkit: io.github.xzram.swapfile.create
@@ -52,10 +57,26 @@ Rollback()                     # polkit: io.github.xzram.rollback
   - Swap files (list, create, resize, remove)
   - Sysctl tuning (swappiness, watermarks)
   - Doctor (issue list with severity icons)
+  - Utilities (snapshot list + restore; no delete in GUI)
 - **Theming:** Fusion style with dark/light toggle (like zram-gui)
-- **Install:** native package + optional Flatpak (host `xzramd` required)
+- **Install:** bundled in native `xzram` package; optional Flatpak (host `xzramd` required)
+
+### Snapshot D-Bus API
+
+```
+ListSnapshots() -> {json}
+GetSnapshot(id) -> {json}
+CreateSnapshot(trigger, label) -> {json}
+RestoreSnapshot(id) -> as (polkit)
+DeleteSnapshot(id) (polkit; CLI-oriented)
+PruneSnapshots(keep) -> u (polkit; CLI-oriented)
+```
+
+Startup snapshots use trigger `app_open`. See [SNAPSHOTS.md](SNAPSHOTS.md).
 
 ## Flatpak strategy
+
+See [FLATPAK.md](FLATPAK.md) for host package requirements and snapshot limitations.
 
 The Flatpak GUI bundle cannot write `/etc` directly. Distribution model:
 
@@ -84,9 +105,25 @@ data/
 
 1. **M1:** `xzramd` with read-only D-Bus methods (status, detect, doctor)
 2. **M2:** Privileged D-Bus methods with polkit gating
-3. **M3:** Qt6 dashboard + zram config page
-4. **M4:** Swap file management page + sysctl page
+3. **M3:** Qt6 dashboard + zram config page — **done** (purpose-built widgets, no raw JSON)
+4. **M4:** Swap file management page + sysctl page — **done** (staging + CLI fallback)
 5. **M5:** Flatpak manifest + AppStream metadata
+
+## Apply recommended defaults
+
+The Dashboard **Apply recommended defaults** button and `xzram defaults recommend|stage|apply` use
+hardware-aware profiles documented in [RECOMMENDATIONS.md](RECOMMENDATIONS.md):
+
+| Profile | Trigger | Key settings |
+|---------|---------|--------------|
+| `conservative` | Default (≥ 4 GiB RAM) | `min(ram/2, 4096)` or `8192` cap at 32+ GiB |
+| `performance` | CachyOS | `zram-size = ram`, `zram-resident-limit = ram / 2` |
+| `constrained` | &lt; 4 GiB RAM | `min(ram, 4096)`, `lz4` on weak CPUs |
+
+Staged changes may include zram generator config, sysctl tuning, and a RAM-sized overflow
+swapfile at `/swap/swapfile` (priority 10) when no disk swap exists. Advisory items (zswap,
+hibernation, dual-tier tradeoffs) link to `docs/RECOMMENDATIONS.md` anchors via the `reference`
+field in each recommendation item.
 
 ## Dependencies (phase 2)
 

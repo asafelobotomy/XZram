@@ -14,6 +14,7 @@ pub struct ZramGeneratorConf {
 pub struct ZramDeviceSection {
     pub name: String,
     pub zram_size: Option<String>,
+    pub zram_resident_limit: Option<String>,
     pub compression_algorithm: Option<String>,
     pub swap_priority: Option<i32>,
     pub fs_type: Option<String>,
@@ -38,6 +39,7 @@ pub fn parse_zram_generator_conf(path: &str) -> Result<ZramGeneratorConf> {
             current = Some(ZramDeviceSection {
                 name,
                 zram_size: None,
+                zram_resident_limit: None,
                 compression_algorithm: None,
                 swap_priority: None,
                 fs_type: None,
@@ -49,6 +51,7 @@ pub fn parse_zram_generator_conf(path: &str) -> Result<ZramGeneratorConf> {
                 let value = value.trim().to_string();
                 match key {
                     "zram-size" => device.zram_size = Some(value),
+                    "zram-resident-limit" => device.zram_resident_limit = Some(value),
                     "compression-algorithm" => device.compression_algorithm = Some(value),
                     "swap-priority" => device.swap_priority = value.parse().ok(),
                     "fs-type" => device.fs_type = Some(value),
@@ -77,6 +80,9 @@ pub fn write_zram_generator_conf(path: &str, conf: &ZramGeneratorConf) -> Result
         if let Some(ref size) = device.zram_size {
             content.push_str(&format!("zram-size = {size}\n"));
         }
+        if let Some(ref limit) = device.zram_resident_limit {
+            content.push_str(&format!("zram-resident-limit = {limit}\n"));
+        }
         if let Some(ref algo) = device.compression_algorithm {
             content.push_str(&format!("compression-algorithm = {algo}\n"));
         }
@@ -100,6 +106,7 @@ pub fn default_zram_config() -> ZramDeviceSection {
     ZramDeviceSection {
         name: "zram0".into(),
         zram_size: Some("min(ram / 2, 4096)".into()),
+        zram_resident_limit: None,
         compression_algorithm: Some("zstd".into()),
         swap_priority: Some(100),
         fs_type: None,
@@ -116,6 +123,7 @@ mod tests {
         let input = r#"
 [zram0]
 zram-size = min(ram / 2, 4096)
+zram-resident-limit = ram / 2
 compression-algorithm = zstd
 swap-priority = 100
 "#;
@@ -130,6 +138,17 @@ swap-priority = 100
             conf.devices[0].compression_algorithm.as_deref(),
             Some("zstd")
         );
+        assert_eq!(
+            conf.devices[0].zram_resident_limit.as_deref(),
+            Some("ram / 2")
+        );
         assert_eq!(conf.devices[0].swap_priority, Some(100));
+    }
+
+    #[test]
+    fn default_zram_config_values() {
+        let d = default_zram_config();
+        assert_eq!(d.name, "zram0");
+        assert_eq!(d.swap_priority, Some(100));
     }
 }

@@ -1,4 +1,5 @@
 /target/
+/build-gui/
 **/*.rs.bk
 *.pdb
 *.pkg.tar.zst

@@ -1,0 +1,28 @@
+#!/usr/bin/make -f
+
+export DH_VERBOSE = 1
+export CARGO_TARGET_DIR = $(CURDIR)/target
+
+%:
+	dh $@
+
+override_dh_auto_build:
+	cargo build --release
+	cmake -S gui -B build-gui
+	cmake --build build-gui
+
+override_dh_auto_install:
+	install -Dm755 target/release/xzram debian/xzram/usr/bin/xzram
+	install -Dm755 target/release/xzram-helper debian/xzram/usr/libexec/xzram-helper
+	install -Dm755 target/release/xzramd debian/xzram/usr/libexec/xzramd
+	install -Dm755 build-gui/xzram-qt/xzram-qt debian/xzram/usr/bin/xzram-qt
+	install -Dm644 data/io.github.xzram.policy debian/xzram/usr/share/polkit-1/actions/io.github.xzram.policy
+	install -Dm644 data/bash-completion/xzram debian/xzram/usr/share/bash-completion/completions/xzram
+	install -Dm644 data/io.github.XZram.service debian/xzram/usr/lib/systemd/system/xzramd.service
+	install -Dm644 data/io.github.XZram.conf debian/xzram/usr/share/dbus-1/system.d/io.github.XZram.conf
+	install -Dm644 data/dbus-1/system-services/io.github.XZram1.service debian/xzram/usr/share/dbus-1/system-services/io.github.XZram1.service
+	install -Dm644 data/io.github.XZram.desktop debian/xzram/usr/share/applications/io.github.XZram.desktop
+	install -Dm644 data/io.github.XZram.metainfo.xml debian/xzram/usr/share/metainfo/io.github.XZram.metainfo.xml
+
+override_dh_installsystemd:
+	dh_installsystemd --name=xzramd

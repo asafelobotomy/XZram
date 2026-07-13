@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.XZram</id>
+  <name>XZram</name>
+  <summary>Cross-distro Linux swap management</summary>
+  <description>
+    <p>XZram provides a desktop GUI for managing zram, swap files, partitions, and sysctl tuning on systemd-based Linux distributions.</p>
+  </description>
+  <launchable type="desktop-id">io.github.XZram.desktop</launchable>
+  <url type="homepage">https://github.com/xzram/xzram</url>
+  <developer_name>XZram contributors</developer_name>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="0.1.0" date="2026-07-10"/>
+  </releases>
+</component>

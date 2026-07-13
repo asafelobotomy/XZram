@@ -52,6 +52,8 @@ pub struct DetectionReport {
     pub zram_generator_installed: bool,
     pub zram_generator_config: Option<String>,
     pub root_filesystem: Option<String>,
+    pub etc_writable: bool,
+    pub immutable_os: bool,
 }
 
 pub fn detect() -> Result<DetectionReport> {
@@ -60,6 +62,8 @@ pub fn detect() -> Result<DetectionReport> {
     let package_manager = detect_package_manager(&family, &os_release.id_like);
     let zram_backend = detect_zram_backend()?;
     let zram_generator_config = find_zram_generator_config();
+    let etc_writable = probe_etc_writable();
+    let immutable_os = detect_immutable_os(&os_release);
 
     Ok(DetectionReport {
         distro: os_release,
@@ -69,6 +73,8 @@ pub fn detect() -> Result<DetectionReport> {
         zram_generator_installed: which_exists("zram-generator") || zram_generator_config.is_some(),
         zram_generator_config,
         root_filesystem: detect_root_filesystem(),
+        etc_writable,
+        immutable_os,
     })
 }
 
@@ -231,6 +237,50 @@ pub fn zram_generator_package_name(pm: PackageManager) -> &'static str {
         PackageManager::Apt => "systemd-zram-generator",
         PackageManager::Emerge | PackageManager::Unknown => "zram-generator",
     }
+}
+
+pub fn probe_etc_writable() -> bool {
+    let probe = crate::snapshot::etc_root().join(".xzram-writable-probe");
+    match std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&probe)
+    {
+        Ok(_) => {
+            let _ = std::fs::remove_file(probe);
+            true
+        }
+        Err(_) => false,
+    }
+}
+
+fn detect_immutable_os(distro: &DistroInfo) -> bool {
+    if distro.id == "nixos" {
+        return true;
+    }
+    if std::env::var("OSTREE_VERSION").is_ok() {
+        return true;
+    }
+    if which_exists("rpm-ostree") || which_exists("ostree") {
+        return true;
+    }
+    if let Ok(content) = std::fs::read_to_string("/etc/os-release") {
+        for line in content.lines() {
+            if let Some((key, value)) = line.split_once('=') {
+                if key == "VARIANT_ID" {
+                    let value = value.trim_matches('"').to_lowercase();
+                    if value.contains("silverblue")
+                        || value.contains("kinoite")
+                        || value.contains("coreos")
+                        || value.contains("ostree")
+                    {
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+    false
 }
 
 #[cfg(test)]

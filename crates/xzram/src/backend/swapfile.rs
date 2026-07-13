@@ -5,6 +5,7 @@ use std::path::Path;
 use crate::apply::SwapfileConfig;
 use crate::backend::SwapfileBackendTrait;
 use crate::error::Result;
+use crate::swapfile_btrfs;
 
 const FSTAB_PATH: &str = "/etc/fstab";
 
@@ -41,9 +42,18 @@ impl SwapfileBackend {
         }
         Ok(swapfiles)
     }
+
+    fn priority_for_path(&self, path: &str) -> Result<i32> {
+        for entry in self.parse_fstab_swapfiles()? {
+            if entry.path == path {
+                return Ok(entry.priority);
+            }
+        }
+        Ok(10)
+    }
 }
 
-fn parse_fstab_priority(options: &str) -> i32 {
+pub fn parse_fstab_priority(options: &str) -> i32 {
     for opt in options.split(',') {
         if let Some(pri) = opt.strip_prefix("pri=") {
             return pri.parse().unwrap_or(10);
@@ -68,9 +78,17 @@ impl SwapfileBackendTrait for SwapfileBackend {
     }
 
     fn create(&self, config: &SwapfileConfig) -> Result<()> {
-        crate::apply::create_backup()?;
+        let config = crate::validation::validate_swapfile_config(config)?;
 
         let path = Path::new(&config.path);
+
+        if let Ok(status) = swapfile_btrfs::check_nodatacow(path) {
+            if status.on_btrfs && !status.ready {
+                swapfile_btrfs::prepare_nodatacow(path, true)?;
+            }
+        }
+        swapfile_btrfs::ensure_ready_for_swapfile(path)?;
+
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;
         }
@@ -91,21 +109,28 @@ impl SwapfileBackendTrait for SwapfileBackend {
     }
 
     fn remove(&self, path: &str) -> Result<()> {
-        crate::apply::create_backup()?;
+        crate::validation::validate_swapfile_path(path)?;
 
-        let _ = crate::apply::run_command("swapoff", &[path]);
+        crate::apply::run_command("swapoff", &[path])?;
         remove_fstab_entry(path)?;
         fs::remove_file(path)?;
         Ok(())
     }
 
     fn resize(&self, path: &str, size_mb: u64) -> Result<()> {
-        let _ = crate::apply::run_command("swapoff", &[path]);
+        if size_mb == 0 {
+            return Err(crate::error::XzramError::Validation(
+                "swapfile size must be greater than 0 MiB".into(),
+            ));
+        }
+        crate::validation::validate_swapfile_path(path)?;
+        let priority = self.priority_for_path(path)?;
+        crate::apply::run_command("swapoff", &[path])?;
         let size_bytes = size_mb * 1024 * 1024;
         create_swapfile(Path::new(path), size_bytes)?;
         fs::set_permissions(path, std::os::unix::fs::PermissionsExt::from_mode(0o600))?;
         crate::apply::run_command("mkswap", &[path])?;
-        crate::apply::run_command("swapon", &[path])?;
+        crate::apply::run_command("swapon", &["-p", &priority.to_string(), path])?;
         Ok(())
     }
 }
@@ -148,11 +173,22 @@ fn remove_fstab_entry(path: &str) -> Result<()> {
     let content = fs::read_to_string(FSTAB_PATH)?;
     let filtered: String = content
         .lines()
-        .filter(|line| !line.contains(path))
+        .filter(|line| !fstab_line_matches_swapfile(line, path))
         .collect::<Vec<_>>()
         .join("\n");
     fs::write(FSTAB_PATH, format!("{filtered}\n"))?;
     Ok(())
+}
+
+fn fstab_line_matches_swapfile(line: &str, path: &str) -> bool {
+    let trimmed = line.trim();
+    if trimmed.is_empty() || trimmed.starts_with('#') {
+        return false;
+    }
+    let Some(first) = trimmed.split_whitespace().next() else {
+        return false;
+    };
+    first == path
 }
 
 fn which_exists(cmd: &str) -> bool {
@@ -161,4 +197,31 @@ fn which_exists(cmd: &str) -> bool {
         .output()
         .map(|o| o.status.success())
         .unwrap_or(false)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_fstab_priority_parses_pri() {
+        assert_eq!(parse_fstab_priority("defaults,pri=50"), 50);
+        assert_eq!(parse_fstab_priority("defaults"), 10);
+    }
+
+    #[test]
+    fn fstab_line_match_is_exact() {
+        assert!(fstab_line_matches_swapfile(
+            "/swap/swapfile none swap sw,pri=10 0 0",
+            "/swap/swapfile"
+        ));
+        assert!(!fstab_line_matches_swapfile(
+            "/swap/swapfile2 none swap sw,pri=10 0 0",
+            "/swap/swapfile"
+        ));
+        assert!(!fstab_line_matches_swapfile(
+            "# /swap/swapfile none swap sw,pri=10 0 0",
+            "/swap/swapfile"
+        ));
+    }
 }

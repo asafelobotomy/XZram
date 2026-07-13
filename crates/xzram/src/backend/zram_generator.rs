@@ -38,6 +38,7 @@ impl ZramBackendTrait for ZramGeneratorBackend {
         Ok(conf.devices.into_iter().next().map(|d| ZramConfig {
             device: d.name,
             zram_size: d.zram_size,
+            zram_resident_limit: d.zram_resident_limit,
             compression_algorithm: d.compression_algorithm,
             swap_priority: d.swap_priority,
             fs_type: d.fs_type,
@@ -46,35 +47,38 @@ impl ZramBackendTrait for ZramGeneratorBackend {
     }
 
     fn configure(&self, config: &ZramConfig) -> Result<()> {
-        crate::apply::create_backup()?;
-
         let device = crate::config::ZramDeviceSection {
             name: config.device.clone(),
             zram_size: config.zram_size.clone(),
+            zram_resident_limit: config.zram_resident_limit.clone(),
             compression_algorithm: config.compression_algorithm.clone(),
             swap_priority: config.swap_priority,
             fs_type: config.fs_type.clone(),
             mount_point: config.mount_point.clone(),
         };
 
-        let conf = ZramGeneratorConf {
-            devices: vec![device],
-        };
+        let mut conf = self.read_config().unwrap_or_default();
+        if let Some(idx) = conf.devices.iter().position(|d| d.name == device.name) {
+            conf.devices[idx] = device;
+        } else {
+            conf.devices.push(device);
+        }
 
         write_zram_generator_conf(CONFIG_PATH, &conf)
     }
 
     fn disable(&self) -> Result<()> {
-        crate::apply::create_backup()?;
-        if Path::new(CONFIG_PATH).exists() {
-            fs::remove_file(CONFIG_PATH)?;
+        // Empty /etc override disables zram-generator even when vendor config exists.
+        if let Some(parent) = Path::new(CONFIG_PATH).parent() {
+            fs::create_dir_all(parent)?;
         }
+        fs::write(CONFIG_PATH, "")?;
 
         for i in 0..8 {
             let device = format!("/dev/zram{i}");
             let _ = std::process::Command::new("swapoff").arg(&device).output();
             let _ = std::process::Command::new("systemctl")
-                .args(["stop", &device])
+                .args(["stop", &format!("systemd-zram-setup@zram{i}.service")])
                 .output();
         }
 
@@ -87,12 +91,8 @@ impl ZramBackendTrait for ZramGeneratorBackend {
 
         let conf = self.read_config()?;
         for device in &conf.devices {
-            let dev_path = format!("/dev/{}", device.name);
-            if Path::new(&dev_path).exists() || conf.devices.iter().any(|d| !d.name.is_empty()) {
-                let unit = format!("systemd-zram-setup@{}.service", device.name);
-                let _ = crate::apply::run_systemctl(&["restart", &unit]);
-            }
-            let _ = crate::apply::run_systemctl(&["start", &dev_path]);
+            let unit = format!("systemd-zram-setup@{}.service", device.name);
+            crate::apply::run_systemctl(&["try-restart", &unit])?;
         }
         Ok(())
     }

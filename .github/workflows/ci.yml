@@ -92,6 +92,37 @@ jobs:
               ;;
           esac
 
+  debian-package:
+    name: Debian package smoke build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Debian package
+        run: |
+          docker run --rm -v "$PWD:/src" debian:trixie bash -c "
+            apt-get update &&
+            apt-get install -y debhelper cargo rustc pkg-config libssl-dev &&
+            cd /src &&
+            dpkg-buildpackage -us -uc -b &&
+            ls -la ../*.deb
+          "
+
+  qt-gui:
+    name: Build Qt GUI (headless)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt6 and build
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake qt6-base-dev qt6-base-dev-tools
+          cmake -S gui -B build-gui
+          cmake --build build-gui
+        env:
+          QT_QPA_PLATFORM: offscreen
+
   arch-package:
     name: Verify PKGBUILD
     runs-on: ubuntu-latest

@@ -1,0 +1,24 @@
+Source: xzram
+Section: admin
+Priority: optional
+Maintainer: XZram contributors <xzram@example.com>
+Build-Depends: debhelper (>= 13),
+               cargo,
+               rustc,
+               cmake,
+               qt6-base-dev
+Standards-Version: 4.6.2
+Homepage: https://github.com/xzram/xzram
+Rules-Requires-Root: no
+
+Package: xzram
+Architecture: any
+Depends: ${shlibs:Depends},
+         ${misc:Depends},
+         polkit,
+         systemd,
+         util-linux,
+         qt6-base
+Description: Cross-distro Linux swap management
+ XZram provides a CLI, Qt6 GUI, and D-Bus daemon for zram, swap files,
+ sysctl tuning, and configuration snapshots on systemd-based distributions.

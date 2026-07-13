@@ -1,0 +1,17 @@
+app-id: io.github.XZram
+runtime: org.kde.Platform
+runtime-version: '6.7'
+sdk: org.kde.Sdk
+command: xzram-qt
+
+finish-args:
+  - --share=network
+  - --talk-name=io.github.XZram1
+  - --system-talk-name=io.github.XZram1
+
+modules:
+  - name: xzram-qt
+    buildsystem: cmake
+    sources:
+      - type: dir
+        path: ../gui

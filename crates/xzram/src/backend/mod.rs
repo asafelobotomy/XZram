@@ -1,5 +1,6 @@
-use crate::apply::{ApplyRequest, SwapfileConfig, ZramConfig};
-use crate::error::Result;
+use crate::apply::{SwapfileConfig, ZramConfig};
+use crate::detect::{detect, ZramBackend};
+use crate::error::{Result, XzramError};
 
 pub mod swapfile;
 pub mod zram_generator;
@@ -23,24 +24,42 @@ pub trait SwapfileBackendTrait: SwapBackend {
     fn resize(&self, path: &str, size_mb: u64) -> Result<()>;
 }
 
-pub fn available_zram_backend() -> Box<dyn ZramBackendTrait> {
-    Box::new(zram_generator::ZramGeneratorBackend)
+pub fn available_zram_backend() -> Result<Box<dyn ZramBackendTrait>> {
+    let detection = detect()?;
+    match detection.zram_backend {
+        ZramBackend::SystemdZramGenerator | ZramBackend::None | ZramBackend::Manual => {
+            Ok(Box::new(zram_generator::ZramGeneratorBackend))
+        }
+        ZramBackend::ZramTools => Ok(Box::new(zram_generator::ZramGeneratorBackend)),
+    }
+}
+
+pub fn zram_backend_warning() -> Result<Option<String>> {
+    let detection = detect()?;
+    match detection.zram_backend {
+        ZramBackend::ZramTools => Ok(Some(
+            "Legacy zram-tools detected; consider 'xzram zram migrate' to move to zram-generator"
+                .into(),
+        )),
+        ZramBackend::Manual => Ok(Some(
+            "Manual zram configuration detected; xzram will manage via systemd-zram-generator"
+                .into(),
+        )),
+        _ => Ok(None),
+    }
 }
 
 pub fn available_swapfile_backend() -> Box<dyn SwapfileBackendTrait> {
     Box::new(swapfile::SwapfileBackend)
 }
 
-pub fn build_apply_request(
-    zram: Option<ZramConfig>,
-    disable_zram: bool,
-    swapfile: Option<SwapfileConfig>,
-    remove_swapfile: Option<String>,
-) -> ApplyRequest {
-    ApplyRequest {
-        zram,
-        swapfile,
-        disable_zram,
-        remove_swapfile,
+pub fn ensure_zram_backend() -> Result<Box<dyn ZramBackendTrait>> {
+    let backend = available_zram_backend()?;
+    if !backend.is_available() {
+        return Err(XzramError::Backend(format!(
+            "backend '{}' is not available on this system",
+            backend.name()
+        )));
     }
+    Ok(backend)
 }

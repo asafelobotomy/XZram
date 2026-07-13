@@ -1,7 +1,6 @@
-use std::collections::HashMap;
-
 use serde::{Deserialize, Serialize};
 
+use crate::apply::{self, SYSCTL_PATH};
 use crate::error::{Result, XzramError};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -11,8 +10,6 @@ pub struct SysctlValues {
     pub watermark_scale_factor: Option<u32>,
     pub page_cluster: Option<u32>,
 }
-
-const SYSCTL_PATH: &str = "/etc/sysctl.d/99-xzram.conf";
 
 pub fn show() -> Result<SysctlValues> {
     Ok(SysctlValues {
@@ -52,27 +49,8 @@ pub fn set(values: &SysctlValues) -> Result<()> {
     let content = format!("{}\n", lines.join("\n"));
     std::fs::write(SYSCTL_PATH, content)?;
 
-    crate::apply::run_command("sysctl", &["--system"])?;
+    apply::run_command("sysctl", &["--system"])?;
     Ok(())
-}
-
-pub fn parse_set_args(args: &HashMap<String, String>) -> Result<SysctlValues> {
-    let parse = |key: &str| -> Result<Option<u32>> {
-        match args.get(key) {
-            Some(v) => v
-                .parse()
-                .map(Some)
-                .map_err(|_| XzramError::Parse(format!("invalid value for {key}"))),
-            None => Ok(None),
-        }
-    };
-
-    Ok(SysctlValues {
-        swappiness: parse("swappiness")?,
-        watermark_boost_factor: parse("watermark-boost-factor")?,
-        watermark_scale_factor: parse("watermark-scale-factor")?,
-        page_cluster: parse("page-cluster")?,
-    })
 }
 
 pub fn zram_tuning_defaults() -> SysctlValues {
@@ -82,8 +60,4 @@ pub fn zram_tuning_defaults() -> SysctlValues {
         watermark_scale_factor: Some(125),
         page_cluster: Some(0),
     }
-}
-
-pub fn apply_zram_tuning() -> Result<()> {
-    set(&zram_tuning_defaults())
 }

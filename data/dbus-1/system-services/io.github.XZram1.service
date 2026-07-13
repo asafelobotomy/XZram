@@ -1,0 +1,5 @@
+[D-BUS Service]
+Name=io.github.XZram1
+Exec=/usr/libexec/xzramd
+User=root
+SystemdService=xzramd.service
