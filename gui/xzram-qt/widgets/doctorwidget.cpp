@@ -1,8 +1,8 @@
 #include "doctorwidget.h"
 
-#include "dbusclient.h"
 #include "formatutils.h"
 #include "jsonloader.h"
+#include "xzramcli.h"
 
 #include <QClipboard>
 #include <QGuiApplication>
@@ -15,9 +15,15 @@
 #include <QScrollArea>
 #include <QVBoxLayout>
 
-DoctorWidget::DoctorWidget(DbusClient *client, QWidget *parent)
-    : QWidget(parent), m_client(client) {
+DoctorWidget::DoctorWidget(QWidget *parent) : QWidget(parent) {
     auto *outer = new QVBoxLayout(this);
+
+    m_detectStrip = new QLabel(this);
+    m_detectStrip->setWordWrap(true);
+    m_detectStrip->setStyleSheet(
+        QStringLiteral("color: #495057; background: #e9ecef; border-radius: 4px; padding: 6px;"));
+    m_detectStrip->hide();
+    outer->addWidget(m_detectStrip);
 
     m_header = new QLabel(this);
     m_header->setAlignment(Qt::AlignCenter);
@@ -33,6 +39,31 @@ DoctorWidget::DoctorWidget(DbusClient *client, QWidget *parent)
     outer->addWidget(scroll, 1);
 
     clearIssues();
+}
+
+void DoctorWidget::setDetectionJson(const QString &json) {
+    QString error;
+    const QJsonObject root = JsonLoader::parseObject(json, &error);
+    if (root.contains(QStringLiteral("error"))) {
+        m_detectStrip->hide();
+        return;
+    }
+    QString distro = JsonLoader::optionalString(root, QStringLiteral("distro"));
+    if (distro.isEmpty() && root.value(QStringLiteral("distro")).isObject()) {
+        const QJsonObject distroObj = root.value(QStringLiteral("distro")).toObject();
+        distro = JsonLoader::optionalString(distroObj, QStringLiteral("pretty_name"));
+        if (distro.isEmpty()) {
+            distro = JsonLoader::optionalString(distroObj, QStringLiteral("id"));
+        }
+    }
+    const QString backend = JsonLoader::optionalString(root, QStringLiteral("zram_backend"));
+    const QString rootFs = JsonLoader::optionalString(root, QStringLiteral("root_filesystem"));
+    m_detectStrip->setText(
+        tr("Detected: %1 · backend %2 · root fs %3")
+            .arg(distro.isEmpty() ? tr("unknown") : distro,
+                 backend.isEmpty() ? tr("unknown") : FormatUtils::humanizeEnum(backend),
+                 rootFs.isEmpty() ? tr("unknown") : rootFs));
+    m_detectStrip->show();
 }
 
 void DoctorWidget::clearIssues() {
@@ -82,6 +113,7 @@ QWidget *DoctorWidget::makeIssueCard(const QJsonObject &issue) {
         suggestRow->addWidget(suggest, 1);
 
         auto *copyButton = new QPushButton(tr("Copy suggestion"), card);
+        copyButton->setToolTip(tr("Copy the suggested fix to the clipboard."));
         connect(copyButton, &QPushButton::clicked, card, [suggestion]() {
             QGuiApplication::clipboard()->setText(suggestion);
         });
@@ -92,15 +124,17 @@ QWidget *DoctorWidget::makeIssueCard(const QJsonObject &issue) {
     const QString actionType = JsonLoader::optionalString(action, QStringLiteral("type"));
     if (actionType == QLatin1String("prepare_btrfs_swapfile")) {
         const QString path = JsonLoader::optionalString(action, QStringLiteral("path"));
-        auto *prepareButton = new QPushButton(tr("Prepare nodatacow for %1").arg(path), card);
+        auto *prepareButton = new QPushButton(tr("Prepare for swap: %1").arg(path), card);
+        prepareButton->setToolTip(
+            tr("Mark this folder so a swap file can be created safely on btrfs."));
         connect(prepareButton, &QPushButton::clicked, this, [this, path]() {
             QString error;
-            if (!m_client->prepareSwapfileBtrfs(path, true, &error)) {
+            if (!XzramCli::swapfilePrepare(path, true, &error)) {
                 QMessageBox::warning(this, tr("Prepare failed"), error);
                 return;
             }
             QMessageBox::information(this, tr("Prepare complete"),
-                                     tr("Nodatacow applied for %1").arg(path));
+                                     tr("This path is ready for a swap file: %1").arg(path));
             emit btrfsPrepared();
         });
         layout->addWidget(prepareButton);

@@ -232,7 +232,7 @@ fn remove_stale_swapfile(path: &Path) -> Result<()> {
         return Ok(());
     }
     let path_str = path.to_string_lossy();
-    let _ = apply::run_command("swapoff", &[&path_str]);
+    apply::deactivate_swap_path(&path_str)?;
     std::fs::remove_file(path)?;
     Ok(())
 }

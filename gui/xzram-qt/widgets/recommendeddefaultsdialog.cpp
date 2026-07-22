@@ -110,12 +110,14 @@ QFrame *makeSummaryPanel(const QJsonObject &context, int stageCount, QWidget *pa
     headline->setWordWrap(true);
     if (stageCount > 0) {
         headline->setText(QObject::tr(
-            "Review the recommendations below. Applying will stage changes for your approval "
-            "before they take effect."));
+            "Review the recommendations below. <b>Apply defaults</b> writes them immediately. "
+            "<b>Stage for review</b> queues them so you can check each tab, then use Apply now "
+            "in the pending banner."));
     } else {
         headline->setText(
-            QObject::tr("Your system already matches the recommended defaults. You can still "
-                        "review advisory notes below."));
+            QObject::tr("Your system already matches the recommended defaults, or staging is "
+                        "blocked on this host. You can still review advisory notes below. "
+                        "Advisories are informational — Apply defaults does not clear them."));
     }
     headline->setObjectName(QStringLiteral("summaryHeadline"));
     layout->addWidget(headline);
@@ -137,6 +139,10 @@ QFrame *makeSummaryPanel(const QJsonObject &context, int stageCount, QWidget *pa
         JsonLoader::optionalBool(context, QStringLiteral("has_disk_swap"), false);
     const bool hasZram =
         JsonLoader::optionalBool(context, QStringLiteral("has_active_zram"), false);
+    const bool immutableOs =
+        JsonLoader::optionalBool(context, QStringLiteral("immutable_os"), false);
+    const bool etcWritable =
+        JsonLoader::optionalBool(context, QStringLiteral("etc_writable"), true);
 
     facts->addWidget(makeFactRow(QObject::tr("System"), distro, panel), 0, 0);
     facts->addWidget(makeFactRow(QObject::tr("RAM"), ram, panel), 0, 1);
@@ -154,6 +160,14 @@ QFrame *makeSummaryPanel(const QJsonObject &context, int stageCount, QWidget *pa
         makeFactRow(QObject::tr("Active ZRAM"), hasZram ? QObject::tr("Yes") : QObject::tr("No"),
                     panel),
         3, 0);
+    facts->addWidget(
+        makeFactRow(QObject::tr("Writable /etc"),
+                    etcWritable ? QObject::tr("Yes") : QObject::tr("No"), panel),
+        3, 1);
+    facts->addWidget(
+        makeFactRow(QObject::tr("Immutable OS"),
+                    immutableOs ? QObject::tr("Yes") : QObject::tr("No"), panel),
+        4, 0);
 
     layout->addLayout(facts);
     return panel;
@@ -372,12 +386,20 @@ RecommendedDefaultsDialog::RecommendedDefaultsDialog(const QJsonObject &report, 
 
     auto *buttons = new QDialogButtonBox(this);
     auto *applyButton = buttons->addButton(tr("Apply defaults"), QDialogButtonBox::AcceptRole);
-    auto *configureButton = buttons->addButton(tr("Configure"), QDialogButtonBox::ActionRole);
+    auto *configureButton = buttons->addButton(tr("Stage for review"), QDialogButtonBox::ActionRole);
     auto *cancelButton = buttons->addButton(QDialogButtonBox::Cancel);
     applyButton->setDefault(true);
     applyButton->setEnabled(stageCount > 0);
-    if (stageCount == 0) {
-        applyButton->setToolTip(tr("No changes are recommended for your system right now."));
+    configureButton->setEnabled(stageCount > 0);
+    cancelButton->setToolTip(tr("Close without changing anything."));
+    if (stageCount > 0) {
+        applyButton->setToolTip(
+            tr("Write the recommended settings to the system now (may ask for admin permission)."));
+        configureButton->setToolTip(
+            tr("Queue the recommendations so you can review each tab, then Apply now in the banner."));
+    } else {
+        applyButton->setToolTip(tr("No recommended changes to apply right now."));
+        configureButton->setToolTip(tr("Nothing to queue for review right now."));
     }
     layout->addWidget(buttons);
 

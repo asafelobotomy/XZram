@@ -27,15 +27,21 @@ pub fn run_helper(action: &str, payload: &str) -> zbus::fdo::Result<Vec<String>>
         .map_err(|e| zbus::fdo::Error::Failed(format!("failed to spawn privileged helper: {e}")))?;
 
     if !output.status.success() {
+        if let Some(err) = xzram::apply::read_last_error() {
+            return Err(zbus::fdo::Error::Failed(err));
+        }
         let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
         let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
         let message = if stderr.contains("xzram-helper:") {
             stderr
         } else if stdout.contains("xzram-helper:") {
             stdout
-        } else if !stderr.is_empty() {
+        } else if !stderr.is_empty() && !stderr.contains("Running as unit") {
             stderr
-        } else if !stdout.is_empty() && !stdout.contains("Finished with result") {
+        } else if !stdout.is_empty()
+            && !stdout.contains("Finished with result")
+            && !stdout.contains("Running as unit")
+        {
             stdout
         } else {
             format!("helper action '{action}' failed (check: journalctl -t xzram-helper -n 20)")

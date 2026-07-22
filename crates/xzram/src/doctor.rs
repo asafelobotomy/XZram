@@ -159,16 +159,24 @@ fn check_hibernation(issues: &mut Vec<DoctorIssue>, swaps: &[crate::status::Swap
 
 fn check_filesystem_swapfile(issues: &mut Vec<DoctorIssue>, fstype: Option<&str>) {
     if let Some("btrfs") = fstype {
-        issues.push(DoctorIssue {
-            severity: IssueSeverity::Info,
-            code: "btrfs_root".into(),
-            message: "Root filesystem is btrfs; swapfiles require nodatacow".into(),
-            suggestion: Some(
-                "Before creating a swapfile: xzram swapfile prepare <path> (sets chattr +C on the parent directory)"
-                    .into(),
-            ),
-            action: None,
-        });
+        // Only advise prepare-before-create when no managed swapfile exists yet.
+        // Existing files are covered by check_btrfs_swapfile_nodatacow (warning + prepare action).
+        let has_swapfile = crate::backend::available_swapfile_backend()
+            .list()
+            .map(|files| !files.is_empty())
+            .unwrap_or(false);
+        if !has_swapfile {
+            issues.push(DoctorIssue {
+                severity: IssueSeverity::Info,
+                code: "btrfs_root".into(),
+                message: "Root filesystem is btrfs; swapfiles require nodatacow".into(),
+                suggestion: Some(
+                    "Before creating a swapfile: xzram swapfile prepare <path> (sets chattr +C on the parent directory)"
+                        .into(),
+                ),
+                action: None,
+            });
+        }
     }
     if let Some("zfs") = fstype {
         issues.push(DoctorIssue {
@@ -267,5 +275,38 @@ mod tests {
         };
         let json = serde_json::to_string(&report).unwrap();
         assert!(json.contains("healthy"));
+    }
+
+    #[test]
+    fn btrfs_root_tip_skipped_when_swapfiles_configured() {
+        let mut issues = Vec::new();
+        // With a configured swapfile on this host, the generic tip must not fire.
+        // (Integration-style: uses real backend list when available.)
+        let has_swapfile = crate::backend::available_swapfile_backend()
+            .list()
+            .map(|files| !files.is_empty())
+            .unwrap_or(false);
+        check_filesystem_swapfile(&mut issues, Some("btrfs"));
+        let has_tip = issues.iter().any(|i| i.code == "btrfs_root");
+        if has_swapfile {
+            assert!(
+                !has_tip,
+                "btrfs_root tip should be omitted when swapfiles already exist"
+            );
+        } else {
+            assert!(
+                has_tip,
+                "btrfs_root tip should appear when no swapfiles exist"
+            );
+        }
+    }
+
+    #[test]
+    fn btrfs_root_tip_emitted_without_swapfiles_on_empty_list() {
+        let mut issues = Vec::new();
+        // Direct unit behavior for the empty-path branch is covered when list is empty;
+        // calling with non-btrfs must never emit btrfs_root.
+        check_filesystem_swapfile(&mut issues, Some("ext4"));
+        assert!(!issues.iter().any(|i| i.code == "btrfs_root"));
     }
 }

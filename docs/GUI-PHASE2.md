@@ -2,24 +2,30 @@
 
 ## Overview
 
-XZram ships a Qt6 desktop GUI (`xzram-qt`) and a system D-Bus daemon (`xzramd`)
-so the GUI can manage swap without needing root or pkexec for every action.
-Privileged operations are gated by polkit inside the daemon (or via `xzram-helper`).
+XZram ships a Qt6 desktop GUI (`xzram-qt`) that shells out to the `xzram` CLI for
+every read and mutation. The system D-Bus daemon (`xzramd`) remains available for
+other clients and Flatpak; it is **optional** for the native GUI.
+
+Privileged operations go through `xzram` → `xzram-helper` (pkexec/polkit).
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-    QtGUI[xzram-qt GUI] -->|D-Bus system bus| Daemon[xzramd]
-    CLI[xzram CLI] -->|optional D-Bus or direct| Daemon
+    QtGUI[xzram-qt GUI] -->|"all reads --json / stage / apply"| CLI[xzram CLI]
+    CLI --> Helper[pkexec xzram-helper]
+    CLI -->|optional| Daemon[xzramd]
+    OtherClients[other clients / Flatpak] -->|D-Bus| Daemon
     Daemon --> Polkit[polkitd]
-    Daemon --> Lib[xzram Rust lib]
+    Helper --> Lib[xzram Rust lib]
     Lib --> System[Linux swap subsystem]
 ```
 
 ## Components
 
 ### xzramd (Rust D-Bus daemon)
+
+Optional privileged service for non-CLI clients.
 
 - **Bus name:** `io.github.XZram1`
 - **Object path:** `/io/github/XZram`
@@ -29,6 +35,8 @@ flowchart LR
 - **systemd unit:** `xzramd.service` (Type=dbus, BusName=io.github.XZram1)
 
 ### D-Bus API
+
+Still exposed by `xzramd` for Flatpak and external tools:
 
 ```
 GetStatus() -> a{sv}           # StatusReport as JSON
@@ -50,27 +58,23 @@ Rollback()                     # polkit: io.github.xzram.rollback
 
 ### xzram-qt (C++20 / Qt6)
 
-- **Framework:** Qt6 Widgets
-- **D-Bus client:** `QDBusInterface` to `io.github.XZram1`
+- **Framework:** Qt6 Widgets (no Qt D-Bus dependency)
+- **Backend:** `XzramCli` runner — `xzram <cmd> --json` for reads; stage/apply/mutate via the same verbs as the CLI
+- **Binary resolution:** `PATH`, or `XZRAM_CLI` env override (e.g. `target/release/xzram`)
 - **Pages:**
-  - Dashboard (status, memory, compression ratio)
-  - ZRAM settings (size formula, algorithm, priority sliders)
-  - Swap files (list, create, resize, remove)
-  - Sysctl tuning (swappiness, watermarks)
-  - Doctor (issue list with severity icons)
-  - Utilities (snapshot list + restore; no delete in GUI)
-- **Install:** bundled in native `xzram` package; optional Flatpak (host `xzramd` required)
+  - Dashboard (status, memory, detection strip, recommend defaults; auto-refreshed)
+  - ZRAM / Swap Files / Sysctl (stage changes; apply via pending banner)
+  - Doctor (issues + prepare nodatacow)
+  - Snapshot (create/restore/delete/prune; rollback)
+  - Settings (auto-refresh interval, confirm-before-apply, prune default; read-only CLI/daemon status)
+- **No bottom Refresh / Start daemon / Apply bar** — live metrics via timer; Apply only in pending banner; `xzramd` not required for native GUI
+- **Icon:** embedded Qt resource + `hicolor` `io.github.XZram.png`
+- **Install:** bundled in native `xzram` package; optional Flatpak (host `xzramd` for sandboxed GUI)
 
-### Snapshot D-Bus API
+### Snapshot API
 
-```
-ListSnapshots() -> {json}
-GetSnapshot(id) -> {json}
-CreateSnapshot(trigger, label) -> {json}
-RestoreSnapshot(id) -> as (polkit)
-DeleteSnapshot(id) (polkit; CLI-oriented)
-PruneSnapshots(keep) -> u (polkit; CLI-oriented)
-```
+GUI uses CLI verbs: `xzram snapshot list|create|restore|delete|prune`.
+Daemon still exposes the D-Bus snapshot methods for other clients.
 
 Startup snapshots use trigger `app_open`. See [SNAPSHOTS.md](SNAPSHOTS.md).
 
@@ -80,19 +84,19 @@ See [FLATPAK.md](FLATPAK.md) for host package requirements and snapshot limitati
 
 The Flatpak GUI bundle cannot write `/etc` directly. Distribution model:
 
-1. User installs native `xzram` (provides `xzramd` + polkit policy)
+1. User installs native `xzram` (provides CLI, helper, `xzramd` + polkit policy)
 2. User installs Flatpak `io.github.XZram` GUI (when published)
 3. Flatpak manifest grants `--talk-name=io.github.XZram1` and `--system-talk-name=io.github.XZram1`
-4. GUI calls host D-Bus daemon; polkit prompts in host session
+4. Sandboxed GUI talks to host D-Bus daemon; native GUI uses CLI + helper instead
 
 ## File layout
 
 ```
 crates/
   xzramd/              # D-Bus daemon binary
-  xzram-cli/           # CLI (--dbus flag)
+  xzram-cli/           # CLI (--dbus flag optional)
 gui/
-  xzram-qt/            # Qt6 C++ application
+  xzram-qt/            # Qt6 C++ application (CLI-backed)
   CMakeLists.txt
 data/
   io.github.XZram.service
@@ -108,6 +112,7 @@ data/
 3. **M3:** Qt6 dashboard + zram config page — **done**
 4. **M4:** Swap file management page + sysctl page — **done**
 5. **M5:** Flatpak manifest + AppStream metadata — **in progress** (manifest present; publish TBD)
+6. **M6:** Native GUI CLI-first (daemon optional) — **done**
 
 ## Apply recommended defaults
 
@@ -120,10 +125,15 @@ hardware-aware profiles documented in [RECOMMENDATIONS.md](RECOMMENDATIONS.md):
 | `performance` | CachyOS | `zram-size = ram`, `zram-resident-limit = ram / 2` |
 | `constrained` | &lt; 4 GiB RAM | `min(ram, 4096)`, `lz4` on weak CPUs |
 
-Staged changes may include zram generator config, sysctl tuning, and a RAM-sized overflow
-swapfile at `/swap/swapfile` (priority 10) when no disk swap exists. Advisory items (zswap,
-hibernation, dual-tier tradeoffs) link to `docs/RECOMMENDATIONS.md` anchors via the `reference`
-field in each recommendation item.
+Staged changes may include zram generator config, sysctl tuning, and an overflow
+swapfile at `/swap/swapfile` (priority 10, capped at `min(RAM, 8192)` MiB) when no
+active or fstab-configured disk swap exists and free space allows. Read-only `/etc`
+and immutable OS detection skip all staging. Vendor zram sizes that already evaluate
+≥ the recommended formula are not shrunk.
+
+**Apply defaults** applies immediately; **Configure** stages for review. Advisory items
+(zswap, hibernation, dual-tier tradeoffs) are informational only and link to
+`docs/RECOMMENDATIONS.md` anchors via the `reference` field.
 
 ## Dependencies
 

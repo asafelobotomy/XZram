@@ -98,7 +98,7 @@ impl SwapfileBackendTrait for SwapfileBackend {
     fn remove(&self, path: &str) -> Result<()> {
         crate::validation::validate_swapfile_path(path)?;
 
-        crate::apply::run_command("swapoff", &[path])?;
+        crate::apply::deactivate_swap_path(path)?;
         remove_fstab_entry(path)?;
         fs::remove_file(path)?;
         Ok(())
@@ -112,7 +112,7 @@ impl SwapfileBackendTrait for SwapfileBackend {
         }
         crate::validation::validate_swapfile_path(path)?;
         let priority = self.priority_for_path(path)?;
-        crate::apply::run_command("swapoff", &[path])?;
+        crate::apply::deactivate_swap_path(path)?;
         swapfile_btrfs::create_allocated_swapfile(Path::new(path), size_mb)?;
         fs::set_permissions(
             Path::new(path),

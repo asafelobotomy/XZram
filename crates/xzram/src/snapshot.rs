@@ -349,10 +349,9 @@ pub fn restore_snapshot(id: &str) -> Result<ApplyResult> {
         }
     } else {
         for i in 0..8 {
-            let device = format!("/dev/zram{i}");
-            let _ = apply::run_command("swapoff", &[&device]);
-            let _ = apply::run_systemctl(&["stop", &format!("systemd-zram-setup@zram{i}.service")]);
+            apply::stop_zram_setup_unit(&format!("zram{i}"))?;
         }
+        messages.push("Stopped zram units (absent in snapshot)".into());
     }
 
     if meta.artifacts.sysctl.present || etc_path(SYSCTL_FILE).exists() {
@@ -501,15 +500,13 @@ pub fn pending_summary(pending: &PendingConfig) -> String {
 
 fn swapoff_managed_swaps(meta: &SnapshotMeta) -> Result<()> {
     for swap in &meta.swapfiles {
-        let _ = apply::run_command("swapoff", &[&swap.path]);
+        apply::deactivate_swap_path(&swap.path)?;
     }
     for device in &meta.zram_devices {
-        let path = format!("/dev/{}", device.name);
-        let _ = apply::run_command("swapoff", &[&path]);
+        apply::deactivate_zram_device(&device.name)?;
     }
     for i in 0..8 {
-        let path = format!("/dev/zram{i}");
-        let _ = apply::run_command("swapoff", &[&path]);
+        apply::deactivate_zram_device(&format!("zram{i}"))?;
     }
     Ok(())
 }
@@ -544,7 +541,7 @@ fn cleanup_extra_swapfiles(meta: &SnapshotMeta, messages: &mut Vec<String>) -> R
     let current = backend.list().unwrap_or_default();
     for sf in current {
         if !snapshot_paths.contains(sf.path.as_str()) {
-            let _ = apply::run_command("swapoff", &[&sf.path]);
+            apply::deactivate_swap_path(&sf.path)?;
             if Path::new(&sf.path).exists() {
                 fs::remove_file(&sf.path)?;
                 messages.push(format!("Removed swapfile {} (not in snapshot)", sf.path));
@@ -599,8 +596,7 @@ fn swapon_from_fstab(messages: &mut Vec<String>) -> Result<()> {
 fn restart_zram_units_from_config(path: &str) -> Result<()> {
     let conf = crate::config::parse_zram_generator_conf(path)?;
     for device in &conf.devices {
-        let unit = format!("systemd-zram-setup@{}.service", device.name);
-        let _ = apply::run_systemctl(&["try-restart", &unit]);
+        apply::restart_zram_setup_unit(&device.name)?;
     }
     Ok(())
 }

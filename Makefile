@@ -5,7 +5,9 @@ DATADIR ?= $(PREFIX)/share
 SYSTEMDUNITDIR ?= $(PREFIX)/lib/systemd/system
 
 .PHONY: all build build-gui check test test-lib fmt fmt-check clippy lint \
-	install install-cli install-post gui-smoke clean
+	install install-cli install-post gui-smoke clean version-check
+
+XZRAM_VERSION := $(shell tr -d '[:space:]' < VERSION)
 
 all: build
 
@@ -52,6 +54,8 @@ install: build build-gui install-cli
 	install -Dm755 build-gui/xzram-qt/xzram-qt $(DESTDIR)$(BINDIR)/xzram-qt
 	install -Dm644 data/io.github.XZram.desktop $(DESTDIR)$(DATADIR)/applications/io.github.XZram.desktop
 	install -Dm644 data/io.github.XZram.metainfo.xml $(DESTDIR)$(DATADIR)/metainfo/io.github.XZram.metainfo.xml
+	install -Dm644 branding/xzram-icon.png \
+		$(DESTDIR)$(DATADIR)/icons/hicolor/256x256/apps/io.github.XZram.png
 
 install-post:
 	systemctl daemon-reload
@@ -68,3 +72,14 @@ gui-smoke: build-gui
 clean:
 	cargo clean
 	rm -rf build-gui
+
+# Ensure VERSION matches Cargo workspace, CMake project, and packaging metadata.
+version-check:
+	@test -n "$(XZRAM_VERSION)"
+	@grep -q 'version = "$(XZRAM_VERSION)"' Cargo.toml
+	@grep -q 'project(xzram-qt VERSION $(XZRAM_VERSION)' gui/CMakeLists.txt
+	@grep -q '^pkgver=$(XZRAM_VERSION)$$' PKGBUILD
+	@grep -q '^Version:[[:space:]]*$(XZRAM_VERSION)$$' packaging/xzram.spec
+	@grep -q 'version="$(XZRAM_VERSION)"' data/io.github.XZram.metainfo.xml
+	@head -1 debian/changelog | grep -q "$(XZRAM_VERSION)-"
+	@echo "version $(XZRAM_VERSION) OK"

@@ -8,15 +8,13 @@ class QLabel;
 class QLineEdit;
 class QPushButton;
 class QSpinBox;
-class DbusClient;
 
 class ZramWidget : public QWidget {
     Q_OBJECT
 
 public:
-    explicit ZramWidget(DbusClient *client, QWidget *parent = nullptr);
+    explicit ZramWidget(QWidget *parent = nullptr);
 
-    void setDaemonAvailable(bool available);
     void setStatusJson(const QString &json);
     void setZramConfigJson(const QString &json);
     void setDetectionJson(const QString &json);
@@ -28,15 +26,14 @@ private slots:
     void stageChanges();
     void disableZram();
     void migrateZram();
+    void updateActionEnabled();
 
 private:
     void updateLiveStats(const QJsonObject &status);
     void updateConfigForm(const QJsonValue &config);
     void updateMismatchWarning();
-    void setEditingEnabled(bool enabled);
-
-    DbusClient *m_client;
-    bool m_daemonAvailable = false;
+    void captureBaseline();
+    bool formDirty() const;
 
     QLabel *m_statsLabel;
     QLabel *m_mismatchWarning;
@@ -49,6 +46,12 @@ private:
     QPushButton *m_disableButton;
     QPushButton *m_migrateButton;
     QString m_activeAlgorithm;
+    bool m_hasActiveZram = false;
+
+    QString m_baselineDevice;
+    QString m_baselineSize;
+    QString m_baselineAlgo;
+    int m_baselinePriority = 100;
 };
 
 #endif

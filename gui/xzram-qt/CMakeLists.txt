@@ -1,10 +1,10 @@
 set(SOURCES
     main.cpp
     mainwindow.cpp
-    dbusclient.cpp
-    clifallback.cpp
+    xzramcli.cpp
     formatutils.cpp
     jsonloader.cpp
+    resources.qrc
     widgets/pendingbanner.cpp
     widgets/dashboardwidget.cpp
     widgets/zramwidget.cpp
@@ -12,13 +12,13 @@ set(SOURCES
     widgets/sysctlwidget.cpp
     widgets/doctorwidget.cpp
     widgets/recommendeddefaultsdialog.cpp
-    widgets/utilitieswidget.cpp
+    widgets/snapshotwidget.cpp
+    widgets/settingswidget.cpp
 )
 
 set(HEADERS
     mainwindow.h
-    dbusclient.h
-    clifallback.h
+    xzramcli.h
     formatutils.h
     jsonloader.h
     widgets/pendingbanner.h
@@ -28,10 +28,14 @@ set(HEADERS
     widgets/sysctlwidget.h
     widgets/doctorwidget.h
     widgets/recommendeddefaultsdialog.h
-    widgets/utilitieswidget.h
+    widgets/snapshotwidget.h
+    widgets/settingswidget.h
 )
 
 add_executable(xzram-qt ${SOURCES} ${HEADERS})
-target_link_libraries(xzram-qt PRIVATE Qt6::Widgets Qt6::DBus)
+target_link_libraries(xzram-qt PRIVATE Qt6::Widgets)
 target_include_directories(xzram-qt PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_definitions(xzram-qt PRIVATE
+    XZRAM_QT_VERSION="${PROJECT_VERSION}"
+)
 install(TARGETS xzram-qt RUNTIME DESTINATION bin)

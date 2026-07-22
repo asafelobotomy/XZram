@@ -44,8 +44,11 @@ PendingBanner::PendingBanner(QWidget *parent) : QWidget(parent) {
     m_label = new QLabel(this);
     layout->addWidget(m_label, 1);
 
-    m_applyButton = new QPushButton(tr("Apply"), this);
-    m_clearButton = new QPushButton(tr("Clear"), this);
+    m_applyButton = new QPushButton(tr("Apply now"), this);
+    m_clearButton = new QPushButton(tr("Discard"), this);
+    m_applyButton->setToolTip(
+        tr("Write the staged changes to the system (may ask for admin permission)."));
+    m_clearButton->setToolTip(tr("Throw away staged changes without changing the system."));
     layout->addWidget(m_applyButton);
     layout->addWidget(m_clearButton);
 
@@ -57,14 +60,11 @@ PendingBanner::PendingBanner(QWidget *parent) : QWidget(parent) {
     connect(m_clearButton, &QPushButton::clicked, this, &PendingBanner::clearRequested);
 }
 
-void PendingBanner::setDaemonAvailable(bool available) {
-    m_applyButton->setEnabled(available);
-    m_clearButton->setEnabled(available);
-}
-
 void PendingBanner::setPendingJson(const QString &json) {
     const QString trimmed = json.trimmed();
     if (trimmed.isEmpty() || trimmed == QLatin1String("null")) {
+        m_applyButton->setEnabled(false);
+        m_clearButton->setEnabled(false);
         hide();
         return;
     }
@@ -72,11 +72,15 @@ void PendingBanner::setPendingJson(const QString &json) {
     QJsonParseError parseError;
     const QJsonDocument doc = QJsonDocument::fromJson(trimmed.toUtf8(), &parseError);
     if (parseError.error != QJsonParseError::NoError) {
+        m_applyButton->setEnabled(false);
+        m_clearButton->setEnabled(false);
         hide();
         return;
     }
 
     if (doc.isObject() && doc.object().contains(QStringLiteral("error"))) {
+        m_applyButton->setEnabled(false);
+        m_clearButton->setEnabled(false);
         hide();
         return;
     }
@@ -84,10 +88,14 @@ void PendingBanner::setPendingJson(const QString &json) {
     const QJsonValue pending = doc.isObject() ? QJsonValue(doc.object()) : QJsonValue();
     const int count = countPendingChanges(pending);
     if (count == 0) {
+        m_applyButton->setEnabled(false);
+        m_clearButton->setEnabled(false);
         hide();
         return;
     }
 
-    m_label->setText(tr("%n staged change(s) — apply or clear to continue", "", count));
+    m_label->setText(tr("%n staged change(s) — apply now or discard", "", count));
+    m_applyButton->setEnabled(true);
+    m_clearButton->setEnabled(true);
     show();
 }
