@@ -55,8 +55,7 @@ fn parse_major_minor(value: &str) -> Option<(u32, u32)> {
 fn block_device_name(major: u32, minor: u32) -> Option<String> {
     let dev_path = format!("/sys/dev/block/{major}:{minor}");
     let link = std::fs::read_link(&dev_path).ok()?;
-    link.file_name()
-        .map(|n| n.to_string_lossy().into_owned())
+    link.file_name().map(|n| n.to_string_lossy().into_owned())
 }
 
 pub fn priority_inverted(swaps: &[SwapEntry]) -> bool {

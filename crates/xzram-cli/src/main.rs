@@ -583,14 +583,9 @@ fn main() -> anyhow::Result<()> {
                     if list.is_empty() {
                         println!("No snapshots stored");
                     } else {
-                        println!("{:<40} {:<12} {}", "ID", "TRIGGER", "LABEL");
+                        println!("{:<40} {:<12} LABEL", "ID", "TRIGGER");
                         for s in list {
-                            println!(
-                                "{:<40} {:<12} {}",
-                                s.id,
-                                s.trigger.as_str(),
-                                s.label
-                            );
+                            println!("{:<40} {:<12} {}", s.id, s.trigger.as_str(), s.label);
                         }
                     }
                 }
@@ -857,10 +852,7 @@ fn run_snapshot_create_pkexec(label: Option<&str>) -> anyhow::Result<snapshot::S
         .arg(payload.to_string())
         .output()?;
     if !output.status.success() {
-        anyhow::bail!(
-            "{}",
-            String::from_utf8_lossy(&output.stderr).trim()
-        );
+        anyhow::bail!("{}", String::from_utf8_lossy(&output.stderr).trim());
     }
     let meta: snapshot::SnapshotMeta = serde_json::from_slice(&output.stdout)?;
     Ok(meta)

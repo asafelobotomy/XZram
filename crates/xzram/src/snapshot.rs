@@ -38,7 +38,7 @@ impl SnapshotTrigger {
         }
     }
 
-    pub fn from_str(s: &str) -> Result<Self> {
+    pub fn parse(s: &str) -> Result<Self> {
         match s {
             "app_open" => Ok(Self::AppOpen),
             "pre_apply" => Ok(Self::PreApply),
@@ -268,7 +268,7 @@ fn capture_system_state() -> Result<CapturedState> {
 
 pub fn list_snapshots() -> Result<Vec<SnapshotMeta>> {
     ensure_snapshots_initialized()?;
-    Ok(load_index()?)
+    load_index()
 }
 
 pub fn get_snapshot(id: &str) -> Result<SnapshotMeta> {

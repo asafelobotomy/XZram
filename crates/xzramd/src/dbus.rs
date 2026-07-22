@@ -277,7 +277,7 @@ impl Manager {
         trigger: &str,
         label: &str,
     ) -> zbus::fdo::Result<HashMap<String, zbus::zvariant::OwnedValue>> {
-        let trigger = SnapshotTrigger::from_str(trigger)
+        let trigger = SnapshotTrigger::parse(trigger)
             .map_err(|e| zbus::fdo::Error::InvalidArgs(e.to_string()))?;
         let label_opt = if label.is_empty() { None } else { Some(label) };
         let meta = snapshot::create_snapshot(trigger, label_opt, None)
