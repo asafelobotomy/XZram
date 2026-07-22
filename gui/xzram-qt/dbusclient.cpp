@@ -6,6 +6,7 @@
 #include <QDBusInterface>
 #include <QDBusReply>
 #include <QFile>
+#include <QIODevice>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QProcess>
@@ -16,6 +17,7 @@
 namespace {
 constexpr auto kObjectPath = "/io/github/XZram";
 constexpr auto kInterface = "io.github.XZram.Manager";
+constexpr auto kLastErrorPath = "/var/lib/xzram/last_error";
 
 QString jsonError(const QString &message) {
     QJsonObject obj;
@@ -41,6 +43,38 @@ QString findHelperBinary() {
         return homeHelper;
     }
     return QStringLiteral("/usr/libexec/xzram-helper");
+}
+
+/// Prefer the helper's last_error file — pkexec/systemd-run often swallows stderr.
+QString privilegedHelperError(QProcess &process) {
+    QFile lastErrorFile(QString::fromUtf8(kLastErrorPath));
+    if (lastErrorFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        const QString last = QString::fromUtf8(lastErrorFile.readAll()).trimmed();
+        if (!last.isEmpty()) {
+            return last;
+        }
+    }
+
+    const QString err = QString::fromUtf8(process.readAllStandardError()).trimmed();
+    const QString out = QString::fromUtf8(process.readAllStandardOutput()).trimmed();
+    if (err.contains(QStringLiteral("xzram-helper:"))) {
+        return err;
+    }
+    if (out.contains(QStringLiteral("xzram-helper:"))) {
+        return out;
+    }
+
+    QString combined = err;
+    if (!out.isEmpty()) {
+        if (!combined.isEmpty()) {
+            combined.append(QLatin1Char('\n'));
+        }
+        combined.append(out);
+    }
+    if (combined.isEmpty()) {
+        return QStringLiteral("privileged helper failed (no error details)");
+    }
+    return combined;
 }
 } // namespace
 
@@ -100,7 +134,7 @@ bool DbusClient::startServiceViaHelper(QString *error) const {
     }
     if (process.exitStatus() != QProcess::NormalExit || process.exitCode() != 0) {
         if (error) {
-            *error = QString::fromUtf8(process.readAllStandardError()).trimmed();
+            *error = privilegedHelperError(process);
             if (error->isEmpty()) {
                 *error = QStringLiteral("failed to start xzramd service");
             }
@@ -221,7 +255,7 @@ bool DbusClient::stageRecommendedDefaults(QString *error) const {
     if (!process.waitForStarted(3000) || !process.waitForFinished(120000)
         || process.exitCode() != 0) {
         if (error) {
-            *error = QString::fromUtf8(process.readAllStandardError()).trimmed();
+            *error = privilegedHelperError(process);
         }
         return false;
     }
@@ -278,7 +312,7 @@ bool DbusClient::applyPending(QString *error) const {
         if (!process.waitForStarted(3000) || !process.waitForFinished(120000)
             || process.exitCode() != 0) {
             if (error) {
-                *error = QString::fromUtf8(process.readAllStandardError()).trimmed();
+                *error = privilegedHelperError(process);
             }
             return false;
         }
@@ -352,7 +386,7 @@ bool DbusClient::prepareSwapfileBtrfsViaHelper(const QString &path, bool mkdirPa
     }
     if (process.exitStatus() != QProcess::NormalExit || process.exitCode() != 0) {
         if (error) {
-            *error = QString::fromUtf8(process.readAllStandardError()).trimmed();
+            *error = privilegedHelperError(process);
             if (error->isEmpty()) {
                 *error = QStringLiteral("failed to prepare btrfs directory for swap");
             }
@@ -409,7 +443,7 @@ bool DbusClient::createSnapshot(const QString &trigger, const QString &label,
     if (!process.waitForStarted(3000) || !process.waitForFinished(60000)
         || process.exitCode() != 0) {
         if (error) {
-            *error = QString::fromUtf8(process.readAllStandardError()).trimmed();
+            *error = privilegedHelperError(process);
         }
         return false;
     }
@@ -450,7 +484,7 @@ bool DbusClient::restoreSnapshot(const QString &id, QString *error) const {
     if (!process.waitForStarted(3000) || !process.waitForFinished(120000)
         || process.exitCode() != 0) {
         if (error) {
-            *error = QString::fromUtf8(process.readAllStandardError()).trimmed();
+            *error = privilegedHelperError(process);
         }
         return false;
     }

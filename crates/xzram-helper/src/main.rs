@@ -32,8 +32,11 @@ fn main() {
 
     let args = Args::parse();
 
+    apply::clear_last_error();
     if let Err(e) = run(&args.action, &args.payload) {
-        eprintln!("xzram-helper: {e}");
+        let msg = format!("xzram-helper: {e}");
+        apply::write_last_error(&msg);
+        eprintln!("{msg}");
         process::exit(1);
     }
 }

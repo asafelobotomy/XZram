@@ -20,6 +20,28 @@ pub fn data_dir() -> PathBuf {
         .unwrap_or_else(|_| PathBuf::from("/var/lib/xzram"))
 }
 
+/// Path to the last privileged-helper error (survives systemd-run swallowing stderr).
+pub fn last_error_path() -> PathBuf {
+    data_dir().join("last_error")
+}
+
+pub fn write_last_error(message: &str) {
+    let dir = data_dir();
+    let _ = std::fs::create_dir_all(&dir);
+    let _ = std::fs::write(last_error_path(), message);
+}
+
+pub fn clear_last_error() {
+    let _ = std::fs::remove_file(last_error_path());
+}
+
+pub fn read_last_error() -> Option<String> {
+    std::fs::read_to_string(last_error_path())
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ZramConfig {
     pub device: String,

@@ -125,7 +125,7 @@ fn status_message(
         return format!("Parent directory {parent_directory} is missing nodatacow (chattr +C)");
     }
     if file_exists && file_nodatacow == Some(false) {
-        return "Swap file exists but is not nodatacow; run prepare or recreate the file".into();
+        return "Swap file exists but is not nodatacow; it will be recreated on apply (or run prepare / remove first)".into();
     }
     if file_exists {
         return "Swap file and parent directory are nodatacow-ready".into();
@@ -196,9 +196,12 @@ pub fn create_allocated_swapfile(path: &Path, size_mb: u64) -> Result<()> {
         ));
     }
 
+    // Parent must be nodatacow before allocation. An existing file that was written
+    // without +C cannot be converted in place on btrfs — remove it, then recreate.
+    prepare_nodatacow(path, true)?;
+    remove_stale_swapfile(path)?;
     prepare_nodatacow(path, true)?;
     ensure_ready_for_swapfile(path)?;
-    remove_stale_swapfile(path)?;
 
     if is_btrfs_path(path) && btrfs_mkswapfile_available() {
         let path_str = path.to_string_lossy();
