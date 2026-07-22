@@ -80,12 +80,8 @@ pub fn parse_zram_devices() -> Result<Vec<ZramDevice>> {
         }
 
         let base = entry.path();
-        let algorithm = read_sysfs_string(&base.join("comp_algorithm"))?
-            .split_whitespace()
-            .next()
-            .unwrap_or("unknown")
-            .trim_matches(['[', ']'])
-            .to_string();
+        let algorithm =
+            parse_active_comp_algorithm(&read_sysfs_string(&base.join("comp_algorithm"))?);
 
         let disk_size = read_sysfs_u64(&base.join("disksize"))?;
         let mount_point = detect_zram_mount(&name);
@@ -131,6 +127,25 @@ fn read_mm_stat(path: &std::path::Path) -> Result<(u64, u64, u64, u32)> {
         parts.get(2).and_then(|s| s.parse().ok()).unwrap_or(0),
         parts.get(4).and_then(|s| s.parse().ok()).unwrap_or(0),
     ))
+}
+
+/// Prefer the bracketed active algorithm from `/sys/block/zramN/comp_algorithm`.
+pub fn parse_active_comp_algorithm(raw: &str) -> String {
+    let trimmed = raw.trim();
+    if let Some(start) = trimmed.find('[') {
+        if let Some(end_rel) = trimmed[start + 1..].find(']') {
+            let active = trimmed[start + 1..start + 1 + end_rel].trim();
+            if !active.is_empty() {
+                return active.to_string();
+            }
+        }
+    }
+    trimmed
+        .split_whitespace()
+        .next()
+        .unwrap_or("unknown")
+        .trim_matches(['[', ']'])
+        .to_string()
 }
 
 fn detect_zram_mount(device: &str) -> String {
@@ -241,5 +256,16 @@ mod tests {
     fn format_bytes_works() {
         assert_eq!(format_bytes(1024), "1.0 KiB");
         assert_eq!(format_bytes(0), "0 B");
+    }
+
+    #[test]
+    fn parse_active_comp_algorithm_prefers_brackets() {
+        assert_eq!(
+            parse_active_comp_algorithm("lzo-rle lzo lz4 lz4hc [zstd] deflate"),
+            "zstd"
+        );
+        assert_eq!(parse_active_comp_algorithm("[lzo-rle] lz4"), "lzo-rle");
+        assert_eq!(parse_active_comp_algorithm("zstd lz4"), "zstd");
+        assert_eq!(parse_active_comp_algorithm(""), "unknown");
     }
 }
