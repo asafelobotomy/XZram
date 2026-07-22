@@ -240,6 +240,15 @@ pub fn zram_generator_package_name(pm: PackageManager) -> &'static str {
 }
 
 pub fn probe_etc_writable() -> bool {
+    // Test harness with a fake etc root: keep create-new probe.
+    if std::env::var_os("XZRAM_ETC_ROOT").is_some() {
+        return probe_etc_writable_by_create();
+    }
+    // Unprivileged create under /etc always fails on normal distros; use mount options.
+    !mount_options_contain_ro("/etc")
+}
+
+fn probe_etc_writable_by_create() -> bool {
     let probe = crate::snapshot::etc_root().join(".xzram-writable-probe");
     match std::fs::OpenOptions::new()
         .write(true)
@@ -254,6 +263,25 @@ pub fn probe_etc_writable() -> bool {
     }
 }
 
+/// True when the mount covering `path` is read-only (`ro` in findmnt OPTIONS).
+pub fn mount_options_contain_ro(path: &str) -> bool {
+    let output = std::process::Command::new("findmnt")
+        .args(["-no", "OPTIONS", "-T", path])
+        .output();
+    let Ok(output) = output else {
+        return false;
+    };
+    if !output.status.success() {
+        return false;
+    }
+    let opts = String::from_utf8_lossy(&output.stdout);
+    findmnt_options_include_ro(&opts)
+}
+
+pub fn findmnt_options_include_ro(opts: &str) -> bool {
+    opts.split(',').any(|opt| opt.trim() == "ro")
+}
+
 fn detect_immutable_os(distro: &DistroInfo) -> bool {
     if distro.id == "nixos" {
         return true;
@@ -261,7 +289,7 @@ fn detect_immutable_os(distro: &DistroInfo) -> bool {
     if std::env::var("OSTREE_VERSION").is_ok() {
         return true;
     }
-    if which_exists("rpm-ostree") || which_exists("ostree") {
+    if which_exists("rpm-ostree") {
         return true;
     }
     if let Ok(content) = std::fs::read_to_string("/etc/os-release") {
@@ -298,5 +326,13 @@ mod tests {
             classify_distro_fields("cachyos", &["arch".into()]),
             DistroFamily::Arch
         );
+    }
+
+    #[test]
+    fn findmnt_options_detect_ro() {
+        assert!(findmnt_options_include_ro("ro,relatime,ssd"));
+        assert!(findmnt_options_include_ro("rw,ro"));
+        assert!(!findmnt_options_include_ro("rw,relatime,ssd"));
+        assert!(!findmnt_options_include_ro("rw,errors=remount-ro"));
     }
 }

@@ -20,9 +20,13 @@ pub fn show() -> Result<SysctlValues> {
     })
 }
 
+/// Map a sysctl dotted name to its `/proc/sys` path (`vm.page-cluster` → `vm/page-cluster`).
+pub fn proc_sys_path(key: &str) -> String {
+    format!("/proc/sys/{}", key.replace('.', "/"))
+}
+
 fn read_sysctl(key: &str) -> Option<u32> {
-    let path = format!("/proc/sys/{key}");
-    std::fs::read_to_string(path)
+    std::fs::read_to_string(proc_sys_path(key))
         .ok()
         .and_then(|s| s.trim().parse().ok())
 }
@@ -59,5 +63,23 @@ pub fn zram_tuning_defaults() -> SysctlValues {
         watermark_boost_factor: Some(0),
         watermark_scale_factor: Some(125),
         page_cluster: Some(0),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn proc_sys_path_maps_dots_to_slashes() {
+        assert_eq!(proc_sys_path("vm.swappiness"), "/proc/sys/vm/swappiness");
+        assert_eq!(
+            proc_sys_path("vm.page-cluster"),
+            "/proc/sys/vm/page-cluster"
+        );
+        assert_eq!(
+            proc_sys_path("vm.watermark_scale_factor"),
+            "/proc/sys/vm/watermark_scale_factor"
+        );
     }
 }

@@ -54,9 +54,10 @@ pub fn doctor() -> Result<DoctorReport> {
         issues.push(DoctorIssue {
             severity: IssueSeverity::Warning,
             code: "immutable_etc".into(),
-            message: "/etc is not writable on this system".into(),
+            message: "/etc is read-only or this OS uses an immutable layout".into(),
             suggestion: Some(
-                "On immutable distros, layer packages with rpm-ostree or use a writable overlay before applying XZram changes".into(),
+                "On immutable distros, layer packages with rpm-ostree or use a writable overlay. Privileged apply still uses polkit/xzram-helper when /etc is writable for root."
+                    .into(),
             ),
             action: None,
         });

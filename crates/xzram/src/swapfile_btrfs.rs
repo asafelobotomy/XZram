@@ -12,8 +12,10 @@ pub struct NodatacowStatus {
     pub filesystem: String,
     pub on_btrfs: bool,
     pub parent_exists: bool,
-    pub parent_nodatacow: bool,
+    /// `None` means the attribute could not be probed (e.g. permission denied).
+    pub parent_nodatacow: Option<bool>,
     pub file_exists: bool,
+    /// `None` when the file is absent or the attribute could not be probed.
     pub file_nodatacow: Option<bool>,
     pub ready: bool,
     pub message: String,
@@ -60,27 +62,25 @@ fn build_status(path: &Path, _preparing: bool) -> Result<NodatacowStatus> {
     };
 
     let on_btrfs = fstype == "btrfs";
-    let parent_nodatacow = if parent_exists && on_btrfs {
-        path_has_nodatacow(&parent).unwrap_or(false)
-    } else {
-        !on_btrfs
-    };
-
-    let file_nodatacow = if file_exists && on_btrfs {
-        Some(path_has_nodatacow(path).unwrap_or(false))
+    let parent_nodatacow = if !on_btrfs {
+        Some(true)
+    } else if parent_exists {
+        path_has_nodatacow(&parent).ok()
     } else {
         None
     };
 
-    let ready = if !on_btrfs {
-        true
-    } else if !parent_exists || !parent_nodatacow {
-        false
-    } else if file_exists {
-        file_nodatacow.unwrap_or(false)
+    let file_nodatacow = if file_exists && on_btrfs {
+        path_has_nodatacow(path).ok()
     } else {
-        true
+        None
     };
+
+    // ready is false only when we know a required nodatacow check failed.
+    let ready = !on_btrfs
+        || (parent_exists
+            && parent_nodatacow != Some(false)
+            && !(file_exists && file_nodatacow == Some(false)));
 
     let message = status_message(
         on_btrfs,
@@ -108,7 +108,7 @@ fn build_status(path: &Path, _preparing: bool) -> Result<NodatacowStatus> {
 fn status_message(
     on_btrfs: bool,
     parent_exists: bool,
-    parent_nodatacow: bool,
+    parent_nodatacow: Option<bool>,
     file_exists: bool,
     file_nodatacow: Option<bool>,
     parent_directory: &str,
@@ -121,11 +121,19 @@ fn status_message(
             "Parent directory {parent_directory} does not exist; create it and run prepare"
         );
     }
-    if !parent_nodatacow {
+    if parent_nodatacow == Some(false) {
         return format!("Parent directory {parent_directory} is missing nodatacow (chattr +C)");
+    }
+    if parent_nodatacow.is_none() {
+        return format!(
+            "Could not verify nodatacow on {parent_directory} (insufficient privileges)"
+        );
     }
     if file_exists && file_nodatacow == Some(false) {
         return "Swap file exists but is not nodatacow; it will be recreated on apply (or run prepare / remove first)".into();
+    }
+    if file_exists && file_nodatacow.is_none() {
+        return "Could not verify swapfile nodatacow (insufficient privileges)".into();
     }
     if file_exists {
         return "Swap file and parent directory are nodatacow-ready".into();
@@ -266,7 +274,19 @@ mod tests {
 
     #[test]
     fn status_message_non_btrfs() {
-        let msg = status_message(false, true, true, false, None, "/tmp");
+        let msg = status_message(false, true, Some(true), false, None, "/tmp");
         assert!(msg.contains("does not require"));
+    }
+
+    #[test]
+    fn status_message_unknown_file_attrs() {
+        let msg = status_message(true, true, Some(true), true, None, "/swap");
+        assert!(msg.contains("Could not verify swapfile nodatacow"));
+    }
+
+    #[test]
+    fn status_message_known_missing_file_attrs() {
+        let msg = status_message(true, true, Some(true), true, Some(false), "/swap");
+        assert!(msg.contains("not nodatacow"));
     }
 }
