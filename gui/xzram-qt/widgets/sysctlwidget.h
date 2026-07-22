@@ -3,18 +3,15 @@
 
 #include <QWidget>
 
-class QLabel;
 class QPushButton;
 class QSpinBox;
-class DbusClient;
 
 class SysctlWidget : public QWidget {
     Q_OBJECT
 
 public:
-    explicit SysctlWidget(DbusClient *client, QWidget *parent = nullptr);
+    explicit SysctlWidget(QWidget *parent = nullptr);
 
-    void setDaemonAvailable(bool available);
     void setSysctlJson(const QString &json);
 
 signals:
@@ -23,21 +20,24 @@ signals:
 private slots:
     void applyZramDefaults();
     void stageChanges();
+    void updateActionEnabled();
 
 private:
-    void setEditingEnabled(bool enabled);
     void setSpinValue(QSpinBox *spin, const QJsonObject &obj, const QString &key);
+    void captureBaseline();
+    bool formDirty() const;
 
-    DbusClient *m_client;
-    bool m_daemonAvailable = false;
-
-    QLabel *m_unavailableLabel;
     QSpinBox *m_swappinessSpin;
     QSpinBox *m_boostSpin;
     QSpinBox *m_scaleSpin;
     QSpinBox *m_pageClusterSpin;
     QPushButton *m_defaultsButton;
     QPushButton *m_stageButton;
+
+    int m_baselineSwappiness = -1;
+    int m_baselineBoost = -1;
+    int m_baselineScale = -1;
+    int m_baselinePageCluster = -1;
 };
 
 #endif

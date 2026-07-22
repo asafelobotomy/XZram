@@ -13,7 +13,6 @@ public:
     explicit PendingBanner(QWidget *parent = nullptr);
 
     void setPendingJson(const QString &json);
-    void setDaemonAvailable(bool available);
 
 signals:
     void applyRequested();

@@ -1,8 +1,8 @@
 #include "zramwidget.h"
 
-#include "dbusclient.h"
 #include "formatutils.h"
 #include "jsonloader.h"
+#include "xzramcli.h"
 
 #include <QComboBox>
 #include <QFormLayout>
@@ -17,9 +17,16 @@
 #include <QSpinBox>
 #include <QVBoxLayout>
 
-ZramWidget::ZramWidget(DbusClient *client, QWidget *parent)
-    : QWidget(parent), m_client(client) {
+ZramWidget::ZramWidget(QWidget *parent) : QWidget(parent) {
     auto *layout = new QVBoxLayout(this);
+
+    auto *intro = new QLabel(
+        tr("Configure compressed RAM swap (size, algorithm, priority). Stage changes here, "
+           "then apply from the pending banner at the top."),
+        this);
+    intro->setWordWrap(true);
+    intro->setStyleSheet(QStringLiteral("color: #495057;"));
+    layout->addWidget(intro);
 
     auto *statsGroup = new QGroupBox(tr("Live device stats"), this);
     auto *statsLayout = new QVBoxLayout(statsGroup);
@@ -50,7 +57,9 @@ ZramWidget::ZramWidget(DbusClient *client, QWidget *parent)
     m_residentLimitEdit = new QLineEdit(configGroup);
     m_residentLimitEdit->setPlaceholderText(tr("optional, e.g. ram / 2"));
     m_residentLimitEdit->setToolTip(
-        tr("Caps RAM used for compressed pages (zram-resident-limit). Leave empty for no limit."));
+        tr("Caps RAM used for compressed pages (zram-resident-limit). Display only — stage via "
+           "CLI does not yet set this field."));
+    m_residentLimitEdit->setReadOnly(true);
     form->addRow(tr("Resident limit"), m_residentLimitEdit);
 
     m_algoCombo = new QComboBox(configGroup);
@@ -70,6 +79,12 @@ ZramWidget::ZramWidget(DbusClient *client, QWidget *parent)
     m_stageButton = new QPushButton(tr("Stage changes"), this);
     m_disableButton = new QPushButton(tr("Disable ZRAM"), this);
     m_migrateButton = new QPushButton(tr("Migrate from zram-tools"), this);
+    m_stageButton->setToolTip(
+        tr("Queue these ZRAM settings. They take effect only after you click Apply now in the banner."));
+    m_disableButton->setToolTip(
+        tr("Queue turning off compressed RAM swap. Confirm with Apply now in the banner."));
+    m_migrateButton->setToolTip(
+        tr("Queue a switch from the older zram-tools setup to systemd-zram-generator."));
     buttons->addWidget(m_stageButton);
     buttons->addWidget(m_disableButton);
     buttons->addWidget(m_migrateButton);
@@ -80,24 +95,14 @@ ZramWidget::ZramWidget(DbusClient *client, QWidget *parent)
     connect(m_stageButton, &QPushButton::clicked, this, &ZramWidget::stageChanges);
     connect(m_disableButton, &QPushButton::clicked, this, &ZramWidget::disableZram);
     connect(m_migrateButton, &QPushButton::clicked, this, &ZramWidget::migrateZram);
+    connect(m_sizeEdit, &QLineEdit::textChanged, this, &ZramWidget::updateActionEnabled);
+    connect(m_algoCombo, &QComboBox::currentTextChanged, this, &ZramWidget::updateActionEnabled);
+    connect(m_prioritySpin, QOverload<int>::of(&QSpinBox::valueChanged), this,
+            &ZramWidget::updateActionEnabled);
 
-    setEditingEnabled(false);
     m_statsLabel->setText(tr("No ZRAM data"));
-}
-
-void ZramWidget::setDaemonAvailable(bool available) {
-    m_daemonAvailable = available;
-    setEditingEnabled(available);
-}
-
-void ZramWidget::setEditingEnabled(bool enabled) {
-    m_sizeEdit->setEnabled(enabled);
-    m_residentLimitEdit->setEnabled(enabled);
-    m_algoCombo->setEnabled(enabled);
-    m_prioritySpin->setEnabled(enabled);
-    m_stageButton->setEnabled(enabled);
-    m_disableButton->setEnabled(enabled);
-    m_migrateButton->setEnabled(enabled);
+    captureBaseline();
+    updateActionEnabled();
 }
 
 void ZramWidget::setStatusJson(const QString &json) {
@@ -113,9 +118,11 @@ void ZramWidget::setStatusJson(const QString &json) {
 
 void ZramWidget::updateLiveStats(const QJsonObject &status) {
     const QJsonArray devices = status.value(QStringLiteral("zram_devices")).toArray();
+    m_hasActiveZram = !devices.isEmpty();
     if (devices.isEmpty()) {
         m_statsLabel->setText(tr("No active ZRAM devices"));
         m_activeAlgorithm.clear();
+        updateActionEnabled();
         return;
     }
 
@@ -135,6 +142,7 @@ void ZramWidget::updateLiveStats(const QJsonObject &status) {
                           mount.isEmpty() ? QStringLiteral("—") : mount);
     }
     m_statsLabel->setText(lines.join(QStringLiteral("<br>")));
+    updateActionEnabled();
 }
 
 void ZramWidget::setZramConfigJson(const QString &json) {
@@ -158,6 +166,8 @@ void ZramWidget::updateConfigForm(const QJsonValue &config) {
         m_residentLimitEdit->clear();
         m_algoCombo->setCurrentText(QStringLiteral("zstd"));
         m_prioritySpin->setValue(100);
+        captureBaseline();
+        updateActionEnabled();
         return;
     }
 
@@ -187,6 +197,27 @@ void ZramWidget::updateConfigForm(const QJsonValue &config) {
     if (obj.contains(QStringLiteral("swap_priority"))) {
         m_prioritySpin->setValue(JsonLoader::optionalInt(obj, QStringLiteral("swap_priority"), 100));
     }
+    captureBaseline();
+    updateActionEnabled();
+}
+
+void ZramWidget::captureBaseline() {
+    m_baselineDevice = m_deviceEdit->text().trimmed();
+    m_baselineSize = m_sizeEdit->text().trimmed();
+    m_baselineAlgo = m_algoCombo->currentText();
+    m_baselinePriority = m_prioritySpin->value();
+}
+
+bool ZramWidget::formDirty() const {
+    return m_deviceEdit->text().trimmed() != m_baselineDevice
+        || m_sizeEdit->text().trimmed() != m_baselineSize
+        || m_algoCombo->currentText() != m_baselineAlgo
+        || m_prioritySpin->value() != m_baselinePriority;
+}
+
+void ZramWidget::updateActionEnabled() {
+    m_stageButton->setEnabled(formDirty());
+    m_disableButton->setEnabled(m_hasActiveZram);
 }
 
 void ZramWidget::setDetectionJson(const QString &json) {
@@ -211,42 +242,34 @@ void ZramWidget::updateMismatchWarning() {
 }
 
 void ZramWidget::stageChanges() {
-    if (!m_daemonAvailable) {
+    if (!formDirty()) {
         return;
     }
-
-    QJsonObject config;
-    config.insert(QStringLiteral("device"), m_deviceEdit->text());
-    config.insert(QStringLiteral("zram_size"), m_sizeEdit->text());
-    const QString resident = m_residentLimitEdit->text().trimmed();
-    if (!resident.isEmpty()) {
-        config.insert(QStringLiteral("zram_resident_limit"), resident);
-    }
-    config.insert(QStringLiteral("compression_algorithm"), m_algoCombo->currentText());
-    config.insert(QStringLiteral("swap_priority"), m_prioritySpin->value());
-
     QString error;
-    if (!m_client->configureZram(QString::fromUtf8(QJsonDocument(config).toJson(QJsonDocument::Compact)),
-                                 &error)) {
+    if (!XzramCli::zramSet(m_deviceEdit->text(), m_sizeEdit->text(), m_algoCombo->currentText(),
+                           m_prioritySpin->value(), &error)) {
         QMessageBox::warning(this, tr("Stage failed"), error);
         return;
     }
+    captureBaseline();
+    updateActionEnabled();
     emit stagingChanged();
 }
 
 void ZramWidget::disableZram() {
-    if (!m_daemonAvailable) {
+    if (!m_hasActiveZram) {
         return;
     }
     const auto answer = QMessageBox::question(
         this, tr("Disable ZRAM"),
-        tr("Disable ZRAM swap? This takes effect immediately when using the daemon."));
+        tr("Stage disabling ZRAM swap? Click Apply in the pending banner afterward to take "
+           "effect."));
     if (answer != QMessageBox::Yes) {
         return;
     }
 
     QString error;
-    if (!m_client->disableZram(&error)) {
+    if (!XzramCli::zramDisable(&error)) {
         QMessageBox::warning(this, tr("Disable failed"), error);
         return;
     }
@@ -254,15 +277,12 @@ void ZramWidget::disableZram() {
 }
 
 void ZramWidget::migrateZram() {
-    if (!m_daemonAvailable) {
-        return;
-    }
     QString error;
-    if (!m_client->migrateZram(&error)) {
+    if (!XzramCli::zramMigrate(&error)) {
         QMessageBox::warning(this, tr("Migrate failed"), error);
         return;
     }
     QMessageBox::information(this, tr("Migrate"),
-                           tr("Migration from zram-tools staged. Use Apply to activate."));
+                             tr("Migration from zram-tools staged. Use Apply to activate."));
     emit stagingChanged();
 }

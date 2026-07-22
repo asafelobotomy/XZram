@@ -1,12 +1,11 @@
 #include "sysctlwidget.h"
 
-#include "dbusclient.h"
 #include "jsonloader.h"
+#include "xzramcli.h"
 
 #include <QFormLayout>
 #include <QGroupBox>
 #include <QHBoxLayout>
-#include <QJsonDocument>
 #include <QJsonObject>
 #include <QLabel>
 #include <QMessageBox>
@@ -18,15 +17,16 @@ namespace {
 constexpr int kUnsetSentinel = -1;
 }
 
-SysctlWidget::SysctlWidget(DbusClient *client, QWidget *parent)
-    : QWidget(parent), m_client(client) {
+SysctlWidget::SysctlWidget(QWidget *parent) : QWidget(parent) {
     auto *layout = new QVBoxLayout(this);
 
-    m_unavailableLabel = new QLabel(
-        tr("Sysctl changes require xzramd. Start the service or use: xzram sysctl set"), this);
-    m_unavailableLabel->setWordWrap(true);
-    m_unavailableLabel->hide();
-    layout->addWidget(m_unavailableLabel);
+    auto *intro = new QLabel(
+        tr("Tune VM reclaim behavior for zram-friendly swapping. Stage values here, then "
+           "apply from the pending banner."),
+        this);
+    intro->setWordWrap(true);
+    intro->setStyleSheet(QStringLiteral("color: #495057;"));
+    layout->addWidget(intro);
 
     auto *group = new QGroupBox(tr("VM tuning"), this);
     auto *form = new QFormLayout(group);
@@ -59,8 +59,12 @@ SysctlWidget::SysctlWidget(DbusClient *client, QWidget *parent)
     layout->addWidget(group);
 
     auto *buttons = new QHBoxLayout();
-    m_defaultsButton = new QPushButton(tr("Apply zram tuning defaults"), this);
+    m_defaultsButton = new QPushButton(tr("Use recommended values"), this);
     m_stageButton = new QPushButton(tr("Stage changes"), this);
+    m_defaultsButton->setToolTip(
+        tr("Fill the form with the usual zram-friendly settings (does not apply them yet)."));
+    m_stageButton->setToolTip(
+        tr("Queue these memory-tuning values. They take effect only after you click Apply now in the banner."));
     buttons->addWidget(m_defaultsButton);
     buttons->addWidget(m_stageButton);
     buttons->addStretch();
@@ -69,23 +73,17 @@ SysctlWidget::SysctlWidget(DbusClient *client, QWidget *parent)
 
     connect(m_defaultsButton, &QPushButton::clicked, this, &SysctlWidget::applyZramDefaults);
     connect(m_stageButton, &QPushButton::clicked, this, &SysctlWidget::stageChanges);
+    connect(m_swappinessSpin, QOverload<int>::of(&QSpinBox::valueChanged), this,
+            &SysctlWidget::updateActionEnabled);
+    connect(m_boostSpin, QOverload<int>::of(&QSpinBox::valueChanged), this,
+            &SysctlWidget::updateActionEnabled);
+    connect(m_scaleSpin, QOverload<int>::of(&QSpinBox::valueChanged), this,
+            &SysctlWidget::updateActionEnabled);
+    connect(m_pageClusterSpin, QOverload<int>::of(&QSpinBox::valueChanged), this,
+            &SysctlWidget::updateActionEnabled);
 
-    setEditingEnabled(false);
-}
-
-void SysctlWidget::setDaemonAvailable(bool available) {
-    m_daemonAvailable = available;
-    m_unavailableLabel->setVisible(!available);
-    setEditingEnabled(available);
-}
-
-void SysctlWidget::setEditingEnabled(bool enabled) {
-    m_swappinessSpin->setEnabled(enabled);
-    m_boostSpin->setEnabled(enabled);
-    m_scaleSpin->setEnabled(enabled);
-    m_pageClusterSpin->setEnabled(enabled);
-    m_defaultsButton->setEnabled(enabled);
-    m_stageButton->setEnabled(enabled);
+    captureBaseline();
+    updateActionEnabled();
 }
 
 void SysctlWidget::setSpinValue(QSpinBox *spin, const QJsonObject &obj, const QString &key) {
@@ -107,6 +105,30 @@ void SysctlWidget::setSysctlJson(const QString &json) {
     setSpinValue(m_boostSpin, root, QStringLiteral("watermark_boost_factor"));
     setSpinValue(m_scaleSpin, root, QStringLiteral("watermark_scale_factor"));
     setSpinValue(m_pageClusterSpin, root, QStringLiteral("page_cluster"));
+    captureBaseline();
+    updateActionEnabled();
+}
+
+void SysctlWidget::captureBaseline() {
+    m_baselineSwappiness = m_swappinessSpin->value();
+    m_baselineBoost = m_boostSpin->value();
+    m_baselineScale = m_scaleSpin->value();
+    m_baselinePageCluster = m_pageClusterSpin->value();
+}
+
+bool SysctlWidget::formDirty() const {
+    return m_swappinessSpin->value() != m_baselineSwappiness
+        || m_boostSpin->value() != m_baselineBoost
+        || m_scaleSpin->value() != m_baselineScale
+        || m_pageClusterSpin->value() != m_baselinePageCluster;
+}
+
+void SysctlWidget::updateActionEnabled() {
+    const bool dirty = formDirty();
+    m_stageButton->setEnabled(dirty);
+    const bool alreadyDefaults = m_swappinessSpin->value() == 180 && m_boostSpin->value() == 0
+        && m_scaleSpin->value() == 125 && m_pageClusterSpin->value() == 0;
+    m_defaultsButton->setEnabled(!alreadyDefaults);
 }
 
 void SysctlWidget::applyZramDefaults() {
@@ -114,37 +136,41 @@ void SysctlWidget::applyZramDefaults() {
     m_boostSpin->setValue(0);
     m_scaleSpin->setValue(125);
     m_pageClusterSpin->setValue(0);
+    updateActionEnabled();
 }
 
 void SysctlWidget::stageChanges() {
-    if (!m_daemonAvailable) {
+    if (!formDirty()) {
         return;
     }
 
-    QJsonObject values;
+    QStringList flags;
     if (m_swappinessSpin->value() != kUnsetSentinel) {
-        values.insert(QStringLiteral("swappiness"), m_swappinessSpin->value());
+        flags << QStringLiteral("--swappiness") << QString::number(m_swappinessSpin->value());
     }
     if (m_boostSpin->value() != kUnsetSentinel) {
-        values.insert(QStringLiteral("watermark_boost_factor"), m_boostSpin->value());
+        flags << QStringLiteral("--watermark-boost-factor")
+              << QString::number(m_boostSpin->value());
     }
     if (m_scaleSpin->value() != kUnsetSentinel) {
-        values.insert(QStringLiteral("watermark_scale_factor"), m_scaleSpin->value());
+        flags << QStringLiteral("--watermark-scale-factor")
+              << QString::number(m_scaleSpin->value());
     }
     if (m_pageClusterSpin->value() != kUnsetSentinel) {
-        values.insert(QStringLiteral("page_cluster"), m_pageClusterSpin->value());
+        flags << QStringLiteral("--page-cluster") << QString::number(m_pageClusterSpin->value());
     }
 
-    if (values.isEmpty()) {
+    if (flags.isEmpty()) {
         QMessageBox::information(this, tr("Stage"), tr("Set at least one sysctl value."));
         return;
     }
 
     QString error;
-    if (!m_client->setSysctl(
-            QString::fromUtf8(QJsonDocument(values).toJson(QJsonDocument::Compact)), &error)) {
+    if (!XzramCli::sysctlSet(flags, &error)) {
         QMessageBox::warning(this, tr("Stage failed"), error);
         return;
     }
+    captureBaseline();
+    updateActionEnabled();
     emit stagingChanged();
 }

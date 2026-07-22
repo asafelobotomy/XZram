@@ -15,7 +15,7 @@ Linux distributions. It includes a Qt6 GUI and system D-Bus daemon (`xzramd`).
 - **Sysctl tuning** — swappiness, watermark, and page-cluster settings
 - **Polkit integration** — granular privileged operations (no blanket sudo)
 - **D-Bus daemon** — `xzramd` on `io.github.XZram1`; auto-starts on first GUI/CLI `--dbus` use via D-Bus activation
-- **Qt6 GUI** — dashboard, zram, swapfile, sysctl, doctor, and utilities (snapshot restore)
+- **Qt6 GUI** — dashboard, zram, swap files, sysctl, doctor, snapshots, and settings (CLI-first; daemon optional)
 - **Configuration snapshots** — automatic backups on GUI open and before every apply; versioned restore
 
 ## Supported distros
@@ -32,10 +32,14 @@ Linux distributions. It includes a Qt6 GUI and system D-Bus daemon (`xzramd`).
 Published distro packages are not assumed; use From source or the in-tree packaging files
 when building locally.
 
+The release version is recorded in [`VERSION`](VERSION) and [`CHANGELOG.md`](CHANGELOG.md).
+Keep packaging (`PKGBUILD`, `packaging/xzram.spec`, `debian/changelog`, AppStream) and
+`gui/CMakeLists.txt` in sync — `make version-check` verifies this.
+
 ## Prerequisites
 
 - **CLI / daemon:** Rust ≥ 1.75, Cargo, Linux with systemd
-- **Full install / GUI:** cmake, Qt6 Widgets + DBus
+- **Full install / GUI:** cmake, Qt6 Widgets
   - Arch: `qt6-base`, `cmake`
   - Debian/Ubuntu: `qt6-base-dev`, `cmake`, `pkg-config`
   - Fedora: `qt6-qtbase-devel`, `cmake`

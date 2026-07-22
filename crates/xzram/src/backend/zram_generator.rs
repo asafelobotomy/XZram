@@ -68,19 +68,16 @@ impl ZramBackendTrait for ZramGeneratorBackend {
     }
 
     fn disable(&self) -> Result<()> {
+        // Tear down live devices first so we never claim "disabled" while swap is active.
+        for i in 0..8 {
+            crate::apply::stop_zram_setup_unit(&format!("zram{i}"))?;
+        }
+
         // Empty /etc override disables zram-generator even when vendor config exists.
         if let Some(parent) = Path::new(CONFIG_PATH).parent() {
             fs::create_dir_all(parent)?;
         }
         fs::write(CONFIG_PATH, "")?;
-
-        for i in 0..8 {
-            let device = format!("/dev/zram{i}");
-            let _ = std::process::Command::new("swapoff").arg(&device).output();
-            let _ = std::process::Command::new("systemctl")
-                .args(["stop", &format!("systemd-zram-setup@zram{i}.service")])
-                .output();
-        }
 
         crate::apply::run_systemctl(&["daemon-reload"])?;
         Ok(())
@@ -91,8 +88,7 @@ impl ZramBackendTrait for ZramGeneratorBackend {
 
         let conf = self.read_config()?;
         for device in &conf.devices {
-            let unit = format!("systemd-zram-setup@{}.service", device.name);
-            crate::apply::run_systemctl(&["try-restart", &unit])?;
+            crate::apply::restart_zram_setup_unit(&device.name)?;
         }
         Ok(())
     }

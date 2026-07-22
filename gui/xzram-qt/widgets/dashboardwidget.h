@@ -17,6 +17,7 @@ public:
     void setStatusJson(const QString &json);
     void setSwapsJson(const QString &json);
     void setDoctorJson(const QString &json);
+    void setDetectionJson(const QString &json);
 
 signals:
     void recommendDefaultsRequested();
@@ -32,6 +33,7 @@ private:
     QLabel *m_zramCard;
     QTableWidget *m_swapTable;
     QLabel *m_healthChip;
+    QLabel *m_detectStrip;
     QPushButton *m_recommendButton;
 };
 

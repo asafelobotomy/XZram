@@ -51,9 +51,17 @@ DashboardWidget::DashboardWidget(QWidget *parent) : QWidget(parent) {
     layout->addLayout(healthRow);
 
     m_recommendButton = new QPushButton(tr("Apply recommended defaults…"), this);
+    m_recommendButton->setToolTip(
+        tr("Review hardware-based ZRAM, sysctl, and overflow swap settings, then apply or stage them."));
     layout->addWidget(m_recommendButton);
     connect(m_recommendButton, &QPushButton::clicked, this,
             &DashboardWidget::recommendDefaultsRequested);
+
+    m_detectStrip = new QLabel(this);
+    m_detectStrip->setWordWrap(true);
+    m_detectStrip->setStyleSheet(
+        QStringLiteral("color: #495057; background: #e9ecef; border-radius: 4px; padding: 6px;"));
+    layout->addWidget(m_detectStrip);
 
     auto *tableGroup = new QGroupBox(tr("Swap overview"), this);
     auto *tableLayout = new QVBoxLayout(tableGroup);
@@ -79,6 +87,7 @@ void DashboardWidget::clearState() {
     m_swapBar->setValue(0);
     m_zramCard->setText(tr("No active ZRAM devices"));
     m_swapTable->setRowCount(0);
+    m_detectStrip->setText(tr("Detection: unavailable"));
     updateHealthChip(true, 0);
 }
 
@@ -206,4 +215,26 @@ void DashboardWidget::setDoctorJson(const QString &json) {
     const bool healthy = JsonLoader::optionalBool(root, QStringLiteral("healthy"), true);
     const QJsonArray issues = root.value(QStringLiteral("issues")).toArray();
     updateHealthChip(healthy, issues.size());
+}
+
+void DashboardWidget::setDetectionJson(const QString &json) {
+    QString error;
+    const QJsonObject root = JsonLoader::parseObject(json, &error);
+    if (root.contains(QStringLiteral("error"))) {
+        m_detectStrip->setText(tr("Detection: unavailable"));
+        return;
+    }
+    QString distro = JsonLoader::optionalString(root, QStringLiteral("distro"));
+    if (distro.isEmpty() && root.value(QStringLiteral("distro")).isObject()) {
+        const QJsonObject distroObj = root.value(QStringLiteral("distro")).toObject();
+        distro = JsonLoader::optionalString(distroObj, QStringLiteral("pretty_name"));
+        if (distro.isEmpty()) {
+            distro = JsonLoader::optionalString(distroObj, QStringLiteral("id"));
+        }
+    }
+    const QString backend = JsonLoader::optionalString(root, QStringLiteral("zram_backend"));
+    m_detectStrip->setText(
+        tr("Detected: %1 · backend %2")
+            .arg(distro.isEmpty() ? tr("unknown") : distro,
+                 backend.isEmpty() ? tr("unknown") : FormatUtils::humanizeEnum(backend)));
 }

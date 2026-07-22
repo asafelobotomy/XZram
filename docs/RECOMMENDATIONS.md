@@ -6,12 +6,16 @@ Hardware-aware defaults used by `xzram defaults recommend` and the Dashboard **A
 
 | RAM tier | Profile | `zram-size` | Algorithm | Sysctl | Disk overflow |
 |----------|---------|-------------|-----------|--------|---------------|
-| &lt; 4 GiB | `constrained` | `min(ram, 4096)` | `lz4` if &lt; 4 cores, else `zstd` | 180 / 0 / 125 / 0 | `/swap/swapfile`, RAM-sized, pri 10 |
+| &lt; 4 GiB | `constrained` | `min(ram, 4096)` | `lz4` if &lt; 4 cores, else `zstd` | 180 / 0 / 125 / 0 | `/swap/swapfile`, `min(RAM, 8192)` MiB, pri 10 |
 | 4–31 GiB (default) | `conservative` | `min(ram / 2, 4096)` | `zstd` (Arch/CachyOS always `zstd`) | same | same |
 | ≥ 32 GiB | `conservative` | `min(ram / 2, 8192)` | `zstd` | same | same |
 | CachyOS | `performance` | `ram` | `zstd` | same | same + resident-limit advisory |
 
 **Priority tiers:** zram `swap-priority = 100`, disk swapfile `pri = 10`.
+
+**Overflow gates:** skipped when active `/proc/swaps` disk swap exists, when fstab/managed inventory already lists non-zram swap, or when free space near `/swap` is below size + 512 MiB margin.
+
+**Staging hard stops:** read-only `/etc` or `immutable_os` (NixOS / ostree / Silverblue) → no zram, sysctl, or swapfile staging.
 
 **Anchor IDs:** `profile-constrained`, `profile-conservative`, `profile-performance`, `sysctl-tuning`, `overflow-swapfile`, `priority-tiers`.
 
@@ -21,7 +25,8 @@ Hardware-aware defaults used by `xzram defaults recommend` and the Dashboard **A
 |-----------------|----------|
 | **CachyOS** (`id = cachyos`) | `performance` profile: `zram-size = ram`, `zstd` ([CachyOS-Settings](https://github.com/CachyOS/CachyOS-Settings/blob/master/usr/lib/systemd/zram-generator.conf)) |
 | **Arch family** | Always `zstd` compression |
-| **Fedora / systemd default** | `min(ram / 2, 4096)` when no override ([zram-generator](https://github.com/systemd/zram-generator)) |
+| **Fedora / vendor defaults** | Do **not shrink** an existing generator size that already evaluates ≥ the conservative formula (e.g. keep `min(ram, 8192)`). Still stage algo / priority / sysctl / overflow as needed. Upstream default size is often `min(ram / 2, 4096)` ([zram-generator](https://github.com/systemd/zram-generator)); Fedora packages may ship `min(ram, 8192)`. |
+| **Debian / Ubuntu (Apt)** | Install package hint is `systemd-zram-generator` (not `zram-generator`) |
 
 Anchor: `distro-overrides`.
 
@@ -29,20 +34,21 @@ Anchor: `distro-overrides`.
 
 | Doctor code | Recommend behavior |
 |-------------|-------------------|
-| `zswap_enabled` / `zram_zswap_conflict` | Advisory: disable zswap ([Arch Wiki Zswap](https://wiki.archlinux.org/title/Zswap)) |
+| `zswap_enabled` / `zram_zswap_conflict` | Advisory only (Apply does not disable zswap) ([Arch Wiki Zswap](https://wiki.archlinux.org/title/Zswap)) |
 | `hibernate_zram` | Advisory; zram staging skipped |
-| `priority_inverted` | Fixed by staged zram pri 100 + swapfile pri 10 |
+| `priority_inverted` | Fixed by staged zram pri 100 + swapfile pri 10 when those changes are in scope |
 | `btrfs_swapfile_nodatacow` | Prepare runs before create via `ensure_ready_for_swapfile` |
-| `zram_tools_legacy` | Advisory: run `xzram zram migrate` first |
-| `no_zram` / `zram_generator_missing` | Informational |
+| `zram_tools_legacy` | Advisory: run `xzram zram migrate` first (Apply does not migrate) |
+| `no_zram` / `zram_generator_missing` | Informational; package name from package manager |
 | `zfs_root` | Advisory only |
 | Algorithm mismatch (configured ≠ active) | Advisory ([Fedora kernel 6.12.5 quirk](https://discussion.fedoraproject.org/t/zram-zstd-algorithm-is-overriden-by-lzo-after-kernel-v6-12-5-update/140498)) |
+| Immutable / RO `/etc` | Hard stop: empty pending |
 
 Anchor: `doctor-mapping`.
 
 ## Known conflicts
 
-1. **zswap + zram** — disable zswap when using zram ([Arch Wiki Zram](https://wiki.archlinux.org/title/Zram), [archinstall #1493](https://github.com/archlinux/archinstall/issues/1493)).
+1. **zswap + zram** — disable zswap when using zram ([Arch Wiki Zram](https://wiki.archlinux.org/title/Zram), [archinstall #1493](https://github.com/archlinux/archinstall/issues/1493)). Apply defaults does not disable zswap.
 2. **Hibernation** — resume device cannot be zram ([Arch Wiki Zram](https://wiki.archlinux.org/title/Zram)).
 3. **Dual-tier swap** — zram pri 100 + disk pri 10 is a safety net; sustained heavy swap may suit zswap better ([LinuxBlog](https://linuxblog.io/zswap-better-than-zram), [Chris Down](https://chrisdown.name/2026/03/24/zswap-vs-zram-when-to-use-what.html)). Anchor: `dual-tier-tradeoff`.
 4. **Kernel lzo-rle override** — generator may say `zstd` while active algo differs; check Doctor / ZRAM tab.
@@ -84,6 +90,8 @@ Anchor: `known-conflicts`.
 | Multiple zram devices | No | § multi-device | No |
 | zswap alternative | Advisory | § zswap-alternative | No zswap UI |
 | Writeback device | No (overflow swapfile) | § writeback-device | Expert mode |
+| Vendor size respect | Keep ≥ recommended size | § distro-overrides | — |
+| Overflow cap 8 GiB | Yes | § overflow gates | — |
 
 ## Citations
 
@@ -120,4 +128,5 @@ Anchor: `known-conflicts`.
 
 | Date | Change |
 |------|--------|
+| 2026-07-22 | Overflow capped at 8 GiB; fstab + free-space gates; RO `/etc` and immutable OS skip all staging; respect larger vendor zram-size; Apt package hint; GUI Apply vs Configure copy |
 | 2026-07-13 | Initial matrix: conservative/performance/constrained profiles, overflow swapfile, sysctl defaults, advanced topics, doctor mapping |

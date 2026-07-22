@@ -9,20 +9,20 @@ class QLineEdit;
 class QPushButton;
 class QSpinBox;
 class QTableWidget;
-class DbusClient;
 
 class SwapfileWidget : public QWidget {
     Q_OBJECT
 
 public:
-    explicit SwapfileWidget(DbusClient *client, QWidget *parent = nullptr);
+    explicit SwapfileWidget(QWidget *parent = nullptr);
 
-    void setDaemonAvailable(bool available);
     void setSwapfilesJson(const QString &json);
     void setDetectionJson(const QString &json);
+    void setSwapsJson(const QString &json);
 
 signals:
     void stagingChanged();
+    void refreshRequested();
 
 private slots:
     void browsePath();
@@ -31,26 +31,32 @@ private slots:
     void stageRemove();
     void checkBtrfs();
     void prepareBtrfs();
+    void swapOnSelected();
+    void swapOffSelected();
 
 private:
-    void setEditingEnabled(bool enabled);
     void populateTable(const QJsonArray &files);
+    void populatePartitionTable(const QJsonArray &swaps);
     QString selectedPath() const;
+    QString selectedPartitionDevice() const;
     QString targetPath() const;
     void updateBtrfsStatus(const QString &json);
-    QString fetchBtrfsCheckJson(const QString &path) const;
+    void updateBtrfsBanner();
+    bool anySwapfileReady() const;
+    void updateActionEnabled();
+    void captureCreateBaseline();
+    bool createFormDirty() const;
 
-    DbusClient *m_client;
-    bool m_daemonAvailable = false;
     bool m_onBtrfs = false;
 
+    QLabel *m_introLabel;
     QLabel *m_btrfsBanner;
     QLabel *m_btrfsStatus;
     QCheckBox *m_mkdirCheck;
     QPushButton *m_checkBtrfsButton;
     QPushButton *m_prepareBtrfsButton;
-    QLabel *m_unavailableLabel;
     QTableWidget *m_table;
+    QTableWidget *m_partitionTable;
     QLineEdit *m_pathEdit;
     QSpinBox *m_sizeSpin;
     QSpinBox *m_prioritySpin;
@@ -58,6 +64,12 @@ private:
     QPushButton *m_createButton;
     QPushButton *m_resizeButton;
     QPushButton *m_removeButton;
+    QPushButton *m_swapOnButton;
+    QPushButton *m_swapOffButton;
+
+    QString m_baselineCreatePath;
+    quint64 m_baselineCreateSizeMb = 0;
+    int m_baselineCreatePriority = 10;
 };
 
 #endif

@@ -5,15 +5,15 @@
 
 class DashboardWidget;
 class DoctorWidget;
-class DbusClient;
 class PendingBanner;
+class SettingsWidget;
+class SnapshotWidget;
 class SwapfileWidget;
 class SysctlWidget;
-class UtilitiesWidget;
 class ZramWidget;
-class QPushButton;
 class QLabel;
 class QTabWidget;
+class QTimer;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -23,25 +23,24 @@ public:
 
 private slots:
     void refreshAll();
+    void refreshLive();
     void applyPending();
     void clearPending();
-    void startService();
     void onStagingChanged();
     void recommendDefaults();
+    void onRefreshIntervalChanged(int intervalMs);
+    void onPruneKeepDefaultChanged(int keep);
 
 private:
     void setupUi();
-    bool ensureBackend(QString *error = nullptr);
-    void populateFromDbus();
-    void populateFromCliFallback();
+    void populateFromCli();
     void updatePendingBanner();
-    void setDaemonMode(bool available);
+    void updateStatusLabel();
+    void configureRefreshTimer(int intervalMs);
     QString fetchRecommendedDefaultsJson() const;
     void previewPendingInTabs(const QJsonObject &pending);
-    bool stageRecommendedDefaults(QString *error = nullptr);
     bool pendingHasChanges(const QJsonObject &pending) const;
 
-    DbusClient *m_client;
     PendingBanner *m_pendingBanner;
     QTabWidget *m_tabs;
     DashboardWidget *m_dashboard;
@@ -49,11 +48,10 @@ private:
     SwapfileWidget *m_swapfilePage;
     SysctlWidget *m_sysctlPage;
     DoctorWidget *m_doctorPage;
-    UtilitiesWidget *m_utilitiesPage;
-    QPushButton *m_applyButton;
-    QPushButton *m_startServiceButton;
+    SnapshotWidget *m_snapshotPage;
+    SettingsWidget *m_settingsPage;
     QLabel *m_statusLabel;
-    bool m_usingCliFallback = false;
+    QTimer *m_refreshTimer;
 };
 
 #endif

@@ -654,21 +654,36 @@ fn run_privileged_pkexec(action: &str, payload: &str) -> anyhow::Result<()> {
         .status()?;
 
     if !status.success() {
+        if let Some(err) = xzram::apply::read_last_error() {
+            anyhow::bail!("{err}");
+        }
         anyhow::bail!("privileged operation failed (pkexec exit {status})");
     }
     Ok(())
 }
 
-fn run_privileged(_use_dbus: bool, action: &str, payload: &str) -> anyhow::Result<()> {
-    if _use_dbus {
-        if let Err(e) = run_via_dbus(action, payload) {
-            info!(error = %e, "D-Bus unavailable, falling back to pkexec");
-        } else {
-            return Ok(());
+fn run_privileged(use_dbus: bool, action: &str, payload: &str) -> anyhow::Result<()> {
+    if use_dbus {
+        match run_via_dbus(action, payload) {
+            Ok(()) => return Ok(()),
+            Err(e) if dbus_unavailable(&e) => {
+                info!(error = %e, "D-Bus unavailable, falling back to pkexec");
+            }
+            Err(e) => return Err(e),
         }
     }
 
     run_privileged_pkexec(action, payload)
+}
+
+fn dbus_unavailable(err: &anyhow::Error) -> bool {
+    let msg = err.to_string().to_lowercase();
+    msg.contains("xzramd not running")
+        || msg.contains("name has no owner")
+        || msg.contains("service unknown")
+        || msg.contains("disconnected")
+        || msg.contains("failed to connect")
+        || msg.contains("no such name")
 }
 
 fn run_via_dbus(action: &str, payload: &str) -> anyhow::Result<()> {
@@ -858,7 +873,17 @@ fn run_snapshot_create_pkexec(label: Option<&str>) -> anyhow::Result<snapshot::S
         .arg(payload.to_string())
         .output()?;
     if !output.status.success() {
-        anyhow::bail!("{}", String::from_utf8_lossy(&output.stderr).trim());
+        if let Some(err) = xzram::apply::read_last_error() {
+            anyhow::bail!("{err}");
+        }
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        if !stderr.is_empty() {
+            anyhow::bail!("{stderr}");
+        }
+        anyhow::bail!(
+            "snapshot create failed (pkexec exit {:?})",
+            output.status.code()
+        );
     }
     let meta: snapshot::SnapshotMeta = serde_json::from_slice(&output.stdout)?;
     Ok(meta)

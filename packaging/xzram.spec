@@ -1,5 +1,5 @@
 Name:           xzram
-Version:        0.1.0
+Version:        0.2.0
 Release:        1%{?dist}
 Summary:        Cross-distro Linux swap management
 
@@ -56,5 +56,8 @@ install -Dm644 data/io.github.XZram.metainfo.xml %{buildroot}%{_datadir}/metainf
 %systemd_postun_with_restart xzramd.service
 
 %changelog
+* Wed Jul 22 2026 XZram contributors <xzram@example.com> - 0.2.0-1
+- GUI CLI-first runner, settings/snapshot tabs, recommend hardening, versioning
+
 * Mon Jul 13 2026 XZram contributors <xzram@example.com> - 0.1.0-1
 - Bundle xzram-qt GUI and snapshot subsystem

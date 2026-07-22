@@ -1,3 +1,11 @@
+xzram (0.2.0-1) unstable; urgency=medium
+
+  * GUI CLI-first runner; settings and snapshot tabs.
+  * Recommended-defaults hardening and clearer GUI actions.
+  * Version surface in Settings and packaging metadata.
+
+ -- XZram contributors <xzram@example.com>  Wed, 22 Jul 2026 23:30:00 +0000
+
 xzram (0.1.0-1) unstable; urgency=medium
 
   * Initial Debian package release.
