@@ -4,7 +4,7 @@ LIBEXECDIR ?= $(PREFIX)/libexec
 DATADIR ?= $(PREFIX)/share
 SYSTEMDUNITDIR ?= $(PREFIX)/lib/systemd/system
 
-.PHONY: all build build-gui check test test-lib fmt fmt-check clippy lint \
+.PHONY: all build build-gui check test test-lib fmt fmt-check clippy lint loc-check \
 	install install-cli install-post gui-smoke clean version-check
 
 XZRAM_VERSION := $(shell tr -d '[:space:]' < VERSION)
@@ -36,7 +36,10 @@ fmt-check:
 clippy:
 	cargo clippy --all-targets -- -D warnings
 
-lint: fmt-check clippy
+lint: fmt-check clippy loc-check
+
+loc-check:
+	./scripts/check-loc.sh
 
 # CLI/daemon/polkit/dbus only (no Qt).
 install-cli: build

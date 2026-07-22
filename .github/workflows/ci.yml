@@ -51,6 +51,9 @@ jobs:
       - name: Clippy
         run: cargo clippy --all-targets -- -D warnings
 
+      - name: LOC limit (400)
+        run: ./scripts/check-loc.sh
+
   distro-matrix:
     name: Distro smoke test (${{ matrix.distro }})
     runs-on: ubuntu-latest
