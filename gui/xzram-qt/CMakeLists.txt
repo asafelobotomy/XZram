@@ -9,9 +9,11 @@ set(SOURCES
     widgets/dashboardwidget.cpp
     widgets/zramwidget.cpp
     widgets/swapfilewidget.cpp
+    widgets/swapfilewidget_btrfs.cpp
     widgets/sysctlwidget.cpp
     widgets/doctorwidget.cpp
     widgets/recommendeddefaultsdialog.cpp
+    widgets/recommendeddefaultsui.cpp
     widgets/snapshotwidget.cpp
     widgets/settingswidget.cpp
 )
@@ -28,6 +30,7 @@ set(HEADERS
     widgets/sysctlwidget.h
     widgets/doctorwidget.h
     widgets/recommendeddefaultsdialog.h
+    widgets/recommendeddefaultsui.h
     widgets/snapshotwidget.h
     widgets/settingswidget.h
 )

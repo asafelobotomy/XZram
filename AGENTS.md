@@ -34,7 +34,7 @@ Prefer `make install-cli` over `make install` when Qt is not needed.
 ```bash
 make check          # cargo check -p xzram
 make test-lib       # cargo test -p xzram --lib (~seconds warm)
-make lint           # fmt --check + clippy -D warnings (matches CI)
+make lint           # fmt --check + clippy -D warnings + loc-check (≤400 lines/file; matches CI)
 make gui-smoke      # only for GUI edits
 ```
 

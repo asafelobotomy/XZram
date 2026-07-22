@@ -1,3 +1,6 @@
+mod auth;
+mod util;
+
 use std::collections::HashMap;
 
 use tracing::info;
@@ -18,7 +21,12 @@ use xzram::sysctl::{self, SysctlValues};
 use xzram::validation;
 use zbus::interface;
 use zbus::message::Header;
-use zbus_polkit::policykit1::{AuthorityProxy, CheckAuthorizationFlags, Subject};
+use zbus::zvariant::OwnedValue;
+
+use auth::authorize;
+use util::json_map;
+
+type JsonReply = HashMap<String, OwnedValue>;
 
 pub struct Manager {
     connection: zbus::Connection,
@@ -30,38 +38,24 @@ impl Manager {
     }
 }
 
-fn json_map<T: serde::Serialize>(value: &T) -> HashMap<String, zbus::zvariant::OwnedValue> {
-    let json = serde_json::to_string(value).unwrap_or_else(|_| "{}".into());
-    let mut map = HashMap::new();
-    let owned: zbus::zvariant::OwnedValue = zbus::zvariant::Value::from(json)
-        .try_into()
-        .expect("json string is a valid D-Bus value");
-    map.insert("json".into(), owned);
-    map
-}
-
 #[interface(name = "io.github.XZram.Manager")]
 impl Manager {
-    async fn get_status(&self) -> zbus::fdo::Result<HashMap<String, zbus::zvariant::OwnedValue>> {
+    async fn get_status(&self) -> zbus::fdo::Result<JsonReply> {
         let report = status::status().map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
         Ok(json_map(&report))
     }
 
-    async fn get_detection(
-        &self,
-    ) -> zbus::fdo::Result<HashMap<String, zbus::zvariant::OwnedValue>> {
+    async fn get_detection(&self) -> zbus::fdo::Result<JsonReply> {
         let report = detect::detect().map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
         Ok(json_map(&report))
     }
 
-    async fn run_doctor(&self) -> zbus::fdo::Result<HashMap<String, zbus::zvariant::OwnedValue>> {
+    async fn run_doctor(&self) -> zbus::fdo::Result<JsonReply> {
         let report = doctor::doctor().map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
         Ok(json_map(&report))
     }
 
-    async fn get_zram_config(
-        &self,
-    ) -> zbus::fdo::Result<HashMap<String, zbus::zvariant::OwnedValue>> {
+    async fn get_zram_config(&self) -> zbus::fdo::Result<JsonReply> {
         let backend = ensure_zram_backend().map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
         let config = backend
             .show()
@@ -69,9 +63,7 @@ impl Manager {
         Ok(json_map(&config))
     }
 
-    async fn list_swapfiles(
-        &self,
-    ) -> zbus::fdo::Result<HashMap<String, zbus::zvariant::OwnedValue>> {
+    async fn list_swapfiles(&self) -> zbus::fdo::Result<JsonReply> {
         let backend = available_swapfile_backend();
         let files = backend
             .list()
@@ -79,26 +71,23 @@ impl Manager {
         Ok(json_map(&files))
     }
 
-    async fn list_swaps(&self) -> zbus::fdo::Result<HashMap<String, zbus::zvariant::OwnedValue>> {
+    async fn list_swaps(&self) -> zbus::fdo::Result<JsonReply> {
         let swaps = swap_partition::list_swaps_merged()
             .map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
         Ok(json_map(&swaps))
     }
 
-    async fn get_sysctl(&self) -> zbus::fdo::Result<HashMap<String, zbus::zvariant::OwnedValue>> {
+    async fn get_sysctl(&self) -> zbus::fdo::Result<JsonReply> {
         let values = sysctl::show().map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
         Ok(json_map(&values))
     }
 
-    async fn get_pending(&self) -> zbus::fdo::Result<HashMap<String, zbus::zvariant::OwnedValue>> {
+    async fn get_pending(&self) -> zbus::fdo::Result<JsonReply> {
         let pending = load_pending().map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
         Ok(json_map(&pending))
     }
 
-    async fn check_swapfile_btrfs(
-        &self,
-        path: &str,
-    ) -> zbus::fdo::Result<HashMap<String, zbus::zvariant::OwnedValue>> {
+    async fn check_swapfile_btrfs(&self, path: &str) -> zbus::fdo::Result<JsonReply> {
         validation::validate_swapfile_path(path)
             .map_err(|e| zbus::fdo::Error::InvalidArgs(e.to_string()))?;
         let status = swapfile_btrfs::check_nodatacow(std::path::Path::new(path))
@@ -111,7 +100,7 @@ impl Manager {
         #[zbus(header)] hdr: Header<'_>,
         path: &str,
         mkdir_parents: bool,
-    ) -> zbus::fdo::Result<HashMap<String, zbus::zvariant::OwnedValue>> {
+    ) -> zbus::fdo::Result<JsonReply> {
         authorize(&self.connection, &hdr, "io.github.xzram.swapfile.prepare").await?;
         validation::validate_swapfile_path(path)
             .map_err(|e| zbus::fdo::Error::InvalidArgs(e.to_string()))?;
@@ -120,9 +109,7 @@ impl Manager {
         Ok(json_map(&status))
     }
 
-    async fn get_recommended_defaults(
-        &self,
-    ) -> zbus::fdo::Result<HashMap<String, zbus::zvariant::OwnedValue>> {
+    async fn get_recommended_defaults(&self) -> zbus::fdo::Result<JsonReply> {
         let report = recommend::recommend().map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
         Ok(json_map(&report))
     }
@@ -130,7 +117,7 @@ impl Manager {
     async fn stage_recommended_defaults(
         &self,
         #[zbus(header)] hdr: Header<'_>,
-    ) -> zbus::fdo::Result<HashMap<String, zbus::zvariant::OwnedValue>> {
+    ) -> zbus::fdo::Result<JsonReply> {
         authorize(&self.connection, &hdr, "io.github.xzram.stage").await?;
         let report = recommend::recommend().map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
         if !pending_is_empty(&report.pending) {
@@ -255,28 +242,19 @@ impl Manager {
         crate::privileged::run_helper("rollback", "{}")
     }
 
-    async fn list_snapshots(
-        &self,
-    ) -> zbus::fdo::Result<HashMap<String, zbus::zvariant::OwnedValue>> {
+    async fn list_snapshots(&self) -> zbus::fdo::Result<JsonReply> {
         let list =
             snapshot::list_snapshots().map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
         Ok(json_map(&list))
     }
 
-    async fn get_snapshot(
-        &self,
-        id: &str,
-    ) -> zbus::fdo::Result<HashMap<String, zbus::zvariant::OwnedValue>> {
+    async fn get_snapshot(&self, id: &str) -> zbus::fdo::Result<JsonReply> {
         let meta =
             snapshot::get_snapshot(id).map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
         Ok(json_map(&meta))
     }
 
-    async fn create_snapshot(
-        &self,
-        trigger: &str,
-        label: &str,
-    ) -> zbus::fdo::Result<HashMap<String, zbus::zvariant::OwnedValue>> {
+    async fn create_snapshot(&self, trigger: &str, label: &str) -> zbus::fdo::Result<JsonReply> {
         let trigger = SnapshotTrigger::parse(trigger)
             .map_err(|e| zbus::fdo::Error::InvalidArgs(e.to_string()))?;
         let label_opt = if label.is_empty() { None } else { Some(label) };
@@ -377,53 +355,6 @@ impl Manager {
     }
 }
 
-async fn authorize(
-    connection: &zbus::Connection,
-    header: &Header<'_>,
-    action_id: &str,
-) -> zbus::fdo::Result<()> {
-    let proxy = AuthorityProxy::new(connection)
-        .await
-        .map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
-
-    let subject = subject_from_header(connection, header).await?;
-    let result = proxy
-        .check_authorization(
-            &subject,
-            action_id,
-            &HashMap::new(),
-            CheckAuthorizationFlags::AllowUserInteraction.into(),
-            "",
-        )
-        .await
-        .map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
-
-    if result.is_authorized {
-        Ok(())
-    } else {
-        Err(zbus::fdo::Error::AccessDenied(format!(
-            "polkit denied action {action_id}"
-        )))
-    }
-}
-
-async fn subject_from_header(
-    connection: &zbus::Connection,
-    _header: &Header<'_>,
-) -> zbus::fdo::Result<Subject> {
-    let creds = connection
-        .peer_creds()
-        .await
-        .map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
-
-    let pid = creds
-        .process_id()
-        .ok_or_else(|| zbus::fdo::Error::Failed("could not determine caller PID".into()))?;
-    let uid = creds.unix_user_id();
-
-    Subject::new_for_owner(pid, None, uid).map_err(|e| zbus::fdo::Error::Failed(e.to_string()))
-}
-
 pub async fn serve() -> anyhow::Result<()> {
     let connection = zbus::connection::Builder::system()?
         .name("io.github.XZram1")?
@@ -439,15 +370,4 @@ pub async fn serve() -> anyhow::Result<()> {
     tokio::signal::ctrl_c().await?;
     connection.release_name("io.github.XZram1").await?;
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn json_map_contains_json_key() {
-        let map = json_map(&serde_json::json!({"ok": true}));
-        assert!(map.contains_key("json"));
-    }
 }
