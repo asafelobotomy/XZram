@@ -75,6 +75,13 @@ make test          # full cargo test workspace
 make gui-smoke     # Qt6 offscreen launch smoke (needs GUI deps)
 ```
 
+Optional local git hooks (same gates as CI lint + lib tests):
+
+```bash
+pip install pre-commit   # or distro package: pre-commit
+pre-commit install
+```
+
 See [AGENTS.md](AGENTS.md) for agent-oriented bootstrap notes and
 [docs/DEV-ENV.md](docs/DEV-ENV.md) for test overrides (`XZRAM_*`).
 

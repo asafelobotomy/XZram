@@ -41,6 +41,7 @@ make gui-smoke      # only for GUI edits
 `xzramd` is a binary crate (`cargo test -p xzramd --lib` is not the right gate).
 CLI/helper smoke: `cargo test -p xzram-cli` and `cargo test -p xzram-helper`.
 GUI gate: `make gui-smoke` (not QTest).
+Optional: `pre-commit install` runs fmt-check, clippy, and `cargo test -p xzram --lib` on commit.
 See README **Verify** and [docs/DEV-ENV.md](docs/DEV-ENV.md) for `XZRAM_*` overrides.
 
 ## Docs map
