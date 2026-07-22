@@ -1,0 +1,50 @@
+# Agent notes for XZram
+
+CLI-first Linux swap tooling (Rust workspace + optional Qt6 GUI).
+
+## Bootstrap (cold start)
+
+1. Prerequisites: Rust ≥ 1.75, Cargo, Linux/systemd. GUI needs cmake + Qt6.
+2. Fast path (no sudo):
+
+```bash
+cargo run -p xzram-cli -- status
+# or after release build:
+./target/release/xzram detect
+./target/release/xzram doctor
+```
+
+3. Do **not** use `sudo` for `status` / `detect` / `doctor` smoke checks.
+4. Privileged paths (`apply`, `daemon start`, write helpers) need polkit/root — treat
+   auth failures as expected unless you intentionally test apply.
+
+## Surfaces
+
+| Surface | How | Notes |
+|---------|-----|--------|
+| CLI | `cargo run -p xzram-cli -- …` or `./target/release/xzram` | Primary |
+| Helper | `xzram-helper` via pkexec | Root only |
+| Daemon | `xzramd` / `systemctl enable --now xzramd` | Privileged next step |
+| GUI | `make build-gui` → `build-gui/xzram-qt/xzram-qt` | Optional; Qt6 |
+
+Prefer `make install-cli` over `make install` when Qt is not needed.
+
+## Verify a small change
+
+```bash
+make check          # cargo check -p xzram
+make test-lib       # cargo test -p xzram --lib (~seconds warm)
+make lint           # fmt --check + clippy -D warnings (matches CI)
+make gui-smoke      # only for GUI edits
+```
+
+`xzramd` is a binary crate (`cargo test -p xzramd --lib` is not the right gate).
+See README **Verify** and [docs/DEV-ENV.md](docs/DEV-ENV.md) for `XZRAM_*` overrides.
+
+## Docs map
+
+- [README.md](README.md) — user quick start, install, CLI
+- [docs/SCOPE.md](docs/SCOPE.md) — in/out of scope
+- [docs/GUI-PHASE2.md](docs/GUI-PHASE2.md) — GUI + daemon architecture
+- [docs/RECOMMENDATIONS.md](docs/RECOMMENDATIONS.md) — defaults profiles
+- [docs/SNAPSHOTS.md](docs/SNAPSHOTS.md) — snapshot semantics
