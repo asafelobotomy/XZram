@@ -3,7 +3,15 @@ use std::path::{Component, Path, PathBuf};
 use crate::apply::SwapfileConfig;
 use crate::error::{Result, XzramError};
 
-const BLOCKED_PREFIXES: &[&str] = &["/boot", "/boot/efi", "/efi", "/dev", "/proc", "/sys", "/run"];
+const BLOCKED_PREFIXES: &[&str] = &[
+    "/boot",
+    "/boot/efi",
+    "/efi",
+    "/dev",
+    "/proc",
+    "/sys",
+    "/run",
+];
 
 pub fn validate_swapfile_path(path: &str) -> Result<PathBuf> {
     if path.is_empty() {

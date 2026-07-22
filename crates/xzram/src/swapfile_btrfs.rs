@@ -74,9 +74,7 @@ fn build_status(path: &Path, _preparing: bool) -> Result<NodatacowStatus> {
 
     let ready = if !on_btrfs {
         true
-    } else if !parent_exists {
-        false
-    } else if !parent_nodatacow {
+    } else if !parent_exists || !parent_nodatacow {
         false
     } else if file_exists {
         file_nodatacow.unwrap_or(false)
@@ -207,13 +205,7 @@ pub fn create_allocated_swapfile(path: &Path, size_mb: u64) -> Result<()> {
         let size = format!("{size_mb}M");
         apply::run_command(
             "btrfs",
-            &[
-                "filesystem",
-                "mkswapfile",
-                "--size",
-                &size,
-                &path_str,
-            ],
+            &["filesystem", "mkswapfile", "--size", &size, &path_str],
         )?;
         return Ok(());
     }

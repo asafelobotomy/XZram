@@ -79,8 +79,7 @@ pub fn finalize_zram_tools_migration() -> Result<Vec<String>> {
     std::fs::rename(zramswap_path(), &archive)?;
     messages.push(format!(
         "Archived {} to {}",
-        ZRAMSWAP_PATH,
-        ZRAMSWAP_ARCHIVE
+        ZRAMSWAP_PATH, ZRAMSWAP_ARCHIVE
     ));
 
     Ok(messages)

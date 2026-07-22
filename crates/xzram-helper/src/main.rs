@@ -185,9 +185,13 @@ fn run(action: &str, payload: &str) -> xzram::Result<()> {
             }
             let p: CreatePayload = serde_json::from_str(payload)
                 .map_err(|e| xzram::XzramError::Parse(e.to_string()))?;
-            let trigger = SnapshotTrigger::from_str(&p.trigger)?;
+            let trigger = SnapshotTrigger::parse(&p.trigger)?;
             let meta = snapshot::create_snapshot(trigger, p.label.as_deref(), None)?;
-            println!("{}", serde_json::to_string(&meta).map_err(|e| xzram::XzramError::Parse(e.to_string()))?);
+            println!(
+                "{}",
+                serde_json::to_string(&meta)
+                    .map_err(|e| xzram::XzramError::Parse(e.to_string()))?
+            );
         }
         "snapshot.restore" => {
             #[derive(Deserialize)]
@@ -223,7 +227,11 @@ fn run(action: &str, payload: &str) -> xzram::Result<()> {
         }
         "snapshot.list" => {
             let list = snapshot::list_snapshots()?;
-            println!("{}", serde_json::to_string(&list).map_err(|e| xzram::XzramError::Parse(e.to_string()))?);
+            println!(
+                "{}",
+                serde_json::to_string(&list)
+                    .map_err(|e| xzram::XzramError::Parse(e.to_string()))?
+            );
         }
         "daemon.start" => {
             apply::run_systemctl(&["daemon-reload"])?;
