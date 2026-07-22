@@ -75,6 +75,9 @@ make test          # full cargo test workspace
 make gui-smoke     # Qt6 offscreen launch smoke (needs GUI deps)
 ```
 
+Diagnostics: `xzram status` and `xzram doctor` are the operator health surface (no root).
+For binary tracing: `RUST_LOG=debug cargo run -p xzram-cli -- status` (see [docs/DEV-ENV.md](docs/DEV-ENV.md)).
+
 Optional local git hooks (same gates as CI lint + lib tests):
 
 ```bash

@@ -8,6 +8,7 @@ variables in the shell (or test harness) as needed.
 | `XZRAM_DATA_DIR` | Override `/var/lib/xzram` (pending config, snapshots). Used heavily in unit tests. |
 | `XZRAM_ETC_ROOT` | Override filesystem root for `/etc` paths during snapshot/restore tests. |
 | `XZRAM_DEV_HELPER` | Absolute path to a development `xzram-helper` binary; bypasses system helper lookup. |
+| `RUST_LOG` | Tracing filter for `xzram`, `xzram-helper`, and `xzramd` (via `tracing-subscriber`). Default when unset: `warn`. |
 
 Example (scratch dirs for a manual apply dry-run in tests):
 
@@ -15,6 +16,13 @@ Example (scratch dirs for a manual apply dry-run in tests):
 export XZRAM_DATA_DIR=/tmp/xzram-data
 export XZRAM_ETC_ROOT=/tmp/xzram-etc
 mkdir -p "$XZRAM_DATA_DIR" "$XZRAM_ETC_ROOT"
+```
+
+Debug logging:
+
+```bash
+RUST_LOG=debug cargo run -p xzram-cli -- status
+# or narrow: RUST_LOG=xzram_cli=debug,xzram=debug
 ```
 
 When pointing the CLI at a locally built helper:

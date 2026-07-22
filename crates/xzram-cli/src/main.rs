@@ -3,7 +3,8 @@ mod dbus_client;
 use std::process::Command;
 
 use clap::{Parser, Subcommand};
-use tracing::info;
+use tracing::{debug, info};
+use tracing_subscriber::EnvFilter;
 use xzram::apply::{load_pending, PendingConfig, SwapfileConfig, SwapfileResizeConfig, ZramConfig};
 use xzram::backend::{available_swapfile_backend, available_zram_backend};
 use xzram::config::default_zram_config;
@@ -251,13 +252,16 @@ enum SysctlCommands {
 
 fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .with_env_filter(
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("warn")),
+        )
         .init();
 
     let cli = Cli::parse();
 
     match cli.command {
         Commands::Status => {
+            debug!("collecting status report");
             let report = status::status()?;
             if cli.json {
                 println!("{}", serde_json::to_string_pretty(&report)?);
@@ -266,6 +270,7 @@ fn main() -> anyhow::Result<()> {
             }
         }
         Commands::Detect => {
+            debug!("running detection");
             let report = detect::detect()?;
             if cli.json {
                 println!("{}", serde_json::to_string_pretty(&report)?);
@@ -274,6 +279,7 @@ fn main() -> anyhow::Result<()> {
             }
         }
         Commands::Doctor => {
+            debug!("running doctor checks");
             let report = doctor::doctor()?;
             if cli.json {
                 println!("{}", serde_json::to_string_pretty(&report)?);
