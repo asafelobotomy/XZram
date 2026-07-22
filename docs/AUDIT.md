@@ -23,7 +23,7 @@ This audit found **five critical (P0) issues**, several **high (P1)** gaps, and 
 2. **Privilege model** — traced pkexec/polkit authorization for each mutating operation.
 3. **Filesystem safety** — reviewed path validation, backup/rollback, fstab editing, btrfs handling.
 4. **Distro matrix** — checked detection, package names, init assumptions, and packaging artifacts.
-5. **Automated tests** — `cargo test` (35 unit tests) plus manual review of integration gaps.
+5. **Automated tests** — `cargo test` (40+ unit tests in `crates/xzram`, plus CLI/helper smoke) plus manual review of integration gaps.
 
 ---
 

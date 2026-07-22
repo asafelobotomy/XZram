@@ -2,8 +2,8 @@
 
 ## Goal
 
-Provide a unified CLI (and later Qt6 GUI) for full swap management on major
-systemd-based Linux distributions.
+Provide a unified CLI, Qt6 GUI, and system D-Bus daemon for full swap management
+on major systemd-based Linux distributions.
 
 ## In scope (v1)
 
@@ -13,7 +13,9 @@ systemd-based Linux distributions.
 - Sysctl tuning (swappiness, watermark_boost_factor, watermark_scale_factor, page-cluster)
 - Read-only diagnostics: status, detect, doctor
 - Polkit-gated privileged operations
-- Native packaging: PKGBUILD, debian/, rpm spec
+- System D-Bus daemon (`xzramd`) and Qt6 GUI (`xzram-qt`)
+- Configuration snapshots and recommended defaults
+- Native packaging sources: PKGBUILD, debian/, rpm spec
 - CI testing on Fedora, Ubuntu, Debian, Arch
 
 ## Out of scope (v1)
@@ -22,7 +24,6 @@ systemd-based Linux distributions.
 - Alpine / non-systemd init systems
 - Immutable distro full support (Silverblue overlay UX deferred)
 - Hibernation setup (detect and warn only)
-- GUI (phase 2)
 
 ## Backend abstraction
 

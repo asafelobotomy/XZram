@@ -18,4 +18,8 @@ serde_json.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 xzram = { path = "../xzram" }
-zbus = { version = "5", default-features = false, features = ["blocking"] }
+zbus = { version = "5", features = ["tokio"] }
+
+[dev-dependencies]
+assert_cmd = "2"
+predicates = "3"

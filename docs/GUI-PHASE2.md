@@ -1,9 +1,10 @@
-# XZram Phase 2: Qt6 GUI and D-Bus Daemon
+# XZram Qt6 GUI and D-Bus Daemon
 
 ## Overview
 
-Once the CLI is stable, phase 2 adds a Qt6 desktop GUI and a system D-Bus daemon
-(`xzramd`) so the GUI never needs root or pkexec.
+XZram ships a Qt6 desktop GUI (`xzram-qt`) and a system D-Bus daemon (`xzramd`)
+so the GUI can manage swap without needing root or pkexec for every action.
+Privileged operations are gated by polkit inside the daemon (or via `xzram-helper`).
 
 ## Architecture
 
@@ -27,7 +28,7 @@ flowchart LR
 - **Install path:** `/usr/libexec/xzramd`
 - **systemd unit:** `xzramd.service` (Type=dbus, BusName=io.github.XZram1)
 
-### D-Bus API (draft)
+### D-Bus API
 
 ```
 GetStatus() -> a{sv}           # StatusReport as JSON
@@ -49,7 +50,7 @@ Rollback()                     # polkit: io.github.xzram.rollback
 
 ### xzram-qt (C++20 / Qt6)
 
-- **Framework:** Qt6 Widgets or Qt Quick Controls
+- **Framework:** Qt6 Widgets
 - **D-Bus client:** `QDBusInterface` to `io.github.XZram1`
 - **Pages:**
   - Dashboard (status, memory, compression ratio)
@@ -58,7 +59,6 @@ Rollback()                     # polkit: io.github.xzram.rollback
   - Sysctl tuning (swappiness, watermarks)
   - Doctor (issue list with severity icons)
   - Utilities (snapshot list + restore; no delete in GUI)
-- **Theming:** Fusion style with dark/light toggle (like zram-gui)
 - **Install:** bundled in native `xzram` package; optional Flatpak (host `xzramd` required)
 
 ### Snapshot D-Bus API
@@ -80,34 +80,34 @@ See [FLATPAK.md](FLATPAK.md) for host package requirements and snapshot limitati
 
 The Flatpak GUI bundle cannot write `/etc` directly. Distribution model:
 
-1. User installs native `xzram` package (provides `xzramd` + polkit policy)
-2. User installs Flatpak `io.github.XZram` GUI
+1. User installs native `xzram` (provides `xzramd` + polkit policy)
+2. User installs Flatpak `io.github.XZram` GUI (when published)
 3. Flatpak manifest grants `--talk-name=io.github.XZram1` and `--system-talk-name=io.github.XZram1`
 4. GUI calls host D-Bus daemon; polkit prompts in host session
 
-## File layout (phase 2)
+## File layout
 
 ```
 crates/
   xzramd/              # D-Bus daemon binary
-  xzram-cli/           # existing CLI (add --dbus flag)
+  xzram-cli/           # CLI (--dbus flag)
 gui/
   xzram-qt/            # Qt6 C++ application
   CMakeLists.txt
 data/
   io.github.XZram.service
   io.github.XZram.conf   # D-Bus bus policy
-  io.github.xzram.desktop
+  io.github.XZram.desktop
   io.github.XZram.metainfo.xml
 ```
 
 ## Milestones
 
-1. **M1:** `xzramd` with read-only D-Bus methods (status, detect, doctor)
-2. **M2:** Privileged D-Bus methods with polkit gating
-3. **M3:** Qt6 dashboard + zram config page — **done** (purpose-built widgets, no raw JSON)
-4. **M4:** Swap file management page + sysctl page — **done** (staging + CLI fallback)
-5. **M5:** Flatpak manifest + AppStream metadata
+1. **M1:** `xzramd` with read-only D-Bus methods (status, detect, doctor) — **done**
+2. **M2:** Privileged D-Bus methods with polkit gating — **done**
+3. **M3:** Qt6 dashboard + zram config page — **done**
+4. **M4:** Swap file management page + sysctl page — **done**
+5. **M5:** Flatpak manifest + AppStream metadata — **in progress** (manifest present; publish TBD)
 
 ## Apply recommended defaults
 
@@ -125,15 +125,16 @@ swapfile at `/swap/swapfile` (priority 10) when no disk swap exists. Advisory it
 hibernation, dual-tier tradeoffs) link to `docs/RECOMMENDATIONS.md` anchors via the `reference`
 field in each recommendation item.
 
-## Dependencies (phase 2)
+## Dependencies
 
 | Component | Build deps |
 |-----------|-----------|
 | xzramd | rust, zbus, zbus_polkit, tokio |
 | xzram-qt | cmake, qt6-base, qt6-tools |
 
-## Testing
+## Still TODO
 
-- D-Bus integration tests with `zbus` test connections
-- Qt UI tests with `QTest` / `squish` (optional)
-- CI: build GUI headless with `QT_QPA_PLATFORM=offscreen`
+- Publish Flatpak / AppStream to a store
+- Broader D-Bus integration tests with `zbus` test connections
+- Optional Qt UI tests with `QTest`
+- CI GUI gate today: `make gui-smoke` (`QT_QPA_PLATFORM=offscreen`)
