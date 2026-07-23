@@ -36,9 +36,7 @@ pub(crate) async fn authorize(
 /// Build a polkit subject for the D-Bus method caller (not the bus peer).
 fn subject_from_header(header: &Header<'_>) -> zbus::fdo::Result<Subject> {
     Subject::new_for_message_header(header).map_err(|e| {
-        zbus::fdo::Error::Failed(format!(
-            "could not determine D-Bus caller for polkit: {e}"
-        ))
+        zbus::fdo::Error::Failed(format!("could not determine D-Bus caller for polkit: {e}"))
     })
 }
 

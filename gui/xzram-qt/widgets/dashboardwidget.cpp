@@ -9,6 +9,7 @@
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QJsonArray>
+#include <QJsonDocument>
 #include <QLabel>
 #include <QProgressBar>
 #include <QPushButton>

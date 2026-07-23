@@ -57,59 +57,48 @@ jobs:
   distro-matrix:
     name: Distro smoke test (${{ matrix.distro }})
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
-        distro: [fedora-42, ubuntu-24.04, debian-13, archlinux]
+        include:
+          - distro: fedora
+            image: fedora:42
+          - distro: ubuntu
+            image: ubuntu:24.04
+          - distro: debian
+            image: debian:trixie
+          - distro: arch
+            image: archlinux:latest
     steps:
       - uses: actions/checkout@v4
 
       - name: Smoke test in container
         run: |
-          case "${{ matrix.distro }}" in
-            fedora-42)
-              docker run --rm -v "$PWD:/src:ro" fedora:42 bash -c "
-                dnf install -y rust cargo polkit systemd util-linux &&
-                cd /src && cargo build --release && cargo test
-              "
-              ;;
-            ubuntu-24.04)
-              docker run --rm -v "$PWD:/src:ro" ubuntu:24.04 bash -c "
-                apt-get update &&
-                apt-get install -y rustc cargo pkg-config libssl-dev polkitd systemd util-linux &&
-                cd /src && cargo build --release && cargo test
-              "
-              ;;
-            debian-13)
-              docker run --rm -v "$PWD:/src:ro" debian:trixie bash -c "
-                apt-get update &&
-                apt-get install -y rustc cargo pkg-config libssl-dev polkitd systemd util-linux &&
-                cd /src && cargo build --release && cargo test
-              "
-              ;;
-            archlinux)
-              docker run --rm -v "$PWD:/src:ro" archlinux:latest bash -c "
-                pacman -Syu --noconfirm rust polkit systemd util-linux &&
-                cd /src && cargo build --release && cargo test
-              "
-              ;;
-          esac
+          docker run --rm \
+            -v "$PWD:/src:ro" \
+            -v "$PWD/scripts/ci-distro-smoke.sh:/ci-distro-smoke.sh:ro" \
+            -e CARGO_HOME=/tmp/cargo-home \
+            -e CARGO_TARGET_DIR=/tmp/xzram-target \
+            "${{ matrix.image }}" \
+            bash /ci-distro-smoke.sh "${{ matrix.distro }}"
 
   debian-package:
     name: Debian package smoke build
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
       - name: Build Debian package
         run: |
-          docker run --rm -v "$PWD:/src" debian:trixie bash -c "
-            apt-get update &&
-            apt-get install -y debhelper cargo rustc pkg-config libssl-dev &&
-            cd /src &&
-            dpkg-buildpackage -us -uc -b &&
-            ls -la ../*.deb
-          "
+          docker run --rm \
+            -v "$PWD:/src" \
+            -v "$PWD/scripts/ci-debian-package.sh:/ci-debian-package.sh:ro" \
+            -e CARGO_HOME=/tmp/cargo-home \
+            -e CARGO_TARGET_DIR=/tmp/xzram-target \
+            debian:trixie \
+            bash /ci-debian-package.sh
 
   qt-gui:
     name: Build Qt GUI (headless)
@@ -123,6 +112,11 @@ jobs:
           sudo apt-get install -y cmake qt6-base-dev qt6-base-dev-tools
           cmake -S gui -B build-gui
           cmake --build build-gui
+        env:
+          QT_QPA_PLATFORM: offscreen
+
+      - name: GUI smoke
+        run: make gui-smoke
         env:
           QT_QPA_PLATFORM: offscreen
 

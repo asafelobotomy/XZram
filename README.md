@@ -38,7 +38,7 @@ Keep packaging (`PKGBUILD`, `packaging/xzram.spec`, `debian/changelog`, AppStrea
 
 ## Prerequisites
 
-- **CLI / daemon:** Rust ≥ 1.75, Cargo, Linux with systemd
+- **CLI / daemon:** Rust ≥ 1.87, Cargo, Linux with systemd
 - **Full install / GUI:** cmake, Qt6 Widgets
   - Arch: `qt6-base`, `cmake`
   - Debian/Ubuntu: `qt6-base-dev`, `cmake`, `pkg-config`

@@ -4,7 +4,7 @@ CLI-first Linux swap tooling (Rust workspace + optional Qt6 GUI).
 
 ## Bootstrap (cold start)
 
-1. Prerequisites: Rust ≥ 1.75, Cargo, Linux/systemd. GUI needs cmake + Qt6.
+1. Prerequisites: Rust ≥ 1.87, Cargo, Linux/systemd. GUI needs cmake + Qt6.
 2. Fast path (no sudo):
 
 ```bash
