@@ -19,10 +19,15 @@ rm -f /usr/share/polkit-1/actions/io.github.xzram.policy
 rm -f /usr/share/bash-completion/completions/xzram
 rm -f /usr/share/applications/io.github.XZram.desktop
 rm -f /usr/share/metainfo/io.github.XZram.metainfo.xml
+rm -f /usr/share/icons/hicolor/*/apps/io.github.XZram.png
 
 echo "==> Building and installing (CLI, daemon, GUI)"
 make install
 make install-post
+
+if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+  gtk-update-icon-cache -f /usr/share/icons/hicolor 2>/dev/null || true
+fi
 
 systemctl daemon-reload
 echo "==> Done. Installed binaries:"

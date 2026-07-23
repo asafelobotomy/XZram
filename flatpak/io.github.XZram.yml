@@ -12,6 +12,27 @@ finish-args:
 modules:
   - name: xzram-qt
     buildsystem: cmake
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
     sources:
       - type: dir
         path: ../gui
+
+  - name: xzram-desktop-metadata
+    buildsystem: simple
+    build-commands:
+      - install -Dm644 io.github.XZram.desktop /app/share/applications/io.github.XZram.desktop
+      - install -Dm644 io.github.XZram.metainfo.xml /app/share/metainfo/io.github.XZram.metainfo.xml
+      - |
+        for size in 32x32 48x48 64x64 128x128 256x256 512x512; do
+          install -Dm644 "icons/hicolor/${size}/apps/io.github.XZram.png" \
+            "/app/share/icons/hicolor/${size}/apps/io.github.XZram.png"
+        done
+    sources:
+      - type: file
+        path: ../data/io.github.XZram.desktop
+      - type: file
+        path: ../data/io.github.XZram.metainfo.xml
+      - type: dir
+        path: ../data/icons
+        dest: icons

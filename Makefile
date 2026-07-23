@@ -57,8 +57,10 @@ install: build build-gui install-cli
 	install -Dm755 build-gui/xzram-qt/xzram-qt $(DESTDIR)$(BINDIR)/xzram-qt
 	install -Dm644 data/io.github.XZram.desktop $(DESTDIR)$(DATADIR)/applications/io.github.XZram.desktop
 	install -Dm644 data/io.github.XZram.metainfo.xml $(DESTDIR)$(DATADIR)/metainfo/io.github.XZram.metainfo.xml
-	install -Dm644 branding/xzram-icon.png \
-		$(DESTDIR)$(DATADIR)/icons/hicolor/256x256/apps/io.github.XZram.png
+	@for size in 32x32 48x48 64x64 128x128 256x256 512x512; do \
+		install -Dm644 data/icons/hicolor/$$size/apps/io.github.XZram.png \
+			$(DESTDIR)$(DATADIR)/icons/hicolor/$$size/apps/io.github.XZram.png; \
+	done
 
 install-post:
 	systemctl daemon-reload

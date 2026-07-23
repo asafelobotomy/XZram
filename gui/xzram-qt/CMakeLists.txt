@@ -42,3 +42,7 @@ target_compile_definitions(xzram-qt PRIVATE
     XZRAM_QT_VERSION="${PROJECT_VERSION}"
 )
 install(TARGETS xzram-qt RUNTIME DESTINATION bin)
+# Theme icon for desktop/taskbar (matches Icon=io.github.XZram in the .desktop file).
+install(FILES icons/xzram-icon.png
+    DESTINATION share/icons/hicolor/512x512/apps
+    RENAME io.github.XZram.png)

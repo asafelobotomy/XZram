@@ -9,7 +9,7 @@
   <action id="io.github.xzram.zram.configure">
     <description>Configure ZRAM swap</description>
     <message>Authentication is required to configure ZRAM swap</message>
-    <icon_name>drive-harddisk</icon_name>
+    <icon_name>io.github.XZram</icon_name>
     <defaults>
       <allow_any>auth_admin</allow_any>
       <allow_inactive>auth_admin</allow_inactive>
@@ -22,7 +22,7 @@
   <action id="io.github.xzram.zram.disable">
     <description>Disable ZRAM swap</description>
     <message>Authentication is required to disable ZRAM swap</message>
-    <icon_name>drive-harddisk</icon_name>
+    <icon_name>io.github.XZram</icon_name>
     <defaults>
       <allow_any>auth_admin</allow_any>
       <allow_inactive>auth_admin</allow_inactive>
@@ -35,7 +35,7 @@
   <action id="io.github.xzram.swapfile.create">
     <description>Create swap file</description>
     <message>Authentication is required to create a swap file</message>
-    <icon_name>drive-harddisk</icon_name>
+    <icon_name>io.github.XZram</icon_name>
     <defaults>
       <allow_any>auth_admin</allow_any>
       <allow_inactive>auth_admin</allow_inactive>
@@ -48,7 +48,7 @@
   <action id="io.github.xzram.swapfile.remove">
     <description>Remove swap file</description>
     <message>Authentication is required to remove a swap file</message>
-    <icon_name>drive-harddisk</icon_name>
+    <icon_name>io.github.XZram</icon_name>
     <defaults>
       <allow_any>auth_admin</allow_any>
       <allow_inactive>auth_admin</allow_inactive>
@@ -61,7 +61,7 @@
   <action id="io.github.xzram.swapfile.resize">
     <description>Resize swap file</description>
     <message>Authentication is required to resize a swap file</message>
-    <icon_name>drive-harddisk</icon_name>
+    <icon_name>io.github.XZram</icon_name>
     <defaults>
       <allow_any>auth_admin</allow_any>
       <allow_inactive>auth_admin</allow_inactive>
@@ -74,7 +74,7 @@
   <action id="io.github.xzram.swapfile.prepare">
     <description>Prepare btrfs directory for swap file</description>
     <message>Authentication is required to set nodatacow on a btrfs directory for swap</message>
-    <icon_name>drive-harddisk</icon_name>
+    <icon_name>io.github.XZram</icon_name>
     <defaults>
       <allow_any>auth_admin</allow_any>
       <allow_inactive>auth_admin</allow_inactive>
@@ -87,7 +87,7 @@
   <action id="io.github.xzram.swap.activate">
     <description>Activate or deactivate swap</description>
     <message>Authentication is required to change swap state</message>
-    <icon_name>drive-harddisk</icon_name>
+    <icon_name>io.github.XZram</icon_name>
     <defaults>
       <allow_any>auth_admin</allow_any>
       <allow_inactive>auth_admin</allow_inactive>
@@ -100,7 +100,7 @@
   <action id="io.github.xzram.sysctl.set">
     <description>Set kernel memory tuning parameters</description>
     <message>Authentication is required to change kernel memory parameters</message>
-    <icon_name>preferences-system</icon_name>
+    <icon_name>io.github.XZram</icon_name>
     <defaults>
       <allow_any>auth_admin</allow_any>
       <allow_inactive>auth_admin</allow_inactive>
@@ -113,7 +113,7 @@
   <action id="io.github.xzram.daemon.start">
     <description>Start XZram D-Bus daemon</description>
     <message>Authentication is required to start the XZram service</message>
-    <icon_name>drive-harddisk</icon_name>
+    <icon_name>io.github.XZram</icon_name>
     <defaults>
       <allow_any>auth_admin</allow_any>
       <allow_inactive>auth_admin</allow_inactive>
@@ -126,7 +126,7 @@
   <action id="io.github.xzram.stage">
     <description>Stage swap configuration changes</description>
     <message>Authentication is required to stage swap configuration</message>
-    <icon_name>drive-harddisk</icon_name>
+    <icon_name>io.github.XZram</icon_name>
     <defaults>
       <allow_any>auth_admin</allow_any>
       <allow_inactive>auth_admin</allow_inactive>
@@ -139,7 +139,7 @@
   <action id="io.github.xzram.pending.clear">
     <description>Clear staged swap configuration</description>
     <message>Authentication is required to clear staged configuration</message>
-    <icon_name>drive-harddisk</icon_name>
+    <icon_name>io.github.XZram</icon_name>
     <defaults>
       <allow_any>auth_admin</allow_any>
       <allow_inactive>auth_admin</allow_inactive>
@@ -152,7 +152,7 @@
   <action id="io.github.xzram.apply">
     <description>Apply swap configuration</description>
     <message>Authentication is required to apply swap configuration</message>
-    <icon_name>drive-harddisk</icon_name>
+    <icon_name>io.github.XZram</icon_name>
     <defaults>
       <allow_any>auth_admin</allow_any>
       <allow_inactive>auth_admin</allow_inactive>
@@ -165,7 +165,7 @@
   <action id="io.github.xzram.zram.migrate">
     <description>Migrate from zram-tools to zram-generator</description>
     <message>Authentication is required to migrate ZRAM configuration</message>
-    <icon_name>drive-harddisk</icon_name>
+    <icon_name>io.github.XZram</icon_name>
     <defaults>
       <allow_any>auth_admin</allow_any>
       <allow_inactive>auth_admin</allow_inactive>
@@ -178,7 +178,7 @@
   <action id="io.github.xzram.rollback">
     <description>Rollback swap configuration</description>
     <message>Authentication is required to rollback swap configuration</message>
-    <icon_name>drive-harddisk</icon_name>
+    <icon_name>io.github.XZram</icon_name>
     <defaults>
       <allow_any>auth_admin</allow_any>
       <allow_inactive>auth_admin</allow_inactive>
@@ -191,7 +191,7 @@
   <action id="io.github.xzram.snapshot.restore">
     <description>Restore a configuration snapshot</description>
     <message>Authentication is required to restore a configuration snapshot</message>
-    <icon_name>drive-harddisk</icon_name>
+    <icon_name>io.github.XZram</icon_name>
     <defaults>
       <allow_any>auth_admin</allow_any>
       <allow_inactive>auth_admin</allow_inactive>
@@ -201,10 +201,23 @@
     <annotate key="org.freedesktop.policykit.exec.argv1">snapshot.restore</annotate>
   </action>
 
+  <action id="io.github.xzram.snapshot.create">
+    <description>Create a configuration snapshot</description>
+    <message>Authentication is required to create a configuration snapshot</message>
+    <icon_name>io.github.XZram</icon_name>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/libexec/xzram-helper</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">snapshot.create</annotate>
+  </action>
+
   <action id="io.github.xzram.snapshot.delete">
     <description>Delete configuration snapshots</description>
     <message>Authentication is required to delete configuration snapshots</message>
-    <icon_name>drive-harddisk</icon_name>
+    <icon_name>io.github.XZram</icon_name>
     <defaults>
       <allow_any>auth_admin</allow_any>
       <allow_inactive>auth_admin</allow_inactive>

@@ -39,21 +39,33 @@ Optional privileged service for non-CLI clients.
 Still exposed by `xzramd` for Flatpak and external tools:
 
 ```
-GetStatus() -> a{sv}           # StatusReport as JSON
-GetDetection() -> a{sv}        # DetectionReport
-RunDoctor() -> a{sv}           # DoctorReport
-GetZramConfig() -> a{sv}       # ZramConfig (or null)
-ListSwapfiles() -> a{sv}       # SwapfileConfig[]
-ListSwaps() -> a{sv}           # merged active + fstab partition swaps
-GetSysctl() -> a{sv}           # SysctlValues
-GetPending() -> a{sv}          # PendingConfig (or null)
-ConfigureZram(s config)        # polkit: io.github.xzram.zram.configure
-DisableZram()                  # polkit: io.github.xzram.zram.disable
-CreateSwapfile(s path, t size) # polkit: io.github.xzram.swapfile.create
-RemoveSwapfile(s path)         # polkit: io.github.xzram.swapfile.remove
-SetSysctl(a{sv} values)        # polkit: io.github.xzram.sysctl.set
-Apply()                        # polkit: io.github.xzram.apply
-Rollback()                     # polkit: io.github.xzram.rollback
+GetStatus() -> a{sv}                    # StatusReport as JSON
+GetDetection() -> a{sv}                 # DetectionReport
+RunDoctor() -> a{sv}                    # DoctorReport
+GetZramConfig() -> a{sv}                # ZramConfig (or null)
+ListSwapfiles() -> a{sv}                # SwapfileConfig[]
+ListSwaps() -> a{sv}                    # merged active + fstab partition swaps
+GetSysctl() -> a{sv}                    # SysctlValues
+GetPending() -> a{sv}                   # PendingConfig (or null)
+GetRecommendedDefaults() -> a{sv}       # RecommendationReport
+CheckSwapfileBtrfs(s path) -> a{sv}     # NodatacowStatus (read)
+PrepareSwapfileBtrfs(s path, b mkdir)   # polkit: io.github.xzram.swapfile.prepare (via helper)
+ConfigureZram(s config)                 # polkit: io.github.xzram.zram.configure (stages)
+DisableZram()                           # polkit: io.github.xzram.zram.disable (stages; CLI --dbus then Apply)
+CreateSwapfile(s path, t size, i prio)  # polkit: io.github.xzram.swapfile.create
+RemoveSwapfile(s path)                  # polkit: io.github.xzram.swapfile.remove
+ResizeSwapfile(s path, t size)          # polkit: io.github.xzram.swapfile.resize
+SetSysctl(s values_json)                # polkit: io.github.xzram.sysctl.set
+StageAction(s pending_json)             # polkit: io.github.xzram.stage
+StageRecommendedDefaults()              # polkit: io.github.xzram.stage
+ClearPending()                          # polkit: io.github.xzram.pending.clear
+MigrateZram()                           # polkit: io.github.xzram.zram.migrate
+Apply()                                 # polkit: io.github.xzram.apply
+Rollback()                              # polkit: io.github.xzram.rollback
+ListSnapshots() / GetSnapshot(s id)     # read
+CreateSnapshot(s trigger, s label)      # polkit: io.github.xzram.snapshot.create
+RestoreSnapshot(s id)                   # polkit: io.github.xzram.snapshot.restore
+DeleteSnapshot(s id) / PruneSnapshots   # polkit: io.github.xzram.snapshot.delete
 ```
 
 ### xzram-qt (C++20 / Qt6)
@@ -68,7 +80,9 @@ Rollback()                     # polkit: io.github.xzram.rollback
   - Snapshot (create/restore/delete/prune; rollback)
   - Settings (auto-refresh interval, confirm-before-apply, prune default; read-only CLI/daemon status)
 - **No bottom Refresh / Start daemon / Apply bar** — live metrics via timer; Apply only in pending banner; `xzramd` not required for native GUI
-- **Icon:** embedded Qt resource + `hicolor` `io.github.XZram.png`
+- **Icon:** Qt resource (`:/icons/xzram-icon.png`) for in-app window/header; theme icon
+  `io.github.XZram` installed under `hicolor/{32..512}/apps/` for the desktop entry,
+  AppStream (`icon type="stock"`), and taskbar (`setDesktopFileName` + `StartupWMClass`)
 - **Install:** bundled in native `xzram` package; optional Flatpak (host `xzramd` for sandboxed GUI)
 
 ### Snapshot API

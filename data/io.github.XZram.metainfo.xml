@@ -7,6 +7,7 @@
     <p>XZram provides a desktop GUI for managing zram, swap files, partitions, and sysctl tuning on systemd-based Linux distributions.</p>
   </description>
   <launchable type="desktop-id">io.github.XZram.desktop</launchable>
+  <icon type="stock">io.github.XZram</icon>
   <url type="homepage">https://github.com/xzram/xzram</url>
   <developer_name>XZram contributors</developer_name>
   <metadata_license>CC0-1.0</metadata_license>

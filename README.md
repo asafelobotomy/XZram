@@ -14,8 +14,8 @@ Linux distributions. It includes a Qt6 GUI and system D-Bus daemon (`xzramd`).
 - **Swap partitions** — `swap list` merges active swaps and fstab partitions
 - **Sysctl tuning** — swappiness, watermark, and page-cluster settings
 - **Polkit integration** — granular privileged operations (no blanket sudo)
-- **D-Bus daemon** — `xzramd` on `io.github.XZram1`; auto-starts on first GUI/CLI `--dbus` use via D-Bus activation
-- **Qt6 GUI** — dashboard, zram, swap files, sysctl, doctor, snapshots, and settings (CLI-first; daemon optional)
+- **D-Bus daemon** — `xzramd` on `io.github.XZram1` for `--dbus` / Flatpak / other clients; D-Bus activation starts it on demand (native GUI does not auto-start or require it)
+- **Qt6 GUI** — dashboard, zram, swap files, sysctl, doctor, snapshots, and settings (CLI/pkexec-first; daemon optional)
 - **Configuration snapshots** — automatic backups on GUI open and before every apply; versioned restore
 
 ## Supported distros
@@ -105,14 +105,15 @@ sudo cp -a /tmp/xzram-install/* /
 make install DESTDIR=/tmp/xzram-install
 sudo cp -a /tmp/xzram-install/* /
 
-# Privileged next step: enable the system daemon
+# Optional: enable xzramd for --dbus / Flatpak (D-Bus activation also starts it on demand)
 sudo systemctl enable --now xzramd
 ```
 
 Prefer `DESTDIR` staging over installing as root into the source tree so
 `build-gui/` does not become root-owned. For reinstall/uninstall helpers see
 [`scripts/reinstall-system.sh`](scripts/reinstall-system.sh) and
-[`scripts/uninstall-system.sh`](scripts/uninstall-system.sh).
+[`scripts/uninstall-system.sh`](scripts/uninstall-system.sh). The native GUI uses
+CLI + pkexec and does not require `xzramd`.
 
 ### Build GUI only
 

@@ -65,10 +65,10 @@ This audit found **five critical (P0) issues**, several **high (P1)** gaps, and 
 
 | ID | Issue | Impact | Status |
 |----|-------|--------|--------|
-| P0-1 | `xzramd` polkit checks were no-ops | Any user could invoke privileged D-Bus methods | **Fixed** — real `check_authorization` via `zbus_polkit` + `peer_creds()` in `crates/xzramd/src/dbus.rs` |
+| P0-1 | `xzramd` polkit subject used bus `peer_creds` (daemon UID) instead of message caller | Unprivileged callers were authorized as root; polkit checks ineffective | **Fixed (2026-07)** — `Subject::new_for_message_header(header)` in `crates/xzramd/src/dbus/auth.rs`; verify unprivileged `xzram --dbus apply` prompts or denies |
 | P0-2 | Missing `io.github.xzram.zram.migrate` polkit action | Migrate callable without matching policy | **Fixed** — added to `data/io.github.xzram.policy` |
 | P0-3 | Btrfs swapfile apply failed without prior `prepare` | Recommended overflow swapfile broken on btrfs roots | **Fixed** — auto `prepare_nodatacow` in `swapfile.rs` before create |
-| P0-4 | `disable_zram` D-Bus applied immediately | Bypassed stage/review model; surprising side effects | **Fixed** — stages `disable_zram` via `PendingConfig` |
+| P0-4 | `disable_zram` D-Bus applied immediately | Bypassed stage/review model; surprising side effects | **Fixed** — stages via `PendingConfig`; CLI `--dbus zram.disable` now stages then `Apply` |
 | P0-5 | Vendor-only zram config not fully disabled | `disable()` did not match upstream empty-override semantics | **Fixed** — writes empty `/etc/systemd/zram-generator.conf` |
 
 ### P1 — High
@@ -124,20 +124,26 @@ This audit found **five critical (P0) issues**, several **high (P1)** gaps, and 
 
 | Method | Auth action | Read/Write |
 |--------|-------------|------------|
-| `GetStatus`, `GetDetection`, `RunDoctor`, `GetZramConfig`, `ListSwapfiles`, `ListSwaps`, `GetSysctl`, `GetPending`, `GetRecommendedDefaults` | none (read) | Read |
+| `GetStatus`, `GetDetection`, `RunDoctor`, `GetZramConfig`, `ListSwapfiles`, `ListSwaps`, `GetSysctl`, `GetPending`, `GetRecommendedDefaults`, `ListSnapshots`, `GetSnapshot` | none (read) | Read |
 | `CheckSwapfileBtrfs` | none | Read |
-| `Stage`, `StageRecommendedDefaults`, `ConfigureZram`, `DisableZram`, `CreateSwapfile`, `RemoveSwapfile`, `ResizeSwapfile`, `SetSysctl`, `Apply`, `Rollback`, `ClearPending`, `MigrateZram`, `PrepareSwapfileBtrfs` | matching `io.github.xzram.*` | Write |
+| `StageAction`, `StageRecommendedDefaults`, `ConfigureZram`, `DisableZram`, `CreateSwapfile`, `RemoveSwapfile`, `ResizeSwapfile`, `SetSysctl`, `Apply`, `Rollback`, `ClearPending`, `MigrateZram` | matching `io.github.xzram.*` | Write |
+| `PrepareSwapfileBtrfs` | `io.github.xzram.swapfile.prepare` (via privileged helper) | Write |
+| `CreateSnapshot` | `io.github.xzram.snapshot.create` | Write |
+| `RestoreSnapshot` / `DeleteSnapshot` / `PruneSnapshots` | `snapshot.restore` / `snapshot.delete` | Write |
+
+**Follow-up (2026-07 remediation):** CreateSnapshot gated; prepare routed through helper; StageAction validates `swapfile_resize`; Rollback uses `io.github.xzram.rollback`; helper runs under `spawn_blocking` with 300s timeout; pending/snapshot mutates serialized with a mutex; unit `Restart=on-failure`.
 
 ### GUI (`gui/xzram-qt`)
 
 | Feature | Path | Status |
 |---------|------|--------|
-| Dashboard / status | D-Bus or CLI fallback | OK |
-| Zram / swapfile / sysctl tabs | stage + apply pending | OK |
-| Doctor | read-only | OK |
-| Recommended defaults dialog | stage + apply (pkexec when no daemon) | **Fixed** (P1-3) |
-| Btrfs prepare | D-Bus or helper | OK |
-| Pending banner | `GetPending` | OK |
+| Dashboard / status | CLI (`xzram --json`) | OK |
+| Zram / swapfile / sysctl tabs | CLI stage + apply pending | OK |
+| Doctor | CLI read-only | OK |
+| Recommended defaults dialog | CLI stage + apply (pkexec) | **Fixed** (P1-3) |
+| Btrfs prepare | CLI / helper | OK |
+| Pending banner | CLI pending | OK |
+| Native GUI ↔ xzramd | not used | intentional — daemon for `--dbus` / Flatpak |
 
 ### Packaging
 
@@ -232,7 +238,7 @@ This audit found **five critical (P0) issues**, several **high (P1)** gaps, and 
 
 | Area | Files |
 |------|-------|
-| Polkit / D-Bus auth | `crates/xzramd/src/dbus.rs`, `data/io.github.xzram.policy` |
+| Polkit / D-Bus auth | `crates/xzramd/src/dbus/auth.rs`, `data/io.github.xzram.policy` |
 | Zram disable / merge | `crates/xzram/src/backend/zram_generator.rs` |
 | Swapfile safety | `crates/xzram/src/validation.rs`, `crates/xzram/src/backend/swapfile.rs` |
 | Helper discovery | `crates/xzram-cli/src/main.rs` |

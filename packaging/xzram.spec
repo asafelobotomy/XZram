@@ -35,6 +35,10 @@ install -Dm644 data/io.github.XZram.conf %{buildroot}%{_datadir}/dbus-1/system.d
 install -Dm644 data/dbus-1/system-services/io.github.XZram1.service %{buildroot}%{_datadir}/dbus-1/system-services/io.github.XZram1.service
 install -Dm644 data/io.github.XZram.desktop %{buildroot}%{_datadir}/applications/io.github.XZram.desktop
 install -Dm644 data/io.github.XZram.metainfo.xml %{buildroot}%{_datadir}/metainfo/io.github.XZram.metainfo.xml
+for size in 32x32 48x48 64x64 128x128 256x256 512x512; do
+  install -Dm644 data/icons/hicolor/${size}/apps/io.github.XZram.png \
+    %{buildroot}%{_datadir}/icons/hicolor/${size}/apps/io.github.XZram.png
+done
 
 %files
 %{_bindir}/xzram
@@ -48,6 +52,7 @@ install -Dm644 data/io.github.XZram.metainfo.xml %{buildroot}%{_datadir}/metainf
 %{_datadir}/dbus-1/system-services/io.github.XZram1.service
 %{_datadir}/applications/io.github.XZram.desktop
 %{_datadir}/metainfo/io.github.XZram.metainfo.xml
+%{_datadir}/icons/hicolor/*/apps/io.github.XZram.png
 
 %post
 %systemd_post xzramd.service

@@ -86,7 +86,12 @@ pub fn call(action: &str, payload: &str) -> anyhow::Result<()> {
         }
         "zram.disable" => {
             proxy.call_method("DisableZram", &())?;
-            println!("ZRAM disabled");
+            let reply = proxy.call_method("Apply", &())?;
+            let messages: Vec<String> = reply.body().deserialize()?;
+            for msg in messages {
+                println!("{msg}");
+            }
+            println!("ZRAM disable applied");
         }
         "swapfile.create" => {
             proxy.call_method("ApplyNowSwapfileCreate", &(payload,))?;

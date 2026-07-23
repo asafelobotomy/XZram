@@ -7,3 +7,4 @@ Icon=io.github.XZram
 Categories=System;Settings;
 Terminal=false
 StartupNotify=true
+StartupWMClass=xzram-qt

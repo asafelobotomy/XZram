@@ -9,6 +9,7 @@ int main(int argc, char *argv[]) {
     QApplication::setApplicationDisplayName(QStringLiteral("XZram"));
     QApplication::setOrganizationName(QStringLiteral("XZram"));
     QApplication::setApplicationVersion(QStringLiteral(XZRAM_QT_VERSION));
+    QApplication::setDesktopFileName(QStringLiteral("io.github.XZram"));
     QApplication::setWindowIcon(QIcon(QStringLiteral(":/icons/xzram-icon.png")));
 
     MainWindow window;

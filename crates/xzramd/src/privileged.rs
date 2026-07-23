@@ -1,12 +1,26 @@
 use std::path::Path;
 use std::process::Command;
+use std::time::Duration;
+
+const HELPER_TIMEOUT: Duration = Duration::from_secs(300);
 
 /// Run a privileged xzram-helper action outside the xzramd systemd sandbox.
 ///
 /// `ProtectSystem=strict` allows writes only under `/var/lib/xzram`, but apply/restore
 /// must modify `/etc`, swapfiles, and sysctl. Spawning a transient unit with sandboxing
 /// disabled keeps xzramd hardened while letting the helper perform those writes.
-pub fn run_helper(action: &str, payload: &str) -> zbus::fdo::Result<Vec<String>> {
+pub async fn run_helper(action: &str, payload: &str) -> zbus::fdo::Result<Vec<String>> {
+    let action = action.to_string();
+    let payload = payload.to_string();
+    let join = tokio::task::spawn_blocking(move || run_helper_blocking(&action, &payload));
+    match tokio::time::timeout(HELPER_TIMEOUT, join).await {
+        Ok(Ok(result)) => result,
+        Ok(Err(e)) => Err(zbus::fdo::Error::Failed(format!("helper task failed: {e}"))),
+        Err(_) => Err(zbus::fdo::Error::Failed("helper timed out".into())),
+    }
+}
+
+fn run_helper_blocking(action: &str, payload: &str) -> zbus::fdo::Result<Vec<String>> {
     let helper = locate_helper()?;
     let output = Command::new("systemd-run")
         .args([
