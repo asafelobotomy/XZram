@@ -3,6 +3,9 @@
 set -euo pipefail
 
 export DEBIAN_FRONTEND=noninteractive
+export CARGO_HOME="${CARGO_HOME:-/tmp/cargo-home}"
+export RUSTUP_HOME="${RUSTUP_HOME:-/tmp/rustup-home}"
+mkdir -p "$CARGO_HOME" "$RUSTUP_HOME"
 
 apt-get update
 apt-get install -y \
@@ -15,8 +18,8 @@ apt-get install -y \
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
   | sh -s -- -y --default-toolchain stable --profile minimal
 # shellcheck source=/dev/null
-. "$HOME/.cargo/env"
-export PATH="$HOME/.cargo/bin:$PATH"
+. "$CARGO_HOME/env"
+export PATH="$CARGO_HOME/bin:$PATH"
 
 cd /src
 dpkg-checkbuilddeps

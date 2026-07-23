@@ -80,6 +80,7 @@ jobs:
             -v "$PWD/scripts/ci-distro-smoke.sh:/ci-distro-smoke.sh:ro" \
             -e CARGO_HOME=/tmp/cargo-home \
             -e CARGO_TARGET_DIR=/tmp/xzram-target \
+            -e RUSTUP_HOME=/tmp/rustup-home \
             "${{ matrix.image }}" \
             bash /ci-distro-smoke.sh "${{ matrix.distro }}"
 
@@ -96,7 +97,7 @@ jobs:
             -v "$PWD:/src" \
             -v "$PWD/scripts/ci-debian-package.sh:/ci-debian-package.sh:ro" \
             -e CARGO_HOME=/tmp/cargo-home \
-            -e CARGO_TARGET_DIR=/tmp/xzram-target \
+            -e RUSTUP_HOME=/tmp/rustup-home \
             debian:trixie \
             bash /ci-debian-package.sh
 
