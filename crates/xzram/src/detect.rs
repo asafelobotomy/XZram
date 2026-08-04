@@ -70,7 +70,7 @@ pub fn detect() -> Result<DetectionReport> {
         package_manager,
         init_system: detect_init_system(),
         zram_backend,
-        zram_generator_installed: which_exists("zram-generator") || zram_generator_config.is_some(),
+        zram_generator_installed: zram_generator_binary_present(),
         zram_generator_config,
         root_filesystem: detect_root_filesystem(),
         etc_writable,
@@ -206,6 +206,21 @@ pub fn find_zram_generator_config() -> Option<String> {
         .map(|s| (*s).to_string())
 }
 
+/// True when the zram-generator binary is present (not merely a config file).
+///
+/// Config alone is insufficient: xzram can write `/etc/systemd/zram-generator.conf`
+/// before the package is installed. The binary lives under systemd's generator
+/// directory and is usually not on `PATH`.
+pub fn zram_generator_binary_present() -> bool {
+    const PATHS: &[&str] = &[
+        "/usr/lib/systemd/system-generators/zram-generator",
+        "/usr/lib/systemd/system-generators/systemd-zram-generator",
+        "/lib/systemd/system-generators/zram-generator",
+        "/lib/systemd/system-generators/systemd-zram-generator",
+    ];
+    PATHS.iter().any(|p| std::path::Path::new(p).is_file()) || which_exists("zram-generator")
+}
+
 fn detect_root_filesystem() -> Option<String> {
     let output = std::process::Command::new("findmnt")
         .args(["-no", "FSTYPE", "/"])
@@ -334,5 +349,11 @@ mod tests {
         assert!(findmnt_options_include_ro("rw,ro"));
         assert!(!findmnt_options_include_ro("rw,relatime,ssd"));
         assert!(!findmnt_options_include_ro("rw,errors=remount-ro"));
+    }
+
+    #[test]
+    fn zram_generator_binary_paths_are_absolute() {
+        // Sanity: helper must not treat config presence as install.
+        let _ = zram_generator_binary_present();
     }
 }

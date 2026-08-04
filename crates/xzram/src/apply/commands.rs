@@ -103,10 +103,15 @@ pub fn restart_zram_setup_unit(device_name: &str) -> Result<()> {
 
     let unit = format!("systemd-zram-setup@{name}.service");
     run_systemctl(&["start", &unit]).map_err(|e| {
-        XzramError::Command(format!(
-            "failed to start {unit}: {e}. \
-             Check: journalctl -xeu {unit}"
-        ))
+        let hint = if e.to_string().contains("not found") {
+            format!(
+                "Unit missing — install zram-generator (or systemd-zram-generator on Debian/Ubuntu), \
+                 run 'systemctl daemon-reload', then retry. Also check: journalctl -xeu {unit}"
+            )
+        } else {
+            format!("Check: journalctl -xeu {unit}")
+        };
+        XzramError::Command(format!("failed to start {unit}: {e}. {hint}"))
     })?;
     Ok(())
 }
