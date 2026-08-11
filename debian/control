@@ -8,7 +8,7 @@ Build-Depends: debhelper (>= 13),
                cmake,
                qt6-base-dev
 Standards-Version: 4.6.2
-Homepage: https://github.com/xzram/xzram
+Homepage: https://github.com/asafelobotomy/XZram
 Rules-Requires-Root: no
 
 Package: xzram

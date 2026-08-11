@@ -8,7 +8,7 @@
   </description>
   <launchable type="desktop-id">io.github.XZram.desktop</launchable>
   <icon type="stock">io.github.XZram</icon>
-  <url type="homepage">https://github.com/xzram/xzram</url>
+  <url type="homepage">https://github.com/asafelobotomy/XZram</url>
   <developer_name>XZram contributors</developer_name>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>GPL-3.0-or-later</project_license>

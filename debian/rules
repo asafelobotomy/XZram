@@ -7,7 +7,7 @@ export CARGO_TARGET_DIR = $(CURDIR)/target
 	dh $@
 
 override_dh_auto_build:
-	cargo build --release
+	cargo build --release --locked
 	cmake -S gui -B build-gui
 	cmake --build build-gui
 
@@ -29,4 +29,4 @@ override_dh_auto_install:
 	done
 
 override_dh_installsystemd:
-	dh_installsystemd --name=xzramd
+	dh_installsystemd --name=xzramd --no-enable --no-start

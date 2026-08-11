@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Debian package smoke for CI: rustup + full Build-Depends, then dpkg-buildpackage.
+# Expects the repo mounted read-only at /src; builds from a writable copy.
 set -euo pipefail
 
 export DEBIAN_FRONTEND=noninteractive
@@ -21,8 +22,11 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
 . "$CARGO_HOME/env"
 export PATH="$CARGO_HOME/bin:$PATH"
 
-cd /src
+WORKDIR=/tmp/xzram-debian
+rm -rf "$WORKDIR"
+cp -a /src "$WORKDIR"
+cd "$WORKDIR"
 dpkg-checkbuilddeps
-# debian/rules sets CARGO_TARGET_DIR=$(CURDIR)/target (writable mount).
+# debian/rules sets CARGO_TARGET_DIR=$(CURDIR)/target (writable copy).
 dpkg-buildpackage -us -uc -b
-ls -la ../*.deb
+ls -la /tmp/*.deb "$WORKDIR"/../*.deb 2>/dev/null || ls -la ../*.deb

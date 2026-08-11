@@ -22,6 +22,7 @@ RestrictNamespaces=yes
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 # Apply/restore run xzram-helper in a transient unit (see xzramd privileged.rs).
 ReadWritePaths=/var/lib/xzram
+StateDirectory=xzram
 SystemCallFilter=@system-service
 
 [Install]

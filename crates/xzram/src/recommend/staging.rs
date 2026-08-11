@@ -14,11 +14,20 @@ pub fn eval_zram_size_mb(formula: &str, ram_mb: u64) -> Option<u64> {
     let f = normalize_size_formula(formula);
     match f.as_str() {
         "ram" => Some(ram_mb),
+        "ram/2" => Some(ram_mb / 2),
         "min(ram,8192)" => Some(ram_mb.min(8192)),
         "min(ram,4096)" => Some(ram_mb.min(4096)),
         "min(ram/2,8192)" => Some((ram_mb / 2).min(8192)),
         "min(ram/2,4096)" => Some((ram_mb / 2).min(4096)),
-        _ => None,
+        _ => {
+            if let Some(pct) = f.strip_prefix("ram/100*") {
+                return pct
+                    .parse::<u64>()
+                    .ok()
+                    .map(|p| ram_mb.saturating_mul(p) / 100);
+            }
+            f.parse::<u64>().ok()
+        }
     }
 }
 
@@ -191,5 +200,12 @@ mod tests {
         let staged = zram_for_staging(Some(&current), &recommended, 16 * 1024);
         assert_eq!(staged.zram_size.as_deref(), Some("min(ram, 8192)"));
         assert_eq!(staged.compression_algorithm.as_deref(), Some("zstd"));
+    }
+
+    #[test]
+    fn eval_percent_and_absolute_size() {
+        assert_eq!(eval_zram_size_mb("ram / 100 * 50", 8192), Some(4096));
+        assert_eq!(eval_zram_size_mb("512", 8192), Some(512));
+        assert_eq!(eval_zram_size_mb("ram / 2", 8192), Some(4096));
     }
 }

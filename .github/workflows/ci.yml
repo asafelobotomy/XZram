@@ -6,17 +6,16 @@ on:
   pull_request:
     branches: [main, master]
 
+permissions:
+  contents: read
+
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
   build-test:
-    name: Build and test (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest]
+    name: Build and test
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -25,13 +24,13 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       - name: Build
-        run: cargo build --verbose
+        run: cargo build --locked --verbose
 
       - name: Run tests
-        run: cargo test --verbose
+        run: cargo test --locked --verbose
 
       - name: Build release
-        run: cargo build --release --verbose
+        run: cargo build --release --locked --verbose
 
   lint:
     name: Format and clippy
@@ -49,7 +48,7 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Clippy
-        run: cargo clippy --all-targets -- -D warnings
+        run: cargo clippy --all-targets --locked -- -D warnings
 
       - name: LOC limit (400)
         run: ./scripts/check-loc.sh
@@ -94,7 +93,7 @@ jobs:
       - name: Build Debian package
         run: |
           docker run --rm \
-            -v "$PWD:/src" \
+            -v "$PWD:/src:ro" \
             -v "$PWD/scripts/ci-debian-package.sh:/ci-debian-package.sh:ro" \
             -e CARGO_HOME=/tmp/cargo-home \
             -e RUSTUP_HOME=/tmp/rustup-home \
@@ -131,4 +130,6 @@ jobs:
         run: |
           grep -q '^pkgname=xzram' PKGBUILD
           grep -q '^pkgver=' PKGBUILD
-          grep -q 'cargo build' PKGBUILD
+          grep -q 'cargo build --release --locked' PKGBUILD
+          grep -q 'file://\$startdir"' PKGBUILD
+          ! grep -q 'file://\$startdir/\.\.' PKGBUILD

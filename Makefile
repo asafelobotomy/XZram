@@ -12,7 +12,7 @@ XZRAM_VERSION := $(shell tr -d '[:space:]' < VERSION)
 all: build
 
 build:
-	cargo build --release
+	cargo build --release --locked
 
 build-gui:
 	cmake -S gui -B build-gui
@@ -42,6 +42,7 @@ loc-check:
 	./scripts/check-loc.sh
 
 # CLI/daemon/polkit/dbus only (no Qt).
+# Polkit/systemd/D-Bus unit files hardcode /usr/libexec; install with PREFIX=/usr.
 install-cli: build
 	install -Dm755 target/release/xzram $(DESTDIR)$(BINDIR)/xzram
 	install -Dm755 target/release/xzram-helper $(DESTDIR)$(LIBEXECDIR)/xzram-helper
@@ -63,6 +64,9 @@ install: build build-gui install-cli
 	done
 
 install-post:
+	@if [ -n "$(DESTDIR)" ]; then \
+		echo "install-post refuses DESTDIR (host systemctl only)"; exit 1; \
+	fi
 	systemctl daemon-reload
 	systemctl enable --now xzramd.service
 

@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use std::io::BufRead;
+use std::path::Path;
 
 use crate::apply::run_command;
 use crate::error::{Result, XzramError};
@@ -57,10 +58,9 @@ pub fn list_swap_partitions() -> Result<Vec<SwapPartition>> {
             continue;
         }
 
-        let device = resolve_device(spec)?;
-        let active_flag = active
-            .iter()
-            .any(|a| a == &device || a.ends_with(spec.trim_start_matches("/dev/")));
+        // Soft-fail unresolved UUIDs so one stale fstab entry does not abort listing.
+        let device = resolve_device(spec).unwrap_or_else(|_| spec.to_string());
+        let active_flag = active.iter().any(|a| devices_match(a, &device, spec));
         let priority = crate::backend::swapfile::parse_fstab_priority(
             parts.get(3).copied().unwrap_or("defaults"),
         );
@@ -100,7 +100,10 @@ pub fn list_swaps_merged() -> Result<Vec<SwapListEntry>> {
         .collect();
 
     for part in partitions {
-        if entries.iter().any(|e| e.name == part.device) {
+        if entries
+            .iter()
+            .any(|e| devices_match(&e.name, &part.device, &part.device))
+        {
             continue;
         }
         entries.push(SwapListEntry {
@@ -138,7 +141,7 @@ fn resolve_device(spec: &str) -> Result<String> {
             }
         }
         let by_uuid = format!("/dev/disk/by-uuid/{uuid}");
-        if std::path::Path::new(&by_uuid).exists() {
+        if Path::new(&by_uuid).exists() {
             return Ok(by_uuid);
         }
         return Err(XzramError::NotFound(format!(
@@ -148,10 +151,27 @@ fn resolve_device(spec: &str) -> Result<String> {
     Ok(spec.to_string())
 }
 
+fn canonicalize_lossy(path: &str) -> Option<std::path::PathBuf> {
+    std::fs::canonicalize(path).ok()
+}
+
+fn devices_match(active: &str, resolved: &str, fstab_spec: &str) -> bool {
+    if active == resolved || active == fstab_spec {
+        return true;
+    }
+    if active.ends_with(fstab_spec.trim_start_matches("/dev/")) {
+        return true;
+    }
+    match (canonicalize_lossy(active), canonicalize_lossy(resolved)) {
+        (Some(a), Some(b)) => a == b,
+        _ => false,
+    }
+}
+
 pub fn check_missing_swap_partitions(issues: &mut Vec<crate::doctor::DoctorIssue>) -> Result<()> {
     for part in list_swap_partitions()? {
         if !part.active {
-            let resolved = std::path::Path::new(&part.device);
+            let resolved = Path::new(&part.device);
             if !resolved.exists() {
                 issues.push(crate::doctor::DoctorIssue {
                     severity: crate::doctor::IssueSeverity::Warning,
@@ -179,5 +199,11 @@ mod tests {
     fn extract_uuid_parses() {
         assert_eq!(extract_uuid("UUID=abc-123"), Some("abc-123".to_string()));
         assert_eq!(extract_uuid("/dev/sda2"), None);
+    }
+
+    #[test]
+    fn devices_match_same_string() {
+        assert!(devices_match("/dev/sda2", "/dev/sda2", "/dev/sda2"));
+        assert!(!devices_match("/dev/sda2", "/dev/sda3", "/dev/sda3"));
     }
 }

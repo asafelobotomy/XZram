@@ -4,7 +4,7 @@ _xzram() {
     local cur prev words cword
     _init_completion || return
 
-    local commands="status detect doctor zram swapfile swap sysctl pending daemon defaults apply rollback"
+    local commands="status detect doctor zram swapfile swap sysctl pending daemon defaults apply rollback snapshot"
     local zram_cmds="show set disable migrate"
     local swapfile_cmds="list create resize remove check prepare"
     local swap_cmds="list on off"
@@ -12,6 +12,7 @@ _xzram() {
     local pending_cmds="show clear"
     local daemon_cmds="start"
     local defaults_cmds="recommend stage apply"
+    local snapshot_cmds="list create restore delete prune"
 
     case "${words[1]}" in
         zram)
@@ -66,6 +67,18 @@ _xzram() {
             else
                 COMPREPLY=($(compgen -W "--json --dbus" -- "$cur"))
             fi
+            ;;
+        snapshot)
+            case $cword in
+                2) COMPREPLY=($(compgen -W "$snapshot_cmds" -- "$cur")) ;;
+                3)
+                    case ${words[2]} in
+                        create) COMPREPLY=($(compgen -W "--label --json --dbus" -- "$cur")) ;;
+                        restore|delete) COMPREPLY=($(compgen -W "--yes --json --dbus" -- "$cur")) ;;
+                        prune) COMPREPLY=($(compgen -W "--keep --yes --json --dbus" -- "$cur")) ;;
+                    esac
+                    ;;
+            esac
             ;;
         *)
             if [[ $cword -eq 1 ]]; then

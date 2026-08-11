@@ -4,7 +4,7 @@ Release:        1%{?dist}
 Summary:        Cross-distro Linux swap management
 
 License:        GPL-3.0-or-later
-URL:            https://github.com/xzram/xzram
+URL:            https://github.com/asafelobotomy/XZram
 Source0:        %{name}-%{version}.tar.gz
 
 BuildRequires:  rust cargo cmake qt6-qtbase-devel
@@ -20,7 +20,7 @@ swap file management, sysctl tuning, and configuration snapshots.
 %autosetup
 
 %build
-cargo build --release
+cargo build --release --locked
 cmake -S gui -B build-gui
 cmake --build build-gui
 
@@ -42,6 +42,7 @@ for size in 32x32 48x48 64x64 128x128 256x256 512x512; do
 done
 
 %files
+%license LICENSE
 %{_bindir}/xzram
 %{_bindir}/xzram-qt
 %{_libexecdir}/xzram-helper
@@ -58,8 +59,11 @@ done
 %post
 %systemd_post xzramd.service
 
+%preun
+%systemd_preun xzramd.service
+
 %postun
-%systemd_postun_with_restart xzramd.service
+%systemd_postun xzramd.service
 
 %changelog
 * Wed Jul 22 2026 XZram contributors <xzram@example.com> - 0.2.0-1

@@ -6,7 +6,7 @@ XZram stores versioned configuration snapshots under `/var/lib/xzram/snapshots/`
 
 | Trigger | When |
 |---------|------|
-| `app_open` | GUI startup (skipped if state unchanged since last snapshot) |
+| `app_open` | Library/D-Bus trigger for startup baselines (hash-deduped). **Not wired in the Qt GUI yet** — GUI `snapshot create` is always `manual`. |
 | `pre_apply` | Immediately before every `xzram apply` |
 | `manual` | `xzram snapshot create` |
 

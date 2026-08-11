@@ -76,7 +76,9 @@ Flatpak: **removed** (see [SCOPE.md](SCOPE.md)).
 
 ## Third-pass findings (2026-08-11)
 
-Surfaces newly reviewed: GUI CLI argv, helper discovery, xzramd `systemd-run`, doctor/migrate, packaging scriptlets, CI/install.
+Surfaces newly reviewed: GUI/CLI argv, packaging/CI/install, polkit/D-Bus policy, migrate/sysctl/swap listing, recommend overflow.
+
+### Privilege / migrate (batch A — committed earlier)
 
 | ID | Topic | Status |
 |----|-------|--------|
@@ -89,7 +91,39 @@ Surfaces newly reviewed: GUI CLI argv, helper discovery, xzramd `systemd-run`, d
 | T3-H02 | `prune --keep 0` deletes all snapshots | **Mitigated** — reject keep=0 |
 | T3-deb | Debian prerm disable-on-upgrade / invalid start | **Mitigated** — prerm/postinst cleaned |
 
-Open follow-ups (not blocking): swap UUID soft-fail listing, AppOpen hash excludes runtime swap state, PKGBUILD `source=` path, CI action SHA pinning, RPM `%preun`/`%license`, bash-completion `snapshot`.
+### Correctness / packaging (batch B — final unaudited surfaces)
+
+| ID | Topic | Status |
+|----|-------|--------|
+| SYSCTL-01 | Partial sysctl `--now` overwrites drop-in | **Mitigated** — merge-write existing keys |
+| MIG-01 | Migrate ignores `SIZE`/`PRIORITY` | **Mitigated** — parse SIZE (MiB) + PRIORITY |
+| MIG-02 | `eval_zram_size_mb` misses percent formulas | **Mitigated** — `ram/100*N` + absolute MiB |
+| SWAP-01 | One bad UUID aborts partition list | **Mitigated** — soft-fail per entry |
+| SWAP-02 | Active match misses by-uuid vs `/dev/sdX` | **Mitigated** — canonicalize compare |
+| REC-01 | Overflow staged when `df` fails | **Mitigated** — skip when free space unknown |
+| PKG-01 | PKGBUILD `source=…/..` packs parent dir | **Mitigated** — `file://$startdir` |
+| PKG-03 | Debian/RPM/`make` omit `--locked` | **Mitigated** |
+| PKG-04/05 | RPM missing `%preun` / `%license` | **Mitigated** |
+| PKG-07 | Debian enables xzramd on install | **Mitigated** — `--no-enable --no-start` |
+| PKG-09 | Wrong upstream homepage URL | **Mitigated** — `asafelobotomy/XZram` |
+| CI-02/03/06 | permissions / macOS / `--locked` | **Mitigated** |
+| CI-04 | Debian CI mounts source RW | **Mitigated** — `:ro` + writable copy |
+| INST-01 | `PREFIX` vs hardcoded `/usr/libexec` | **Documented** — install with `PREFIX=/usr` |
+| INST-02 | `install-post` under `DESTDIR` | **Mitigated** — refuse `DESTDIR` |
+| INST-03 | Missing `StateDirectory=xzram` | **Mitigated** |
+| INST-04 | bash-completion missing `snapshot` | **Mitigated** |
+| GUI-01 | Docs claim AppOpen on GUI startup | **Documented** — not wired; docs corrected |
+
+### Open follow-ups (not blocking)
+
+| ID | Topic | Notes |
+|----|-------|-------|
+| CI-01 | Pin GitHub Actions to commit SHAs | Tags still floating; permissions least-privilege applied |
+| SNAP-01 | AppOpen hash ignores runtime swap/zram | Config-only by design until GUI wires AppOpen |
+| GUI-02..06 | Preview wipe, `XZRAM_CLI` trust, swap confirm, HTML escape | GUI polish backlog |
+| PKG-06/08 | Qt hard Depends / no cargo vendor | Distro packaging follow-up |
+| DBUS-01 | Unauthenticated read of pending/snapshots | Accepted with S-18; writes still polkit |
+| HELPER-02 | Sysctl range checks | GUI caps; CLI accepts `u32` |
 
 ---
 

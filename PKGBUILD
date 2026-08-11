@@ -4,12 +4,12 @@ pkgver=0.2.0
 pkgrel=1
 pkgdesc="Cross-distro Linux swap management (zram, swap files, sysctl tuning)"
 arch=('x86_64' 'aarch64')
-url="https://github.com/xzram/xzram"
+url="https://github.com/asafelobotomy/XZram"
 license=('GPL-3.0-or-later')
 depends=('polkit' 'systemd' 'util-linux' 'qt6-base')
 optdepends=('systemd-zram-generator: zram swap via systemd-zram-generator')
 makedepends=('rust' 'cargo' 'cmake')
-source=("$pkgname-$pkgver.tar.gz::file://$startdir/..")
+source=("$pkgname-$pkgver::file://$startdir")
 sha256sums=('SKIP')
 
 prepare() {

@@ -226,6 +226,11 @@ pub fn validate_swap_device(device: &str) -> Result<()> {
             "swap device must not contain whitespace or control characters".into(),
         ));
     }
+    if device.contains("..") {
+        return Err(XzramError::Validation(
+            "swap device must not contain '..' path components".into(),
+        ));
+    }
     let ok = device.starts_with("/dev/")
         || device.starts_with("UUID=")
         || device.starts_with("PARTUUID=")
@@ -275,6 +280,7 @@ mod tests {
     #[test]
     fn rejects_flag_device() {
         assert!(validate_swap_device("-a").is_err());
+        assert!(validate_swap_device("/dev/../sda1").is_err());
         assert!(validate_swap_device("/dev/sda1").is_ok());
         assert!(validate_swap_device("UUID=abc").is_ok());
     }

@@ -37,14 +37,19 @@ pub fn decide_overflow_swapfile(
     }
 
     let required_mb = size_mb.saturating_add(OVERFLOW_FREE_SPACE_MARGIN_MB);
-    if let Some(avail) = available_bytes {
-        let available_mb = avail / (1024 * 1024);
-        if available_mb < required_mb {
-            return OverflowDecision::SkipInsufficientSpace {
-                required_mb,
-                available_mb,
-            };
-        }
+    let Some(avail) = available_bytes else {
+        // Unknown free space: do not stage a large overflow file blindly.
+        return OverflowDecision::SkipInsufficientSpace {
+            required_mb,
+            available_mb: 0,
+        };
+    };
+    let available_mb = avail / (1024 * 1024);
+    if available_mb < required_mb {
+        return OverflowDecision::SkipInsufficientSpace {
+            required_mb,
+            available_mb,
+        };
     }
 
     OverflowDecision::Stage(SwapfileConfig {
@@ -254,5 +259,26 @@ mod tests {
             }
             other => panic!("expected SkipInsufficientSpace, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn no_overflow_when_free_space_unknown() {
+        let status = StatusReport {
+            swaps: vec![],
+            zram_devices: vec![],
+            memory: status::MemoryInfo {
+                mem_total_kb: 8 * 1024 * 1024,
+                mem_available_kb: 4 * 1024 * 1024,
+                swap_total_kb: 0,
+                swap_free_kb: 0,
+            },
+        };
+        assert!(matches!(
+            decide_overflow_swapfile(&status, false, &[], None),
+            OverflowDecision::SkipInsufficientSpace {
+                available_mb: 0,
+                ..
+            }
+        ));
     }
 }
