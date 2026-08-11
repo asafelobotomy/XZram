@@ -6,14 +6,19 @@ use super::create::{capture_system_state, chrono_like_id, rfc3339_now};
 use super::paths::{index_path, snapshots_root};
 use super::types::{SnapshotMeta, SnapshotTrigger};
 use crate::apply::pending::data_dir;
+use crate::apply::store_lock::with_store_lock;
 use crate::error::{Result, XzramError};
 
 pub fn ensure_snapshots_initialized() -> Result<()> {
     fs::create_dir_all(snapshots_root())?;
+    with_store_lock(ensure_snapshots_initialized_unlocked)
+}
+
+pub(crate) fn ensure_snapshots_initialized_unlocked() -> Result<()> {
     if !index_path().exists() {
-        write_index(&[])?;
+        write_index_unlocked(&[])?;
     }
-    migrate_legacy_backup()?;
+    migrate_legacy_backup_unlocked()?;
     Ok(())
 }
 
@@ -38,13 +43,17 @@ pub fn latest_pre_apply_id() -> Result<String> {
 }
 
 pub fn delete_snapshot(id: &str) -> Result<()> {
+    with_store_lock(|| delete_snapshot_unlocked(id))
+}
+
+fn delete_snapshot_unlocked(id: &str) -> Result<()> {
     let mut index = load_index()?;
     let pos = index
         .iter()
         .position(|s| s.id == id)
         .ok_or_else(|| XzramError::NotFound(format!("snapshot not found: {id}")))?;
     index.remove(pos);
-    write_index(&index)?;
+    write_index_unlocked(&index)?;
 
     let dir = snapshots_root().join(id);
     if dir.exists() {
@@ -55,19 +64,25 @@ pub fn delete_snapshot(id: &str) -> Result<()> {
 }
 
 pub fn prune_snapshots(keep: usize) -> Result<u32> {
-    let index = load_index()?;
-    if index.len() <= keep {
-        return Ok(0);
-    }
-    let to_remove: Vec<String> = index.iter().skip(keep).map(|s| s.id.clone()).collect();
-    let count = to_remove.len() as u32;
-    for id in to_remove {
-        delete_snapshot(&id)?;
-    }
-    Ok(count)
+    with_store_lock(|| {
+        let index = load_index()?;
+        if index.len() <= keep {
+            return Ok(0);
+        }
+        let to_remove: Vec<String> = index.iter().skip(keep).map(|s| s.id.clone()).collect();
+        let count = to_remove.len() as u32;
+        for id in to_remove {
+            delete_snapshot_unlocked(&id)?;
+        }
+        Ok(count)
+    })
 }
 
 pub fn migrate_legacy_backup() -> Result<Option<SnapshotMeta>> {
+    with_store_lock(migrate_legacy_backup_unlocked)
+}
+
+fn migrate_legacy_backup_unlocked() -> Result<Option<SnapshotMeta>> {
     let legacy = data_dir().join("backup");
     if !legacy.exists() {
         return Ok(None);
@@ -110,7 +125,7 @@ pub fn migrate_legacy_backup() -> Result<Option<SnapshotMeta>> {
 
     let mut index = load_index()?;
     index.push(meta.clone());
-    write_index(&index)?;
+    write_index_unlocked(&index)?;
 
     fs::remove_dir_all(&legacy)?;
     info!(id = %meta.id, "migrated legacy backup to snapshot");
@@ -128,15 +143,22 @@ pub(crate) fn load_index() -> Result<Vec<SnapshotMeta>> {
     serde_json::from_str(&content).map_err(|e| XzramError::Parse(format!("snapshot index: {e}")))
 }
 
-pub(crate) fn write_index(index: &[SnapshotMeta]) -> Result<()> {
+pub(crate) fn write_index_unlocked(index: &[SnapshotMeta]) -> Result<()> {
     fs::create_dir_all(snapshots_root())?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = fs::set_permissions(snapshots_root(), fs::Permissions::from_mode(0o700));
+        let data = data_dir();
+        let _ = fs::set_permissions(&data, fs::Permissions::from_mode(0o700));
+    }
     let content =
         serde_json::to_string_pretty(index).map_err(|e| XzramError::Parse(e.to_string()))?;
     fs::write(index_path(), content)?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        let _ = fs::set_permissions(index_path(), fs::Permissions::from_mode(0o644));
+        let _ = fs::set_permissions(index_path(), fs::Permissions::from_mode(0o600));
     }
     Ok(())
 }

@@ -5,13 +5,14 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use sha2::{Digest, Sha256};
 use tracing::info;
 
-use super::index::{ensure_snapshots_initialized, load_index, write_index};
+use super::index::{ensure_snapshots_initialized_unlocked, load_index, write_index_unlocked};
 use super::paths::{
     etc_path, managed_etc_files, snapshots_root, FSTAB, SYSCTL_FILE, ZRAMSWAP_FILE, ZRAM_CONF,
 };
 use super::types::{
     SnapshotArtifact, SnapshotArtifacts, SnapshotMeta, SnapshotSwapfile, SnapshotTrigger,
 };
+use crate::apply::store_lock::with_store_lock;
 use crate::apply::types::PendingConfig;
 use crate::backend::available_swapfile_backend;
 use crate::error::{Result, XzramError};
@@ -22,56 +23,59 @@ pub fn create_snapshot(
     label: Option<&str>,
     pending: Option<&PendingConfig>,
 ) -> Result<SnapshotMeta> {
-    ensure_snapshots_initialized()?;
+    with_store_lock(|| {
+        fs::create_dir_all(snapshots_root())?;
+        ensure_snapshots_initialized_unlocked()?;
 
-    let captured = capture_system_state()?;
+        let captured = capture_system_state()?;
 
-    if trigger == SnapshotTrigger::AppOpen {
-        if let Some(latest) = super::index::list_snapshots()?.into_iter().next() {
-            if latest.state_hash == captured.state_hash {
-                info!(id = %latest.id, "skipping duplicate app_open snapshot");
-                return Ok(latest);
+        if trigger == SnapshotTrigger::AppOpen {
+            if let Some(latest) = load_index()?.into_iter().next() {
+                if latest.state_hash == captured.state_hash {
+                    info!(id = %latest.id, "skipping duplicate app_open snapshot");
+                    return Ok(latest);
+                }
             }
         }
-    }
 
-    let id = format!("{}-{}", chrono_like_id(), trigger.as_str());
-    let label = label
-        .map(str::to_string)
-        .unwrap_or_else(|| default_label(trigger, pending));
+        let id = format!("{}-{}", chrono_like_id(), trigger.as_str());
+        let label = label
+            .map(str::to_string)
+            .unwrap_or_else(|| default_label(trigger, pending));
 
-    let meta = SnapshotMeta {
-        id: id.clone(),
-        created_at: rfc3339_now(),
-        label,
-        trigger,
-        state_hash: captured.state_hash.clone(),
-        xzram_version: env!("CARGO_PKG_VERSION").to_string(),
-        pending_summary: pending.map(pending_summary),
-        artifacts: captured.artifacts,
-        swapfiles: captured.swapfiles,
-        zram_devices: captured.zram_devices,
-    };
+        let meta = SnapshotMeta {
+            id: id.clone(),
+            created_at: rfc3339_now(),
+            label,
+            trigger,
+            state_hash: captured.state_hash.clone(),
+            xzram_version: env!("CARGO_PKG_VERSION").to_string(),
+            pending_summary: pending.map(pending_summary),
+            artifacts: captured.artifacts,
+            swapfiles: captured.swapfiles,
+            zram_devices: captured.zram_devices,
+        };
 
-    let dir = snapshots_root().join(&id);
-    fs::create_dir_all(&dir)?;
-    for (relative, filename) in managed_etc_files() {
-        let src = etc_path(relative);
-        if src.exists() {
-            fs::copy(&src, dir.join(filename))?;
+        let dir = snapshots_root().join(&id);
+        fs::create_dir_all(&dir)?;
+        for (relative, filename) in managed_etc_files() {
+            let src = etc_path(relative);
+            if src.exists() {
+                fs::copy(&src, dir.join(filename))?;
+            }
         }
-    }
-    fs::write(
-        dir.join("manifest.json"),
-        serde_json::to_string_pretty(&meta).map_err(|e| XzramError::Parse(e.to_string()))?,
-    )?;
+        fs::write(
+            dir.join("manifest.json"),
+            serde_json::to_string_pretty(&meta).map_err(|e| XzramError::Parse(e.to_string()))?,
+        )?;
 
-    let mut index = load_index()?;
-    index.insert(0, meta.clone());
-    write_index(&index)?;
+        let mut index = load_index()?;
+        index.insert(0, meta.clone());
+        write_index_unlocked(&index)?;
 
-    info!(id = %meta.id, trigger = %trigger.as_str(), "created snapshot");
-    Ok(meta)
+        info!(id = %meta.id, trigger = %trigger.as_str(), "created snapshot");
+        Ok(meta)
+    })
 }
 
 pub(crate) struct CapturedState {

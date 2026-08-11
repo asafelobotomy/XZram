@@ -85,13 +85,8 @@ pub fn call(action: &str, payload: &str) -> anyhow::Result<()> {
             println!("ZRAM configured");
         }
         "zram.disable" => {
-            proxy.call_method("DisableZram", &())?;
-            let reply = proxy.call_method("Apply", &())?;
-            let messages: Vec<String> = reply.body().deserialize()?;
-            for msg in messages {
-                println!("{msg}");
-            }
-            println!("ZRAM disable applied");
+            proxy.call_method("ApplyNowZramDisable", &())?;
+            println!("ZRAM disabled");
         }
         "swapfile.create" => {
             proxy.call_method("ApplyNowSwapfileCreate", &(payload,))?;
@@ -101,15 +96,13 @@ pub fn call(action: &str, payload: &str) -> anyhow::Result<()> {
             let parsed: serde_json::Value = serde_json::from_str(payload)?;
             let path = parsed["path"].as_str().unwrap_or_default();
             let size_mb = parsed["size_mb"].as_u64().unwrap_or(0);
-            proxy.call_method("ResizeSwapfile", &(path, size_mb))?;
-            proxy.call_method("Apply", &())?;
+            proxy.call_method("ApplyNowSwapfileResize", &(path, size_mb))?;
             println!("Swapfile resized");
         }
         "swapfile.remove" => {
             let parsed: serde_json::Value = serde_json::from_str(payload)?;
             let path = parsed["path"].as_str().unwrap_or_default();
-            proxy.call_method("RemoveSwapfile", &(path,))?;
-            proxy.call_method("Apply", &())?;
+            proxy.call_method("ApplyNowSwapfileRemove", &(path,))?;
             println!("Swapfile removed");
         }
         "swapfile.prepare" => {
@@ -126,8 +119,7 @@ pub fn call(action: &str, payload: &str) -> anyhow::Result<()> {
             }
         }
         "sysctl.set" => {
-            proxy.call_method("SetSysctl", &(payload,))?;
-            proxy.call_method("Apply", &())?;
+            proxy.call_method("ApplyNowSysctl", &(payload,))?;
             println!("Sysctl values applied");
         }
         "zram.migrate" => {

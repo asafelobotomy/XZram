@@ -5,15 +5,18 @@ use std::path::Path;
 use crate::apply::SwapfileConfig;
 use crate::backend::SwapfileBackendTrait;
 use crate::error::Result;
+use crate::snapshot::paths::etc_path;
 use crate::swapfile_btrfs;
 
-const FSTAB_PATH: &str = "/etc/fstab";
+fn fstab_path() -> std::path::PathBuf {
+    etc_path("fstab")
+}
 
 pub struct SwapfileBackend;
 
 impl SwapfileBackend {
     fn parse_fstab_swapfiles(&self) -> Result<Vec<SwapfileConfig>> {
-        let file = fs::File::open(FSTAB_PATH)?;
+        let file = fs::File::open(fstab_path())?;
         let reader = BufReader::new(file);
         let mut swapfiles = Vec::new();
 
@@ -85,10 +88,11 @@ impl SwapfileBackendTrait for SwapfileBackend {
         swapfile_btrfs::create_allocated_swapfile(path, config.size_mb)?;
 
         fs::set_permissions(path, std::os::unix::fs::PermissionsExt::from_mode(0o600))?;
+        restorecon_if_present(path);
 
         crate::apply::run_command(
             "swapon",
-            &["-p", &config.priority.to_string(), &config.path],
+            &["-p", &config.priority.to_string(), "--", &config.path],
         )?;
 
         add_fstab_entry(&config.path, config.priority)?;
@@ -96,7 +100,7 @@ impl SwapfileBackendTrait for SwapfileBackend {
     }
 
     fn remove(&self, path: &str) -> Result<()> {
-        crate::validation::validate_swapfile_path(path)?;
+        crate::validation::validate_swapfile_remove_path(path)?;
 
         crate::apply::deactivate_swap_path(path)?;
         remove_fstab_entry(path)?;
@@ -105,42 +109,59 @@ impl SwapfileBackendTrait for SwapfileBackend {
     }
 
     fn resize(&self, path: &str, size_mb: u64) -> Result<()> {
-        if size_mb == 0 {
-            return Err(crate::error::XzramError::Validation(
-                "swapfile size must be greater than 0 MiB".into(),
-            ));
-        }
-        crate::validation::validate_swapfile_path(path)?;
+        crate::validation::validate_swapfile_resize_path(path, size_mb)?;
         let priority = self.priority_for_path(path)?;
         crate::apply::deactivate_swap_path(path)?;
-        swapfile_btrfs::create_allocated_swapfile(Path::new(path), size_mb)?;
+        let path_obj = Path::new(path);
+        swapfile_btrfs::create_allocated_swapfile(path_obj, size_mb)?;
         fs::set_permissions(
-            Path::new(path),
+            path_obj,
             std::os::unix::fs::PermissionsExt::from_mode(0o600),
         )?;
-        crate::apply::run_command("swapon", &["-p", &priority.to_string(), path])?;
+        restorecon_if_present(path_obj);
+        crate::apply::run_command("swapon", &["-p", &priority.to_string(), "--", path])?;
         Ok(())
     }
 }
 
+/// Best-effort SELinux relabel when `restorecon` is available (Fedora/RHEL).
+pub(crate) fn restorecon_if_present(path: &Path) {
+    if !which_exists("restorecon") {
+        return;
+    }
+    let _ = std::process::Command::new("restorecon")
+        .args(["-F"])
+        .arg(path)
+        .status();
+}
+
 fn add_fstab_entry(path: &str, priority: i32) -> Result<()> {
-    let mut content = fs::read_to_string(FSTAB_PATH)?;
+    let fstab = fstab_path();
+    let mut content = if fstab.exists() {
+        fs::read_to_string(&fstab)?
+    } else {
+        String::new()
+    };
     let entry = format!("\n{path} none swap sw,pri={priority} 0 0\n");
     if !content.contains(path) {
         content.push_str(&entry);
-        fs::write(FSTAB_PATH, content)?;
+        if let Some(parent) = fstab.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        fs::write(&fstab, content)?;
     }
     Ok(())
 }
 
 fn remove_fstab_entry(path: &str) -> Result<()> {
-    let content = fs::read_to_string(FSTAB_PATH)?;
+    let fstab = fstab_path();
+    let content = fs::read_to_string(&fstab)?;
     let filtered: String = content
         .lines()
         .filter(|line| !fstab_line_matches_swapfile(line, path))
         .collect::<Vec<_>>()
         .join("\n");
-    fs::write(FSTAB_PATH, format!("{filtered}\n"))?;
+    fs::write(&fstab, format!("{filtered}\n"))?;
     Ok(())
 }
 

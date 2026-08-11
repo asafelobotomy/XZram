@@ -14,7 +14,7 @@ Linux distributions. It includes a Qt6 GUI and system D-Bus daemon (`xzramd`).
 - **Swap partitions** — `swap list` merges active swaps and fstab partitions
 - **Sysctl tuning** — swappiness, watermark, and page-cluster settings
 - **Polkit integration** — granular privileged operations (no blanket sudo)
-- **D-Bus daemon** — `xzramd` on `io.github.XZram1` for `--dbus` / Flatpak / other clients; D-Bus activation starts it on demand (native GUI does not auto-start or require it)
+- **D-Bus daemon** — `xzramd` on `io.github.XZram1` for `--dbus` / other clients; D-Bus activation starts it on demand (native GUI does not auto-start or require it)
 - **Qt6 GUI** — dashboard, zram, swap files, sysctl, doctor, snapshots, and settings (CLI/pkexec-first; daemon optional)
 - **Configuration snapshots** — automatic backups on GUI open and before every apply; versioned restore
 
@@ -105,7 +105,7 @@ sudo cp -a /tmp/xzram-install/* /
 make install DESTDIR=/tmp/xzram-install
 sudo cp -a /tmp/xzram-install/* /
 
-# Optional: enable xzramd for --dbus / Flatpak (D-Bus activation also starts it on demand)
+# Optional: enable xzramd for --dbus / other clients (D-Bus activation also starts it on demand)
 sudo systemctl enable --now xzramd
 ```
 

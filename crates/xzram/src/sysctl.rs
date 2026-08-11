@@ -1,7 +1,7 @@
-use serde::{Deserialize, Serialize};
-
-use crate::apply::{self, SYSCTL_PATH};
+use crate::apply::{self};
 use crate::error::{Result, XzramError};
+use crate::snapshot::paths::{etc_path, SYSCTL_FILE};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SysctlValues {
@@ -50,10 +50,17 @@ pub fn set(values: &SysctlValues) -> Result<()> {
         return Err(XzramError::Validation("No sysctl values provided".into()));
     }
 
+    let path = etc_path(SYSCTL_FILE);
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
     let content = format!("{}\n", lines.join("\n"));
-    std::fs::write(SYSCTL_PATH, content)?;
+    std::fs::write(&path, content)?;
 
-    apply::run_command("sysctl", &["--system"])?;
+    // Skip live reload under hermetic etc roots (unit tests / fixtures).
+    if std::env::var_os("XZRAM_ETC_ROOT").is_none() {
+        apply::run_command("sysctl", &["--system"])?;
+    }
     Ok(())
 }
 

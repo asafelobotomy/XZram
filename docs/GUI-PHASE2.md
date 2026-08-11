@@ -4,7 +4,7 @@
 
 XZram ships a Qt6 desktop GUI (`xzram-qt`) that shells out to the `xzram` CLI for
 every read and mutation. The system D-Bus daemon (`xzramd`) remains available for
-other clients and Flatpak; it is **optional** for the native GUI.
+other clients; it is **optional** for the native GUI.
 
 Privileged operations go through `xzram` → `xzram-helper` (pkexec/polkit).
 
@@ -15,7 +15,7 @@ flowchart LR
     QtGUI[xzram-qt GUI] -->|"all reads --json / stage / apply"| CLI[xzram CLI]
     CLI --> Helper[pkexec xzram-helper]
     CLI -->|optional| Daemon[xzramd]
-    OtherClients[other clients / Flatpak] -->|D-Bus| Daemon
+    OtherClients[other clients] -->|D-Bus| Daemon
     Daemon --> Polkit[polkitd]
     Helper --> Lib[xzram Rust lib]
     Lib --> System[Linux swap subsystem]
@@ -36,7 +36,7 @@ Optional privileged service for non-CLI clients.
 
 ### D-Bus API
 
-Still exposed by `xzramd` for Flatpak and external tools:
+Still exposed by `xzramd` for external tools and `xzram --dbus`:
 
 ```
 GetStatus() -> a{sv}                    # StatusReport as JSON
@@ -83,7 +83,7 @@ DeleteSnapshot(s id) / PruneSnapshots   # polkit: io.github.xzram.snapshot.delet
 - **Icon:** Qt resource (`:/icons/xzram-icon.png`) for in-app window/header; theme icon
   `io.github.XZram` installed under `hicolor/{32..512}/apps/` for the desktop entry,
   AppStream (`icon type="stock"`), and taskbar (`setDesktopFileName` + `StartupWMClass`)
-- **Install:** bundled in native `xzram` package; optional Flatpak (host `xzramd` for sandboxed GUI)
+- **Install:** bundled in native `xzram` package (PKGBUILD, debian/, RPM)
 
 ### Snapshot API
 
@@ -91,17 +91,6 @@ GUI uses CLI verbs: `xzram snapshot list|create|restore|delete|prune`.
 Daemon still exposes the D-Bus snapshot methods for other clients.
 
 Startup snapshots use trigger `app_open`. See [SNAPSHOTS.md](SNAPSHOTS.md).
-
-## Flatpak strategy
-
-See [FLATPAK.md](FLATPAK.md) for host package requirements and snapshot limitations.
-
-The Flatpak GUI bundle cannot write `/etc` directly. Distribution model:
-
-1. User installs native `xzram` (provides CLI, helper, `xzramd` + polkit policy)
-2. User installs Flatpak `io.github.XZram` GUI (when published)
-3. Flatpak manifest grants `--talk-name=io.github.XZram1` and `--system-talk-name=io.github.XZram1`
-4. Sandboxed GUI talks to host D-Bus daemon; native GUI uses CLI + helper instead
 
 ## File layout
 
@@ -125,7 +114,7 @@ data/
 2. **M2:** Privileged D-Bus methods with polkit gating — **done**
 3. **M3:** Qt6 dashboard + zram config page — **done**
 4. **M4:** Swap file management page + sysctl page — **done**
-5. **M5:** Flatpak manifest + AppStream metadata — **in progress** (manifest present; publish TBD)
+5. **M5:** AppStream metadata + desktop/icon install for native packages — **done**
 6. **M6:** Native GUI CLI-first (daemon optional) — **done**
 
 ## Apply recommended defaults
@@ -158,7 +147,6 @@ and immutable OS detection skip all staging. Vendor zram sizes that already eval
 
 ## Still TODO
 
-- Publish Flatpak / AppStream to a store
 - Broader D-Bus integration tests with `zbus` test connections
 - Optional Qt UI tests with `QTest`
 - CI GUI gate today: `make gui-smoke` (`QT_QPA_PLATFORM=offscreen`)

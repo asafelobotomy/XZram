@@ -47,6 +47,7 @@ fn run(action: &str, payload: &str) -> xzram::Result<()> {
         "stage" => {
             let partial: PendingConfig = serde_json::from_str(payload)
                 .map_err(|e| xzram::XzramError::Parse(e.to_string()))?;
+            xzram::validation::validate_staged_pending(&partial)?;
             stage(&partial)?;
             println!("Configuration staged");
         }
@@ -57,6 +58,7 @@ fn run(action: &str, payload: &str) -> xzram::Result<()> {
         "zram.configure" => {
             let config: ZramConfig = serde_json::from_str(payload)
                 .map_err(|e| xzram::XzramError::Parse(e.to_string()))?;
+            xzram::validation::validate_zram_config(&config)?;
             let backend = ensure_zram_backend()?;
             backend.configure(&config)?;
             backend.apply()?;
@@ -70,6 +72,7 @@ fn run(action: &str, payload: &str) -> xzram::Result<()> {
         "swapfile.create" => {
             let config: SwapfileConfig = serde_json::from_str(payload)
                 .map_err(|e| xzram::XzramError::Parse(e.to_string()))?;
+            let config = xzram::validation::validate_swapfile_config(&config)?;
             let backend = available_swapfile_backend();
             if !backend.is_available() {
                 return Err(xzram::XzramError::Backend(
@@ -87,6 +90,7 @@ fn run(action: &str, payload: &str) -> xzram::Result<()> {
             }
             let p: ResizePayload = serde_json::from_str(payload)
                 .map_err(|e| xzram::XzramError::Parse(e.to_string()))?;
+            xzram::validation::validate_swapfile_resize_path(&p.path, p.size_mb)?;
             let backend = available_swapfile_backend();
             if !backend.is_available() {
                 return Err(xzram::XzramError::Backend(
@@ -103,6 +107,7 @@ fn run(action: &str, payload: &str) -> xzram::Result<()> {
             }
             let p: RemovePayload = serde_json::from_str(payload)
                 .map_err(|e| xzram::XzramError::Parse(e.to_string()))?;
+            xzram::validation::validate_swapfile_remove_path(&p.path)?;
             let backend = available_swapfile_backend();
             if !backend.is_available() {
                 return Err(xzram::XzramError::Backend(
@@ -121,6 +126,7 @@ fn run(action: &str, payload: &str) -> xzram::Result<()> {
             }
             let p: PreparePayload = serde_json::from_str(payload)
                 .map_err(|e| xzram::XzramError::Parse(e.to_string()))?;
+            xzram::validation::validate_swapfile_prepare_path(&p.path)?;
             let status = xzram::swapfile_btrfs::prepare_nodatacow(
                 std::path::Path::new(&p.path),
                 p.mkdir_parents,
@@ -139,12 +145,13 @@ fn run(action: &str, payload: &str) -> xzram::Result<()> {
             }
             let p: SwapPayload = serde_json::from_str(payload)
                 .map_err(|e| xzram::XzramError::Parse(e.to_string()))?;
+            xzram::validation::validate_swap_device(&p.device)?;
             match p.action.as_str() {
                 "on" => {
-                    apply::run_command("swapon", &[&p.device])?;
+                    apply::run_command("swapon", &["--", &p.device])?;
                 }
                 "off" => {
-                    apply::run_command("swapoff", &[&p.device])?;
+                    apply::run_command("swapoff", &["--", &p.device])?;
                 }
                 _ => {
                     return Err(xzram::XzramError::Validation("unknown swap action".into()));

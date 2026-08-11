@@ -2,6 +2,8 @@
 
 #include <QFile>
 #include <QIODevice>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QProcess>
 #include <QStandardPaths>
 
@@ -99,9 +101,9 @@ RunResult run(const QStringList &args, int timeoutMs) {
 QString runJson(const QStringList &args, int timeoutMs) {
     const RunResult result = run(args, timeoutMs);
     if (!result.ok) {
-        QString err = result.error;
-        err.replace(QLatin1Char('"'), QStringLiteral("\\\""));
-        return QStringLiteral("{\"error\":\"%1\"}").arg(err);
+        QJsonObject obj;
+        obj.insert(QStringLiteral("error"), result.error);
+        return QString::fromUtf8(QJsonDocument(obj).toJson(QJsonDocument::Compact));
     }
     return result.stdoutText;
 }

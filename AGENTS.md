@@ -50,6 +50,6 @@ See README **Verify** and [docs/DEV-ENV.md](docs/DEV-ENV.md) for `XZRAM_*` overr
 
 - [README.md](README.md) — user quick start, install, CLI
 - [docs/SCOPE.md](docs/SCOPE.md) — in/out of scope
-- [docs/GUI-PHASE2.md](docs/GUI-PHASE2.md) — GUI is CLI-backed; daemon optional for other clients/Flatpak
+- [docs/GUI-PHASE2.md](docs/GUI-PHASE2.md) — GUI is CLI-backed; daemon optional for other clients
 - [docs/RECOMMENDATIONS.md](docs/RECOMMENDATIONS.md) — defaults profiles
 - [docs/SNAPSHOTS.md](docs/SNAPSHOTS.md) — snapshot semantics

@@ -14,6 +14,11 @@ ProtectSystem=strict
 ProtectHome=yes
 ProtectKernelTunables=yes
 ProtectControlGroups=yes
+ProtectKernelModules=yes
+MemoryDenyWriteExecute=yes
+PrivateDevices=yes
+SystemCallArchitectures=native
+RestrictNamespaces=yes
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 # Apply/restore run xzram-helper in a transient unit (see xzramd privileged.rs).
 ReadWritePaths=/var/lib/xzram

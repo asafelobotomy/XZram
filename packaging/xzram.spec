@@ -9,6 +9,7 @@ Source0:        %{name}-%{version}.tar.gz
 
 BuildRequires:  rust cargo cmake qt6-qtbase-devel
 Requires:       polkit systemd util-linux qt6-qtbase
+Recommends:     zram-generator
 
 %description
 XZram is a CLI and Qt6 GUI for creating, removing, and customizing swap on

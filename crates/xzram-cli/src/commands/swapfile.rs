@@ -76,6 +76,7 @@ pub(crate) fn run(command: SwapfileCommands, json: bool, dbus: bool) -> anyhow::
             }
         }
         SwapfileCommands::Prepare { path, mkdir } => {
+            xzram::validation::validate_swapfile_prepare_path(&path)?;
             let payload = serde_json::json!({
                 "path": path,
                 "mkdir_parents": mkdir,

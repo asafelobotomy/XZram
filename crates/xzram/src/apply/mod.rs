@@ -3,15 +3,16 @@
 pub mod commands;
 pub mod engine;
 pub mod pending;
+pub mod store_lock;
 pub mod types;
 
 pub use commands::*;
 pub use engine::*;
 pub use pending::*;
+pub use store_lock::with_store_lock;
 pub use types::*;
 
 #[cfg(test)]
 pub(crate) fn test_lock() -> &'static std::sync::Mutex<()> {
-    static LOCK: std::sync::OnceLock<std::sync::Mutex<()>> = std::sync::OnceLock::new();
-    LOCK.get_or_init(|| std::sync::Mutex::new(()))
+    crate::test_env_lock()
 }

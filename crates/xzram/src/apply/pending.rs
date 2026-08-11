@@ -1,7 +1,9 @@
+use std::path::Path;
 use std::path::PathBuf;
 
 use tracing::info;
 
+use super::store_lock::with_store_lock;
 use super::types::PendingConfig;
 use crate::error::{Result, XzramError};
 use crate::sysctl::SysctlValues;
@@ -12,15 +14,39 @@ pub fn data_dir() -> PathBuf {
         .unwrap_or_else(|_| PathBuf::from("/var/lib/xzram"))
 }
 
+fn ensure_data_dir() -> PathBuf {
+    let dir = data_dir();
+    let _ = std::fs::create_dir_all(&dir);
+    set_mode(&dir, 0o700);
+    dir
+}
+
+fn set_mode(path: &Path, mode: u32) {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode));
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = (path, mode);
+    }
+}
+
+fn set_mode_600(path: &Path) {
+    set_mode(path, 0o600);
+}
+
 /// Path to the last privileged-helper error (survives systemd-run swallowing stderr).
 pub fn last_error_path() -> PathBuf {
     data_dir().join("last_error")
 }
 
 pub fn write_last_error(message: &str) {
-    let dir = data_dir();
-    let _ = std::fs::create_dir_all(&dir);
-    let _ = std::fs::write(last_error_path(), message);
+    let _dir = ensure_data_dir();
+    let path = last_error_path();
+    let _ = std::fs::write(&path, message);
+    set_mode_600(&path);
 }
 
 pub fn clear_last_error() {
@@ -53,11 +79,13 @@ pub fn load_pending() -> Result<Option<PendingConfig>> {
 }
 
 pub fn stage(partial: &PendingConfig) -> Result<()> {
-    let mut current = load_pending()?.unwrap_or_default();
-    merge_pending(&mut current, partial);
-    write_pending(&current)?;
-    info!("staged configuration change");
-    Ok(())
+    with_store_lock(|| {
+        let mut current = load_pending()?.unwrap_or_default();
+        merge_pending(&mut current, partial);
+        write_pending_unlocked(&current)?;
+        info!("staged configuration change");
+        Ok(())
+    })
 }
 
 fn merge_pending(current: &mut PendingConfig, partial: &PendingConfig) {
@@ -111,23 +139,28 @@ fn merge_sysctl(existing: Option<&SysctlValues>, incoming: &SysctlValues) -> Sys
     merged
 }
 
-pub(crate) fn write_pending(config: &PendingConfig) -> Result<()> {
+pub fn write_pending(config: &PendingConfig) -> Result<()> {
+    with_store_lock(|| write_pending_unlocked(config))
+}
+
+fn write_pending_unlocked(config: &PendingConfig) -> Result<()> {
     let path = pending_path();
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
+    ensure_data_dir();
     let content =
         serde_json::to_string_pretty(config).map_err(|e| XzramError::Parse(e.to_string()))?;
-    std::fs::write(path, content)?;
+    std::fs::write(&path, content)?;
+    set_mode_600(&path);
     Ok(())
 }
 
 pub fn clear_pending() -> Result<()> {
-    let path = pending_path();
-    if path.exists() {
-        std::fs::remove_file(path)?;
-    }
-    Ok(())
+    with_store_lock(|| {
+        let path = pending_path();
+        if path.exists() {
+            std::fs::remove_file(path)?;
+        }
+        Ok(())
+    })
 }
 
 pub fn pending_is_empty(config: &PendingConfig) -> bool {

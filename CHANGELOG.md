@@ -7,8 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- Path/INI/argv hardening for swapfile, zram-generator, and swap activate (validation + `--` separators)
+- Advisory store lock for pending/snapshot mutations; helper validates staged pending
+- Artifact modes: `/var/lib/xzram` `0o700`, pending/index/last_error `0o600`
+- Best-effort `restorecon -F` after swapfile create/resize when SELinux tools are present
+- GUI CLI error JSON built with `QJsonDocument` (no manual quote escaping)
+- SteamOS/immutable detection expanded (`steamos` id/VARIANT, `steamos-readonly`, `/etc/steamos-release`)
+
+### Added
+- Hermetic unit tests for snapshot restore, recommend engine (`recommend_from_context`), and sysctl-only apply under `XZRAM_ETC_ROOT`
+- Packaging hints for zram backends: PKGBUILD `optdepends`, debian `Recommends: systemd-zram-generator`, RPM `Recommends: zram-generator`
+
+### Changed
+- `XZRAM_ETC_ROOT` honored for zram-generator conf and sysctl drop-in writes; restore skips privileged steps under hermetic etc roots
+- Living audit register rewrite ([docs/AUDIT.md](docs/AUDIT.md)); Snapshot GUI docs updated for delete/prune
+
+### Removed
+- Flatpak packaging path (`flatpak/` manifest and `docs/FLATPAK.md`); distribution is native packages only (PKGBUILD, debian/, RPM)
+
 ### Fixed
-- Desktop/AppStream theme icon: install `hicolor` sizes 32–512 as `io.github.XZram.png` in Makefile, PKGBUILD, Debian, RPM, Flatpak; set Qt `desktopFileName` and `StartupWMClass` for taskbar matching
+- Desktop/AppStream theme icon: install `hicolor` sizes 32–512 as `io.github.XZram.png` in Makefile, PKGBUILD, Debian, RPM; set Qt `desktopFileName` and `StartupWMClass` for taskbar matching
 
 ## [0.2.0] — 2026-07-22
 

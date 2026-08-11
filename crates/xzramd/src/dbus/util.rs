@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use xzram::apply::PendingConfig;
+use xzram::swapfile_btrfs;
 use xzram::validation;
 
 pub(crate) fn json_map<T: serde::Serialize>(
@@ -16,24 +17,32 @@ pub(crate) fn json_map<T: serde::Serialize>(
 }
 
 pub(crate) fn validate_staged_pending(pending: &PendingConfig) -> zbus::fdo::Result<()> {
-    if let Some(ref swapfile) = pending.swapfile {
-        validation::validate_swapfile_config(swapfile)
-            .map_err(|e| zbus::fdo::Error::InvalidArgs(e.to_string()))?;
-    }
-    if let Some(ref path) = pending.remove_swapfile {
-        validation::validate_swapfile_path(path)
-            .map_err(|e| zbus::fdo::Error::InvalidArgs(e.to_string()))?;
-    }
-    if let Some(ref resize) = pending.swapfile_resize {
-        validation::validate_swapfile_path(&resize.path)
-            .map_err(|e| zbus::fdo::Error::InvalidArgs(e.to_string()))?;
-        if resize.size_mb == 0 {
-            return Err(zbus::fdo::Error::InvalidArgs(
-                "swapfile_resize size_mb must be greater than 0".into(),
-            ));
-        }
-    }
-    Ok(())
+    validation::validate_staged_pending(pending)
+        .map_err(|e| zbus::fdo::Error::InvalidArgs(e.to_string()))
+}
+
+pub(crate) async fn prepare_swapfile_btrfs(
+    path: &str,
+    mkdir_parents: bool,
+) -> zbus::fdo::Result<HashMap<String, zbus::zvariant::OwnedValue>> {
+    validation::validate_swapfile_prepare_path(path)
+        .map_err(|e| zbus::fdo::Error::InvalidArgs(e.to_string()))?;
+    let payload = serde_json::json!({
+        "path": path,
+        "mkdir_parents": mkdir_parents,
+    })
+    .to_string();
+    let lines = crate::privileged::run_helper("swapfile.prepare", &payload).await?;
+    let raw = lines
+        .iter()
+        .rev()
+        .find(|l| l.starts_with('{'))
+        .ok_or_else(|| {
+            zbus::fdo::Error::Failed("swapfile.prepare returned no status JSON".into())
+        })?;
+    let status: swapfile_btrfs::NodatacowStatus = serde_json::from_str(raw)
+        .map_err(|e| zbus::fdo::Error::Failed(format!("invalid prepare status: {e}")))?;
+    Ok(json_map(&status))
 }
 
 #[cfg(test)]

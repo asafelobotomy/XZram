@@ -68,7 +68,7 @@ pub fn deactivate_swap_path(path: &str) -> Result<()> {
     if !device_is_active_swap(path) {
         return Ok(());
     }
-    run_command("swapoff", &[path]).map_err(|e| {
+    run_command("swapoff", &["--", path]).map_err(|e| {
         XzramError::Command(format!(
             "cannot modify {path} while it is active swap ({e}). \
              Free memory and retry"

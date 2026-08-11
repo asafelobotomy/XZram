@@ -1,3 +1,4 @@
+mod apply_now;
 mod auth;
 mod serve;
 mod util;
@@ -95,7 +96,7 @@ impl Manager {
     }
 
     async fn check_swapfile_btrfs(&self, path: &str) -> zbus::fdo::Result<JsonReply> {
-        validation::validate_swapfile_path(path)
+        validation::validate_swapfile_prepare_path(path)
             .map_err(|e| zbus::fdo::Error::InvalidArgs(e.to_string()))?;
         let status = swapfile_btrfs::check_nodatacow(std::path::Path::new(path))
             .map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
@@ -109,24 +110,7 @@ impl Manager {
         mkdir_parents: bool,
     ) -> zbus::fdo::Result<JsonReply> {
         authorize(&self.connection, &hdr, "io.github.xzram.swapfile.prepare").await?;
-        validation::validate_swapfile_path(path)
-            .map_err(|e| zbus::fdo::Error::InvalidArgs(e.to_string()))?;
-        let payload = serde_json::json!({
-            "path": path,
-            "mkdir_parents": mkdir_parents,
-        })
-        .to_string();
-        let lines = crate::privileged::run_helper("swapfile.prepare", &payload).await?;
-        let raw = lines
-            .iter()
-            .rev()
-            .find(|l| l.starts_with('{'))
-            .ok_or_else(|| {
-                zbus::fdo::Error::Failed("swapfile.prepare returned no status JSON".into())
-            })?;
-        let status: swapfile_btrfs::NodatacowStatus = serde_json::from_str(raw)
-            .map_err(|e| zbus::fdo::Error::Failed(format!("invalid prepare status: {e}")))?;
-        Ok(json_map(&status))
+        util::prepare_swapfile_btrfs(path, mkdir_parents).await
     }
 
     async fn get_recommended_defaults(&self) -> zbus::fdo::Result<JsonReply> {
@@ -142,6 +126,7 @@ impl Manager {
         let _guard = self.gate.lock().await;
         let report = recommend::recommend().map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
         if !pending_is_empty(&report.pending) {
+            validate_staged_pending(&report.pending)?;
             stage(&report.pending).map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
         }
         Ok(json_map(&report))
@@ -154,6 +139,8 @@ impl Manager {
     ) -> zbus::fdo::Result<()> {
         authorize(&self.connection, &hdr, "io.github.xzram.zram.configure").await?;
         let config: ZramConfig = serde_json::from_str(config_json)
+            .map_err(|e| zbus::fdo::Error::InvalidArgs(e.to_string()))?;
+        validation::validate_zram_config(&config)
             .map_err(|e| zbus::fdo::Error::InvalidArgs(e.to_string()))?;
         let pending = PendingConfig {
             zram: Some(config),
@@ -205,7 +192,7 @@ impl Manager {
         path: &str,
     ) -> zbus::fdo::Result<()> {
         authorize(&self.connection, &hdr, "io.github.xzram.swapfile.remove").await?;
-        validation::validate_swapfile_path(path)
+        validation::validate_swapfile_remove_path(path)
             .map_err(|e| zbus::fdo::Error::InvalidArgs(e.to_string()))?;
         let pending = PendingConfig {
             remove_swapfile: Some(path.into()),
@@ -223,13 +210,8 @@ impl Manager {
         size_mb: u64,
     ) -> zbus::fdo::Result<()> {
         authorize(&self.connection, &hdr, "io.github.xzram.swapfile.resize").await?;
-        validation::validate_swapfile_path(path)
+        validation::validate_swapfile_resize_path(path, size_mb)
             .map_err(|e| zbus::fdo::Error::InvalidArgs(e.to_string()))?;
-        if size_mb == 0 {
-            return Err(zbus::fdo::Error::InvalidArgs(
-                "size_mb must be greater than 0".into(),
-            ));
-        }
         let pending = PendingConfig {
             swapfile_resize: Some(SwapfileResizeConfig {
                 path: path.into(),
@@ -254,6 +236,7 @@ impl Manager {
             sysctl: Some(values),
             ..Default::default()
         };
+        validate_staged_pending(&pending)?;
         let _guard = self.gate.lock().await;
         stage(&pending).map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
         Ok(())
@@ -267,6 +250,7 @@ impl Manager {
 
     async fn rollback(&self, #[zbus(header)] hdr: Header<'_>) -> zbus::fdo::Result<Vec<String>> {
         authorize(&self.connection, &hdr, "io.github.xzram.rollback").await?;
+        let _guard = self.gate.lock().await;
         crate::privileged::run_helper("rollback", "{}").await
     }
 
@@ -325,7 +309,7 @@ impl Manager {
         #[zbus(header)] hdr: Header<'_>,
         keep: u32,
     ) -> zbus::fdo::Result<u32> {
-        authorize(&self.connection, &hdr, "io.github.xzram.snapshot.delete").await?;
+        authorize(&self.connection, &hdr, "io.github.xzram.snapshot.prune").await?;
         let _guard = self.gate.lock().await;
         let removed = snapshot::prune_snapshots(keep as usize)
             .map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
@@ -367,11 +351,14 @@ impl Manager {
         #[zbus(header)] hdr: Header<'_>,
         config_json: &str,
     ) -> zbus::fdo::Result<()> {
-        authorize(&self.connection, &hdr, "io.github.xzram.zram.configure").await?;
-        let _: ZramConfig = serde_json::from_str(config_json)
-            .map_err(|e| zbus::fdo::Error::InvalidArgs(e.to_string()))?;
-        crate::privileged::run_helper("zram.configure", config_json).await?;
-        Ok(())
+        apply_now::apply_now_zram(self, hdr, config_json).await
+    }
+
+    async fn apply_now_zram_disable(
+        &self,
+        #[zbus(header)] hdr: Header<'_>,
+    ) -> zbus::fdo::Result<()> {
+        apply_now::apply_now_zram_disable(self, hdr).await
     }
 
     async fn apply_now_swapfile_create(
@@ -379,12 +366,31 @@ impl Manager {
         #[zbus(header)] hdr: Header<'_>,
         config_json: &str,
     ) -> zbus::fdo::Result<()> {
-        authorize(&self.connection, &hdr, "io.github.xzram.swapfile.create").await?;
-        let config: SwapfileConfig = serde_json::from_str(config_json)
-            .map_err(|e| zbus::fdo::Error::InvalidArgs(e.to_string()))?;
-        validation::validate_swapfile_config(&config)
-            .map_err(|e| zbus::fdo::Error::InvalidArgs(e.to_string()))?;
-        crate::privileged::run_helper("swapfile.create", config_json).await?;
-        Ok(())
+        apply_now::apply_now_swapfile_create(self, hdr, config_json).await
+    }
+
+    async fn apply_now_swapfile_resize(
+        &self,
+        #[zbus(header)] hdr: Header<'_>,
+        path: &str,
+        size_mb: u64,
+    ) -> zbus::fdo::Result<()> {
+        apply_now::apply_now_swapfile_resize(self, hdr, path, size_mb).await
+    }
+
+    async fn apply_now_swapfile_remove(
+        &self,
+        #[zbus(header)] hdr: Header<'_>,
+        path: &str,
+    ) -> zbus::fdo::Result<()> {
+        apply_now::apply_now_swapfile_remove(self, hdr, path).await
+    }
+
+    async fn apply_now_sysctl(
+        &self,
+        #[zbus(header)] hdr: Header<'_>,
+        values_json: &str,
+    ) -> zbus::fdo::Result<()> {
+        apply_now::apply_now_sysctl(self, hdr, values_json).await
     }
 }

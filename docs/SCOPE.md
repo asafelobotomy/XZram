@@ -24,6 +24,7 @@ on major systemd-based Linux distributions.
 - Alpine / non-systemd init systems
 - Immutable distro full support (Silverblue overlay UX deferred)
 - Hibernation setup (detect and warn only)
+- Flatpak / sandboxed GUI store packaging (native PKGBUILD, debian/, RPM only)
 
 ## Backend abstraction
 

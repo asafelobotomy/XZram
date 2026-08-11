@@ -19,6 +19,7 @@ Depends: ${shlibs:Depends},
          systemd,
          util-linux,
          qt6-base
+Recommends: systemd-zram-generator
 Description: Cross-distro Linux swap management
  XZram provides a CLI, Qt6 GUI, and D-Bus daemon for zram, swap files,
  sysctl tuning, and configuration snapshots on systemd-based distributions.

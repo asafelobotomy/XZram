@@ -70,6 +70,8 @@ pub fn parse_zram_generator_conf(path: &str) -> Result<ZramGeneratorConf> {
 }
 
 pub fn write_zram_generator_conf(path: &str, conf: &ZramGeneratorConf) -> Result<()> {
+    crate::validation::validate_zram_generator_devices(&conf.devices)?;
+
     if let Some(parent) = Path::new(path).parent() {
         fs::create_dir_all(parent)?;
     }

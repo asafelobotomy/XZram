@@ -30,7 +30,7 @@ pub fn apply_pending() -> Result<ApplyResult> {
     Ok(result)
 }
 
-fn apply_from_pending(pending: &PendingConfig) -> Result<ApplyResult> {
+pub(crate) fn apply_from_pending(pending: &PendingConfig) -> Result<ApplyResult> {
     let request = ApplyRequest {
         zram: pending.zram.clone(),
         swapfile: pending.swapfile.clone(),
@@ -53,7 +53,7 @@ fn apply_from_pending(pending: &PendingConfig) -> Result<ApplyResult> {
         result.messages.push("Applied sysctl values".into());
     }
 
-    if migrate::zramswap_config_exists() {
+    if std::env::var_os("XZRAM_ETC_ROOT").is_none() && migrate::zramswap_config_exists() {
         let migrate_msgs = migrate::finalize_zram_tools_migration()?;
         result.messages.extend(migrate_msgs);
     }
@@ -114,6 +114,8 @@ mod tests {
     use super::super::pending::write_pending;
     use super::*;
     use crate::apply::test_lock;
+    use crate::sysctl::SysctlValues;
+    use std::fs;
 
     #[test]
     fn apply_pending_empty_errors() {
@@ -124,5 +126,35 @@ mod tests {
         let err = apply_pending().unwrap_err().to_string();
         assert!(err.contains("empty"));
         std::env::remove_var("XZRAM_DATA_DIR");
+    }
+
+    #[test]
+    fn apply_from_pending_sysctl_under_etc_root() {
+        let _guard = test_lock().lock().unwrap();
+        let data = tempfile::tempdir().unwrap();
+        let etc = tempfile::tempdir().unwrap();
+        std::env::set_var("XZRAM_DATA_DIR", data.path());
+        std::env::set_var("XZRAM_ETC_ROOT", etc.path());
+
+        let pending = PendingConfig {
+            sysctl: Some(SysctlValues {
+                swappiness: Some(180),
+                watermark_boost_factor: Some(0),
+                watermark_scale_factor: Some(125),
+                page_cluster: Some(0),
+            }),
+            ..Default::default()
+        };
+        let result = apply_from_pending(&pending).unwrap();
+        assert!(result.success);
+        assert!(result.messages.iter().any(|m| m.contains("sysctl")));
+
+        let drop_in = etc.path().join("sysctl.d/99-xzram.conf");
+        let content = fs::read_to_string(&drop_in).unwrap();
+        assert!(content.contains("vm.swappiness = 180"));
+        assert!(content.contains("vm.page-cluster = 0"));
+
+        std::env::remove_var("XZRAM_DATA_DIR");
+        std::env::remove_var("XZRAM_ETC_ROOT");
     }
 }

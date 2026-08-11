@@ -7,6 +7,7 @@ arch=('x86_64' 'aarch64')
 url="https://github.com/xzram/xzram"
 license=('GPL-3.0-or-later')
 depends=('polkit' 'systemd' 'util-linux' 'qt6-base')
+optdepends=('systemd-zram-generator: zram swap via systemd-zram-generator')
 makedepends=('rust' 'cargo' 'cmake')
 source=("$pkgname-$pkgver.tar.gz::file://$startdir/..")
 sha256sums=('SKIP')

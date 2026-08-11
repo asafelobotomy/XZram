@@ -34,7 +34,7 @@ xzram snapshot prune --keep 50 --yes
 
 ## GUI
 
-The **Utilities → Restore Snapshots** tab lists snapshots and allows restore. Deletion is CLI-only.
+The **Snapshot** tab lists snapshots and supports create, restore, delete, prune, and rollback (same actions as the CLI). Confirm-before-apply settings still gate destructive restore/delete/prune.
 
 ## Retention
 

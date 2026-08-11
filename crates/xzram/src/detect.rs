@@ -301,21 +301,30 @@ fn detect_immutable_os(distro: &DistroInfo) -> bool {
     if distro.id == "nixos" {
         return true;
     }
+    if distro.id.to_lowercase().contains("steamos") {
+        return true;
+    }
     if std::env::var("OSTREE_VERSION").is_ok() {
         return true;
     }
     if which_exists("rpm-ostree") {
         return true;
     }
+    if std::path::Path::new("/usr/bin/steamos-readonly").exists()
+        || std::path::Path::new("/etc/steamos-release").exists()
+    {
+        return true;
+    }
     if let Ok(content) = std::fs::read_to_string("/etc/os-release") {
         for line in content.lines() {
             if let Some((key, value)) = line.split_once('=') {
-                if key == "VARIANT_ID" {
+                if key == "VARIANT_ID" || key == "VARIANT" || key == "ID" {
                     let value = value.trim_matches('"').to_lowercase();
                     if value.contains("silverblue")
                         || value.contains("kinoite")
                         || value.contains("coreos")
                         || value.contains("ostree")
+                        || value.contains("steamos")
                     {
                         return true;
                     }
