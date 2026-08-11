@@ -2,6 +2,7 @@
 
 #include "clijob.h"
 #include "jsonloader.h"
+#include "linkedoptimize.h"
 #include "xzramcli.h"
 #include "widgets/dashboardwidget.h"
 #include "widgets/doctorwidget.h"
@@ -15,6 +16,7 @@
 
 #include <QHBoxLayout>
 #include <QIcon>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QLabel>
@@ -29,7 +31,12 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     qRegisterMetaType<XzramCli::RunResult>();
     m_refreshTimer = new QTimer(this);
     connect(m_refreshTimer, &QTimer::timeout, this, &MainWindow::refreshLive);
+    m_linkedOptimizeTimer = new QTimer(this);
+    m_linkedOptimizeTimer->setSingleShot(true);
+    m_linkedOptimizeTimer->setInterval(200);
+    connect(m_linkedOptimizeTimer, &QTimer::timeout, this, &MainWindow::runLinkedOptimize);
     setupUi();
+    m_linkedOptimizeEnabled = m_settingsPage->linkedOptimize();
     configureRefreshTimer(m_settingsPage->refreshIntervalMs());
     refreshAll();
     // Defer AppOpen so the window can paint; silent best-effort (no progress dialog).
@@ -94,6 +101,10 @@ void MainWindow::setupUi() {
     connect(m_swapfilePage, &SwapfileWidget::stagingChanged, this, &MainWindow::onStagingChanged);
     connect(m_swapfilePage, &SwapfileWidget::refreshRequested, this, &MainWindow::refreshAll);
     connect(m_sysctlPage, &SysctlWidget::stagingChanged, this, &MainWindow::onStagingChanged);
+    connect(m_zramPage, &ZramWidget::linkedFieldEdited, this, &MainWindow::onLinkedFieldEdited);
+    connect(m_sysctlPage, &SysctlWidget::linkedFieldEdited, this, &MainWindow::onLinkedFieldEdited);
+    connect(m_swapfilePage, &SwapfileWidget::linkedFieldEdited, this,
+            &MainWindow::onLinkedFieldEdited);
     connect(m_doctorPage, &DoctorWidget::btrfsPrepared, this, &MainWindow::refreshAll);
     connect(m_snapshotPage, &SnapshotWidget::configurationChanged, this,
             &MainWindow::refreshAll);
@@ -103,6 +114,8 @@ void MainWindow::setupUi() {
             &MainWindow::onRefreshIntervalChanged);
     connect(m_settingsPage, &SettingsWidget::pruneKeepDefaultChanged, this,
             &MainWindow::onPruneKeepDefaultChanged);
+    connect(m_settingsPage, &SettingsWidget::linkedOptimizeChanged, this,
+            &MainWindow::onLinkedOptimizeChanged);
 }
 
 void MainWindow::configureRefreshTimer(int intervalMs) {
@@ -118,6 +131,39 @@ void MainWindow::onRefreshIntervalChanged(int intervalMs) {
 
 void MainWindow::onPruneKeepDefaultChanged(int keep) {
     m_snapshotPage->setPruneKeepDefault(keep);
+}
+
+void MainWindow::onLinkedOptimizeChanged(bool enabled) {
+    m_linkedOptimizeEnabled = enabled;
+}
+
+void MainWindow::onLinkedFieldEdited(const QString &anchor) {
+    if (!m_linkedOptimizeEnabled || m_applyingLinkedOptimize) {
+        return;
+    }
+    m_pendingLinkedAnchor = anchor;
+    m_linkedOptimizeTimer->start();
+}
+
+void MainWindow::runLinkedOptimize() {
+    if (!m_linkedOptimizeEnabled || m_pendingLinkedAnchor.isEmpty()) {
+        return;
+    }
+    const QString anchor = m_pendingLinkedAnchor;
+    m_pendingLinkedAnchor.clear();
+    const QString seed =
+        LinkedOptimize::gatherSeedJson(m_zramPage, m_sysctlPage, m_swapfilePage);
+    const QString json = XzramCli::optimizeLinkedJson(anchor, seed);
+    QString parseError;
+    const QJsonObject result = JsonLoader::parseObject(json, &parseError);
+    if (result.contains(QStringLiteral("error"))) {
+        m_statusLabel->setText(
+            tr("Linked optimize failed: %1").arg(result.value(QStringLiteral("error")).toString()));
+        return;
+    }
+    m_applyingLinkedOptimize = true;
+    LinkedOptimize::applyResult(m_zramPage, m_sysctlPage, m_swapfilePage, m_statusLabel, result);
+    m_applyingLinkedOptimize = false;
 }
 
 void MainWindow::updateStatusLabel() {
@@ -281,40 +327,51 @@ void MainWindow::recommendDefaults() {
         return;
     }
 
-    const auto choice = RecommendedDefaultsDialog::showDialog(this, report);
-    if (choice == RecommendedDefaultsDialog::Choice::Cancel) {
+    const auto result = RecommendedDefaultsDialog::showDialog(this, report);
+    if (result.choice == RecommendedDefaultsDialog::Choice::Cancel) {
         return;
     }
 
-    const QJsonObject pending = report.value(QStringLiteral("pending")).toObject();
+    // Re-fetch with chosen scales so pending preview matches Apply/Stage.
+    const QString scaledJson =
+        XzramCli::recommendedDefaultsJson(result.zramScale, result.swapScale);
+    QString scaledParseError;
+    const QJsonObject scaledReport = JsonLoader::parseObject(scaledJson, &scaledParseError);
+    if (scaledReport.contains(QStringLiteral("error"))) {
+        QMessageBox::warning(this, tr("Recommend failed"),
+                             scaledReport.value(QStringLiteral("error")).toString());
+        return;
+    }
+
+    const QJsonObject pending = scaledReport.value(QStringLiteral("pending")).toObject();
     if (!pendingHasChanges(pending)) {
         QMessageBox::information(this, tr("Recommended defaults"),
                                  tr("Your system already matches the recommended defaults."));
         return;
     }
 
-    if (choice == RecommendedDefaultsDialog::Choice::ApplyDefaults) {
-        runCliWithProgress(this, tr("Applying recommended defaults…"),
-                           XzramCli::argsDefaultsApply(), 300000,
-                           [this](const XzramCli::RunResult &result) {
-                               if (result.error == QLatin1String("cancelled")) {
-                                   return;
-                               }
-                               if (!result.ok) {
-                                   QMessageBox::warning(this, tr("Apply failed"), result.error);
-                                   return;
-                               }
-                               QMessageBox::information(
-                                   this, tr("Apply complete"),
-                                   tr("Recommended defaults have been applied."));
-                               refreshAll();
-                           });
+    if (result.choice == RecommendedDefaultsDialog::Choice::ApplyDefaults) {
+        runCliWithProgress(
+            this, tr("Applying recommended defaults…"),
+            XzramCli::argsDefaultsApply(result.zramScale, result.swapScale), 300000,
+            [this](const XzramCli::RunResult &runResult) {
+                if (runResult.error == QLatin1String("cancelled")) {
+                    return;
+                }
+                if (!runResult.ok) {
+                    QMessageBox::warning(this, tr("Apply failed"), runResult.error);
+                    return;
+                }
+                QMessageBox::information(this, tr("Apply complete"),
+                                         tr("Recommended defaults have been applied."));
+                refreshAll();
+            });
         return;
     }
 
-    if (choice == RecommendedDefaultsDialog::Choice::Configure) {
+    if (result.choice == RecommendedDefaultsDialog::Choice::Configure) {
         QString error;
-        if (!XzramCli::defaultsStage(&error)) {
+        if (!XzramCli::defaultsStage(result.zramScale, result.swapScale, &error)) {
             QMessageBox::warning(this, tr("Stage failed"), error);
             return;
         }

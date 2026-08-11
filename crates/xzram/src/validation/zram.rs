@@ -55,9 +55,11 @@ fn validate_zram_expression(value: &str, field: &str) -> Result<()> {
             "{field} must not contain newlines or ']'"
         )));
     }
+    // zram-generator expressions: arithmetic (^%/*-+), min()/max(), commas, spaces.
+    // Keep ASCII-only so INI values cannot smuggle section/control characters.
     if !value
         .chars()
-        .all(|c| c.is_ascii_alphanumeric() || " ()+*/.-_".contains(c))
+        .all(|c| c.is_ascii_alphanumeric() || " ()+*/.-_,^%".contains(c))
     {
         return Err(XzramError::Validation(format!(
             "{field} contains invalid characters"
@@ -102,19 +104,46 @@ fn validate_zram_mount_point(value: &str) -> Result<()> {
 mod tests {
     use super::*;
 
-    #[test]
-    fn rejects_evil_zram_name() {
-        assert!(validate_zram_device_name("zram0\n[evil]").is_err());
-        assert!(validate_zram_device_name("zram0").is_ok());
-        let bad = ZramConfig {
+    fn config_with_size(size: &str) -> ZramConfig {
+        ZramConfig {
             device: "zram0".into(),
-            zram_size: Some("ram\n]".into()),
+            zram_size: Some(size.into()),
             zram_resident_limit: None,
             compression_algorithm: None,
             swap_priority: None,
             fs_type: None,
             mount_point: None,
-        };
-        assert!(validate_zram_config(&bad).is_err());
+        }
+    }
+
+    #[test]
+    fn rejects_evil_zram_name() {
+        assert!(validate_zram_device_name("zram0\n[evil]").is_err());
+        assert!(validate_zram_device_name("zram0").is_ok());
+        assert!(validate_zram_config(&config_with_size("ram\n]")).is_err());
+    }
+
+    #[test]
+    fn accepts_recommended_zram_size_formulas() {
+        for size in [
+            "ram",
+            "ram / 2",
+            "min(ram / 2, 4096)",
+            "min(ram, 8192)",
+            "min(min(ram, 4096) + max(ram - 4096, 0) / 2, 32 * 1024)",
+            "ram % 100",
+            "2^10",
+        ] {
+            assert!(
+                validate_zram_config(&config_with_size(size)).is_ok(),
+                "expected ok for {size}"
+            );
+        }
+    }
+
+    #[test]
+    fn rejects_non_ascii_and_brackets_in_expression() {
+        assert!(validate_zram_config(&config_with_size("min(ram, 4π)")).is_err());
+        assert!(validate_zram_config(&config_with_size("ram]")).is_err());
     }
 }

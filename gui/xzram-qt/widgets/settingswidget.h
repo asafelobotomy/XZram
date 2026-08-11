@@ -16,6 +16,7 @@ public:
 
     int refreshIntervalMs() const;
     bool confirmBeforeApply() const;
+    bool linkedOptimize() const;
     int pruneKeepDefault() const;
 
     void refreshStatus();
@@ -23,11 +24,13 @@ public:
 signals:
     void refreshIntervalChanged(int intervalMs);
     void confirmBeforeApplyChanged(bool enabled);
+    void linkedOptimizeChanged(bool enabled);
     void pruneKeepDefaultChanged(int keep);
 
 private slots:
     void onIntervalChanged(int index);
     void onConfirmToggled(bool checked);
+    void onLinkedOptimizeToggled(bool checked);
     void onPruneKeepChanged(int value);
 
 private:
@@ -36,6 +39,7 @@ private:
 
     QComboBox *m_intervalCombo;
     QCheckBox *m_confirmApplyCheck;
+    QCheckBox *m_linkedOptimizeCheck;
     QSpinBox *m_pruneKeepSpin;
     QLabel *m_cliPathLabel;
     QLabel *m_daemonStatusLabel;

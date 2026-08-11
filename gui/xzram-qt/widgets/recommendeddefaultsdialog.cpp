@@ -2,6 +2,7 @@
 
 #include "jsonloader.h"
 #include "recommendeddefaultsui.h"
+#include "recommendeddefaultsscale.h"
 
 #include <QDialogButtonBox>
 #include <QFont>
@@ -16,7 +17,7 @@ RecommendedDefaultsDialog::RecommendedDefaultsDialog(const QJsonObject &report, 
     : QDialog(parent), m_report(report) {
     setObjectName(QStringLiteral("recommendedDefaultsDialog"));
     setWindowTitle(tr("Recommended defaults"));
-    resize(640, 520);
+    resize(640, 600);
     RecommendedDefaultsUi::applyDialogStyle(this);
 
     auto *layout = new QVBoxLayout(this);
@@ -33,6 +34,12 @@ RecommendedDefaultsDialog::RecommendedDefaultsDialog(const QJsonObject &report, 
     }
 
     layout->addWidget(RecommendedDefaultsUi::makeSummaryPanel(context, stageCount, this));
+
+    const QJsonObject sizeScales = report.value(QStringLiteral("size_scales")).toObject();
+    if (!sizeScales.isEmpty()) {
+        m_scalePanel = new RecommendedDefaultsScalePanel(sizeScales, this);
+        layout->addWidget(m_scalePanel);
+    }
 
     auto *scroll = new QScrollArea(this);
     scroll->setWidgetResizable(true);
@@ -111,8 +118,14 @@ RecommendedDefaultsDialog::RecommendedDefaultsDialog(const QJsonObject &report, 
     });
 }
 
-RecommendedDefaultsDialog::Choice RecommendedDefaultsDialog::showDialog(QWidget *parent,
-                                                                      const QJsonObject &report) {
+RecommendedDefaultsDialog::Result RecommendedDefaultsDialog::showDialog(QWidget *parent,
+                                                                        const QJsonObject &report) {
     RecommendedDefaultsDialog dialog(report, parent);
-    return static_cast<Choice>(dialog.exec());
+    Result result;
+    result.choice = static_cast<Choice>(dialog.exec());
+    if (dialog.m_scalePanel) {
+        result.zramScale = dialog.m_scalePanel->zramScale();
+        result.swapScale = dialog.m_scalePanel->swapScale();
+    }
+    return result;
 }

@@ -307,7 +307,9 @@ void applyDialogStyle(QDialog *dialog) {
         "  font-size: 11px;"
         "}"
         "QLabel#cardDetail { color: palette(placeholderText); }"
-        "QLabel#cardReference { color: palette(placeholderText); font-size: 11px; }"));
+        "QLabel#cardReference { color: palette(placeholderText); font-size: 11px; }"
+        "QLabel#scaleHint { color: palette(placeholderText); }"
+        "QLabel#scalePreview { font-weight: bold; }"));
 }
 
 } // namespace RecommendedDefaultsUi

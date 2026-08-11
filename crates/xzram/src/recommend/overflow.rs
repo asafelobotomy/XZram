@@ -7,13 +7,15 @@ use crate::status::StatusReport;
 use crate::swap_partition;
 
 use super::types::{
-    OverflowDecision, OVERFLOW_FREE_SPACE_MARGIN_MB, OVERFLOW_SWAPFILE_MAX_MB,
-    OVERFLOW_SWAPFILE_PATH, OVERFLOW_SWAP_PRIORITY,
+    OverflowDecision, OVERFLOW_FREE_SPACE_MARGIN_MB, OVERFLOW_SWAPFILE_PATH, OVERFLOW_SWAP_PRIORITY,
 };
 
-/// Cap overflow at [`OVERFLOW_SWAPFILE_MAX_MB`].
+/// Cap overflow at [`OVERFLOW_SWAPFILE_MAX_MB`] (recommended / default scale).
 pub fn overflow_size_mb(mem_total_kb: u64) -> u64 {
-    (mem_total_kb / 1024).min(OVERFLOW_SWAPFILE_MAX_MB)
+    super::scales::overflow_size_mb_for_scale(
+        mem_total_kb,
+        super::scales::RecommendSizeScale::Default,
+    )
 }
 
 pub fn decide_overflow_swapfile(
@@ -21,6 +23,22 @@ pub fn decide_overflow_swapfile(
     has_configured_disk_swap: bool,
     configured_paths: &[String],
     available_bytes: Option<u64>,
+) -> OverflowDecision {
+    decide_overflow_swapfile_scaled(
+        status,
+        has_configured_disk_swap,
+        configured_paths,
+        available_bytes,
+        super::scales::RecommendSizeScale::Default,
+    )
+}
+
+pub fn decide_overflow_swapfile_scaled(
+    status: &StatusReport,
+    has_configured_disk_swap: bool,
+    configured_paths: &[String],
+    available_bytes: Option<u64>,
+    scale: super::scales::RecommendSizeScale,
 ) -> OverflowDecision {
     if has_active_disk_swap(status) {
         return OverflowDecision::SkipActiveDiskSwap;
@@ -31,7 +49,7 @@ pub fn decide_overflow_swapfile(
         };
     }
 
-    let size_mb = overflow_size_mb(status.memory.mem_total_kb);
+    let size_mb = super::scales::overflow_size_mb_for_scale(status.memory.mem_total_kb, scale);
     if size_mb == 0 {
         return OverflowDecision::SkipZeroSize;
     }
@@ -131,6 +149,7 @@ pub(super) fn has_active_disk_swap(status: &StatusReport) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use super::super::types::OVERFLOW_SWAPFILE_MAX_MB;
     use super::*;
     use crate::status;
 

@@ -2,6 +2,7 @@
 #define MAINWINDOW_H
 
 #include <QMainWindow>
+#include <QString>
 
 class DashboardWidget;
 class DoctorWidget;
@@ -14,6 +15,7 @@ class ZramWidget;
 class QLabel;
 class QTabWidget;
 class QTimer;
+class QJsonObject;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -30,6 +32,9 @@ private slots:
     void recommendDefaults();
     void onRefreshIntervalChanged(int intervalMs);
     void onPruneKeepDefaultChanged(int keep);
+    void onLinkedOptimizeChanged(bool enabled);
+    void onLinkedFieldEdited(const QString &anchor);
+    void runLinkedOptimize();
     void startAppOpenSnapshot();
 
 private:
@@ -41,7 +46,6 @@ private:
     QString fetchRecommendedDefaultsJson() const;
     void previewPendingInTabs(const QJsonObject &pending);
     bool pendingHasChanges(const QJsonObject &pending) const;
-
     PendingBanner *m_pendingBanner;
     QTabWidget *m_tabs;
     DashboardWidget *m_dashboard;
@@ -53,6 +57,10 @@ private:
     SettingsWidget *m_settingsPage;
     QLabel *m_statusLabel;
     QTimer *m_refreshTimer;
+    QTimer *m_linkedOptimizeTimer;
+    QString m_pendingLinkedAnchor;
+    bool m_linkedOptimizeEnabled = true;
+    bool m_applyingLinkedOptimize = false;
 };
 
 #endif

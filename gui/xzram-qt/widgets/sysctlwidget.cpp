@@ -74,13 +74,13 @@ SysctlWidget::SysctlWidget(QWidget *parent) : QWidget(parent) {
     connect(m_defaultsButton, &QPushButton::clicked, this, &SysctlWidget::applyZramDefaults);
     connect(m_stageButton, &QPushButton::clicked, this, &SysctlWidget::stageChanges);
     connect(m_swappinessSpin, QOverload<int>::of(&QSpinBox::valueChanged), this,
-            &SysctlWidget::updateActionEnabled);
+            &SysctlWidget::onSysctlEdited);
     connect(m_boostSpin, QOverload<int>::of(&QSpinBox::valueChanged), this,
-            &SysctlWidget::updateActionEnabled);
+            &SysctlWidget::onSysctlEdited);
     connect(m_scaleSpin, QOverload<int>::of(&QSpinBox::valueChanged), this,
-            &SysctlWidget::updateActionEnabled);
+            &SysctlWidget::onSysctlEdited);
     connect(m_pageClusterSpin, QOverload<int>::of(&QSpinBox::valueChanged), this,
-            &SysctlWidget::updateActionEnabled);
+            &SysctlWidget::onSysctlEdited);
 
     captureBaseline();
     updateActionEnabled();
@@ -173,4 +173,44 @@ void SysctlWidget::stageChanges() {
     captureBaseline();
     updateActionEnabled();
     emit stagingChanged();
+}
+
+void SysctlWidget::onSysctlEdited() {
+    updateActionEnabled();
+    if (!m_linkedOptimizeBlocked) {
+        emit linkedFieldEdited(QStringLiteral("sysctl"));
+    }
+}
+
+void SysctlWidget::setLinkedOptimizeBlocked(bool blocked) {
+    m_linkedOptimizeBlocked = blocked;
+}
+
+QJsonObject SysctlWidget::pendingSeedFragment() const {
+    QJsonObject sysctl;
+    auto put = [&](const QString &key, QSpinBox *spin) {
+        if (spin->value() == kUnsetSentinel) {
+            sysctl.insert(key, QJsonValue());
+        } else {
+            sysctl.insert(key, spin->value());
+        }
+    };
+    put(QStringLiteral("swappiness"), m_swappinessSpin);
+    put(QStringLiteral("watermark_boost_factor"), m_boostSpin);
+    put(QStringLiteral("watermark_scale_factor"), m_scaleSpin);
+    put(QStringLiteral("page_cluster"), m_pageClusterSpin);
+    return sysctl;
+}
+
+void SysctlWidget::applyLinkedSysctl(const QJsonObject &sysctl) {
+    if (sysctl.isEmpty()) {
+        return;
+    }
+    m_linkedOptimizeBlocked = true;
+    setSpinValue(m_swappinessSpin, sysctl, QStringLiteral("swappiness"));
+    setSpinValue(m_boostSpin, sysctl, QStringLiteral("watermark_boost_factor"));
+    setSpinValue(m_scaleSpin, sysctl, QStringLiteral("watermark_scale_factor"));
+    setSpinValue(m_pageClusterSpin, sysctl, QStringLiteral("page_cluster"));
+    m_linkedOptimizeBlocked = false;
+    updateActionEnabled();
 }

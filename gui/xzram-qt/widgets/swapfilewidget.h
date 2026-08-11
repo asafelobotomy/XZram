@@ -1,6 +1,7 @@
 #ifndef SWAPFILEWIDGET_H
 #define SWAPFILEWIDGET_H
 
+#include <QJsonObject>
 #include <QWidget>
 
 class QCheckBox;
@@ -20,9 +21,14 @@ public:
     void setDetectionJson(const QString &json);
     void setSwapsJson(const QString &json);
 
+    QJsonObject pendingSeedFragment() const;
+    void applyLinkedSwapfile(const QJsonObject &swapfile);
+    void setLinkedOptimizeBlocked(bool blocked);
+
 signals:
     void stagingChanged();
     void refreshRequested();
+    void linkedFieldEdited(const QString &anchor);
 
 private slots:
     void browsePath();
@@ -33,6 +39,7 @@ private slots:
     void prepareBtrfs();
     void swapOnSelected();
     void swapOffSelected();
+    void onCreateFormEdited();
 
 private:
     void populateTable(const QJsonArray &files);
@@ -48,6 +55,7 @@ private:
     bool createFormDirty() const;
 
     bool m_onBtrfs = false;
+    bool m_linkedOptimizeBlocked = false;
 
     QLabel *m_introLabel;
     QLabel *m_btrfsBanner;

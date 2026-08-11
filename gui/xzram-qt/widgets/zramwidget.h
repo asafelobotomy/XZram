@@ -1,6 +1,7 @@
 #ifndef ZRAMWIDGET_H
 #define ZRAMWIDGET_H
 
+#include <QJsonObject>
 #include <QWidget>
 
 class QComboBox;
@@ -19,14 +20,22 @@ public:
     void setZramConfigJson(const QString &json);
     void setDetectionJson(const QString &json);
 
+    QJsonObject pendingSeedFragment() const;
+    void applyLinkedZram(const QJsonObject &zram);
+    void setLinkedOptimizeBlocked(bool blocked);
+
 signals:
     void stagingChanged();
+    void linkedFieldEdited(const QString &anchor);
 
 private slots:
     void stageChanges();
     void disableZram();
     void migrateZram();
     void updateActionEnabled();
+    void onSizeEdited();
+    void onAlgoEdited();
+    void onPriorityEdited();
 
 private:
     void updateLiveStats(const QJsonObject &status);
@@ -47,6 +56,7 @@ private:
     QPushButton *m_migrateButton;
     QString m_activeAlgorithm;
     bool m_hasActiveZram = false;
+    bool m_linkedOptimizeBlocked = false;
 
     QString m_baselineDevice;
     QString m_baselineSize;

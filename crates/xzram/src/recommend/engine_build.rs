@@ -8,14 +8,16 @@ use crate::sysctl::{self, SysctlValues};
 
 use super::engine_notes::{advisory_items, note_item};
 use super::overflow::{
-    available_bytes_near, decide_overflow_swapfile, has_active_disk_swap,
+    available_bytes_near, decide_overflow_swapfile_scaled, has_active_disk_swap,
     probe_configured_disk_swap,
 };
 use super::profile::{build_recommended_zram, pick_profile, profile_reference};
+use super::scales::{build_size_scales, RecommendScales, RecommendSizeScale};
 use super::staging::{sysctl_needs_update, zram_for_staging, zram_needs_update};
 use super::types::{
     OverflowDecision, RecommendProfile, RecommendationItem, RecommendedDefaults, SystemContext,
-    OVERFLOW_FREE_SPACE_MARGIN_MB, OVERFLOW_SWAPFILE_MAX_MB, OVERFLOW_SWAPFILE_PATH,
+    OVERFLOW_FREE_SPACE_MARGIN_MB, OVERFLOW_SWAPFILE_HIGH_MAX_MB, OVERFLOW_SWAPFILE_MAX_MB,
+    OVERFLOW_SWAPFILE_PATH,
 };
 
 /// Optional overrides for overflow probing (tests inject free space / disk-swap flags).
@@ -26,12 +28,13 @@ pub(crate) struct OverflowInputs {
     pub available_bytes: Option<u64>,
 }
 
-pub(crate) fn recommend_from_context(
+pub(crate) fn recommend_from_context_scaled(
     detection: &DetectionReport,
     status: &StatusReport,
     current_sysctl: Option<SysctlValues>,
     current_zram: Option<ZramConfig>,
     overflow: Option<OverflowInputs>,
+    scales: RecommendScales,
 ) -> RecommendedDefaults {
     let profile = pick_profile(detection, status);
     let mut items = Vec::new();
@@ -91,9 +94,16 @@ pub(crate) fn recommend_from_context(
             status,
             current_zram.as_ref(),
             hibernate_blocks_zram,
+            scales.zram,
         );
         stage_sysctl(&mut items, &mut pending, current_sysctl.as_ref());
-        stage_overflow(&mut items, &mut pending, status, overflow.as_ref());
+        stage_overflow(
+            &mut items,
+            &mut pending,
+            status,
+            overflow.as_ref(),
+            scales.swapfile,
+        );
     }
 
     items.extend(advisory_items(
@@ -115,6 +125,8 @@ pub(crate) fn recommend_from_context(
     }
 
     let active_disk = has_active_disk_swap(status);
+    // Slider enabled unless disk swap already covers overflow or staging is blocked.
+    let swapfile_slider = !staging_blocked && !active_disk && !configured_disk_swap;
 
     let context = SystemContext {
         mem_total_bytes: status.memory.mem_total_kb * 1024,
@@ -133,13 +145,18 @@ pub(crate) fn recommend_from_context(
         etc_writable: detection.etc_writable,
     };
 
+    let size_scales =
+        build_size_scales(profile, status.memory.mem_total_kb, scales, swapfile_slider);
+
     RecommendedDefaults {
         pending,
         items,
         context,
+        size_scales,
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn stage_zram(
     items: &mut Vec<RecommendationItem>,
     pending: &mut PendingConfig,
@@ -148,8 +165,9 @@ fn stage_zram(
     status: &StatusReport,
     current_zram: Option<&ZramConfig>,
     hibernate_blocks_zram: bool,
+    zram_scale: RecommendSizeScale,
 ) {
-    let recommended_zram = build_recommended_zram(profile, detection, status);
+    let recommended_zram = build_recommended_zram(profile, detection, status, zram_scale);
     let ram_mb = status.memory.mem_total_kb / 1024;
 
     if hibernate_blocks_zram {
@@ -200,7 +218,12 @@ fn stage_zram(
         ));
     }
 
-    if profile == RecommendProfile::Performance {
+    if profile == RecommendProfile::Performance
+        && matches!(
+            zram_scale,
+            RecommendSizeScale::Default | RecommendSizeScale::High
+        )
+    {
         items.push(note_item(
             "Performance profile resident-limit",
             "zram-resident-limit = ram / 2 caps RAM used for compressed pages when zram-size = ram. See docs/RECOMMENDATIONS.md#resident-limit.",
@@ -238,6 +261,7 @@ fn stage_overflow(
     pending: &mut PendingConfig,
     status: &StatusReport,
     overflow: Option<&OverflowInputs>,
+    swap_scale: RecommendSizeScale,
 ) {
     let (configured_disk_swap, configured_paths, available_bytes) = match overflow {
         Some(o) => (
@@ -255,11 +279,17 @@ fn stage_overflow(
         }
     };
 
-    match decide_overflow_swapfile(
+    let cap = match swap_scale {
+        RecommendSizeScale::High => OVERFLOW_SWAPFILE_HIGH_MAX_MB,
+        _ => OVERFLOW_SWAPFILE_MAX_MB,
+    };
+
+    match decide_overflow_swapfile_scaled(
         status,
         configured_disk_swap,
         &configured_paths,
         available_bytes,
+        swap_scale,
     ) {
         OverflowDecision::Stage(swapfile) => {
             items.push(RecommendationItem {
@@ -270,7 +300,7 @@ fn stage_overflow(
                 ),
                 detail: format!(
                     "Disk-backed safety net at {} (capped at {} MiB). Btrfs nodatacow is prepared automatically on apply.",
-                    swapfile.path, OVERFLOW_SWAPFILE_MAX_MB
+                    swapfile.path, cap
                 ),
                 will_stage: true,
                 reference: Some("overflow-swapfile".into()),

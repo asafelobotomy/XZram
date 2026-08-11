@@ -5,6 +5,7 @@ use crate::apply::{PendingConfig, SwapfileConfig};
 pub const OVERFLOW_SWAPFILE_PATH: &str = "/swap/swapfile";
 pub const OVERFLOW_SWAP_PRIORITY: i32 = 10;
 pub const OVERFLOW_SWAPFILE_MAX_MB: u64 = 8192;
+pub const OVERFLOW_SWAPFILE_HIGH_MAX_MB: u64 = 16384;
 pub const OVERFLOW_FREE_SPACE_MARGIN_MB: u64 = 512;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -44,6 +45,7 @@ pub struct RecommendedDefaults {
     pub pending: PendingConfig,
     pub items: Vec<RecommendationItem>,
     pub context: SystemContext,
+    pub size_scales: crate::recommend::scales::RecommendSizeScales,
 }
 
 #[derive(Debug, Clone)]
@@ -92,6 +94,12 @@ mod tests {
                 immutable_os: false,
                 etc_writable: true,
             },
+            size_scales: crate::recommend::scales::build_size_scales(
+                RecommendProfile::Conservative,
+                8 * 1024 * 1024,
+                crate::recommend::scales::RecommendScales::default(),
+                true,
+            ),
         };
         let json = serde_json::to_string(&report).unwrap();
         assert!(json.contains("sysctl-tuning"));

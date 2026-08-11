@@ -95,10 +95,10 @@ ZramWidget::ZramWidget(QWidget *parent) : QWidget(parent) {
     connect(m_stageButton, &QPushButton::clicked, this, &ZramWidget::stageChanges);
     connect(m_disableButton, &QPushButton::clicked, this, &ZramWidget::disableZram);
     connect(m_migrateButton, &QPushButton::clicked, this, &ZramWidget::migrateZram);
-    connect(m_sizeEdit, &QLineEdit::textChanged, this, &ZramWidget::updateActionEnabled);
-    connect(m_algoCombo, &QComboBox::currentTextChanged, this, &ZramWidget::updateActionEnabled);
+    connect(m_sizeEdit, &QLineEdit::textChanged, this, &ZramWidget::onSizeEdited);
+    connect(m_algoCombo, &QComboBox::currentTextChanged, this, &ZramWidget::onAlgoEdited);
     connect(m_prioritySpin, QOverload<int>::of(&QSpinBox::valueChanged), this,
-            &ZramWidget::updateActionEnabled);
+            &ZramWidget::onPriorityEdited);
 
     m_statsLabel->setText(tr("No ZRAM data"));
     captureBaseline();
@@ -285,4 +285,58 @@ void ZramWidget::migrateZram() {
     QMessageBox::information(this, tr("Migrate"),
                              tr("Migration from zram-tools staged. Use Apply to activate."));
     emit stagingChanged();
+}
+
+void ZramWidget::onSizeEdited() {
+    updateActionEnabled();
+    if (!m_linkedOptimizeBlocked) {
+        emit linkedFieldEdited(QStringLiteral("zram_size"));
+    }
+}
+
+void ZramWidget::onAlgoEdited() {
+    updateActionEnabled();
+    if (!m_linkedOptimizeBlocked) {
+        emit linkedFieldEdited(QStringLiteral("zram_algo"));
+    }
+}
+
+void ZramWidget::onPriorityEdited() {
+    updateActionEnabled();
+    if (!m_linkedOptimizeBlocked) {
+        emit linkedFieldEdited(QStringLiteral("zram_priority"));
+    }
+}
+
+void ZramWidget::setLinkedOptimizeBlocked(bool blocked) {
+    m_linkedOptimizeBlocked = blocked;
+}
+
+QJsonObject ZramWidget::pendingSeedFragment() const {
+    QJsonObject zram;
+    zram.insert(QStringLiteral("device"), m_deviceEdit->text().trimmed().isEmpty()
+                                              ? QStringLiteral("zram0")
+                                              : m_deviceEdit->text().trimmed());
+    zram.insert(QStringLiteral("zram_size"), m_sizeEdit->text().trimmed());
+    const QString resident = m_residentLimitEdit->text().trimmed();
+    if (!resident.isEmpty()) {
+        zram.insert(QStringLiteral("zram_resident_limit"), resident);
+    } else {
+        zram.insert(QStringLiteral("zram_resident_limit"), QJsonValue());
+    }
+    zram.insert(QStringLiteral("compression_algorithm"), m_algoCombo->currentText());
+    zram.insert(QStringLiteral("swap_priority"), m_prioritySpin->value());
+    zram.insert(QStringLiteral("fs_type"), QJsonValue());
+    zram.insert(QStringLiteral("mount_point"), QJsonValue());
+    return zram;
+}
+
+void ZramWidget::applyLinkedZram(const QJsonObject &zram) {
+    if (zram.isEmpty()) {
+        return;
+    }
+    m_linkedOptimizeBlocked = true;
+    updateConfigForm(zram);
+    m_linkedOptimizeBlocked = false;
+    updateActionEnabled();
 }

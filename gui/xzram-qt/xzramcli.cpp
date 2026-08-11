@@ -92,7 +92,27 @@ QStringList argsApply() {
 }
 
 QStringList argsDefaultsApply() {
-    return {QStringLiteral("defaults"), QStringLiteral("apply"), QStringLiteral("--yes")};
+    return argsDefaultsApply(QStringLiteral("default"), QStringLiteral("default"));
+}
+
+QStringList argsDefaultsApply(const QString &zramScale, const QString &swapScale) {
+    return {QStringLiteral("defaults"), QStringLiteral("apply"), QStringLiteral("--yes"),
+            QStringLiteral("--zram-scale"), zramScale, QStringLiteral("--swap-scale"), swapScale};
+}
+
+QStringList argsDefaultsStage(const QString &zramScale, const QString &swapScale) {
+    return {QStringLiteral("defaults"), QStringLiteral("stage"), QStringLiteral("--zram-scale"),
+            zramScale, QStringLiteral("--swap-scale"), swapScale};
+}
+
+QStringList argsDefaultsRecommend(const QString &zramScale, const QString &swapScale) {
+    return {QStringLiteral("defaults"), QStringLiteral("recommend"), QStringLiteral("--json"),
+            QStringLiteral("--zram-scale"), zramScale, QStringLiteral("--swap-scale"), swapScale};
+}
+
+QStringList argsDefaultsOptimizeLinked(const QString &anchor) {
+    return {QStringLiteral("defaults"), QStringLiteral("optimize-linked"), QStringLiteral("--json"),
+            QStringLiteral("--anchor"), anchor};
 }
 
 QStringList argsSwapfileCreate(const QString &path, quint64 sizeMb, int priority) {
@@ -201,8 +221,42 @@ QString pendingJson() {
 }
 
 QString recommendedDefaultsJson() {
-    return runJson({QStringLiteral("defaults"), QStringLiteral("recommend"),
-                    QStringLiteral("--json")});
+    return recommendedDefaultsJson(QStringLiteral("default"), QStringLiteral("default"));
+}
+
+QString recommendedDefaultsJson(const QString &zramScale, const QString &swapScale) {
+    return runJson(argsDefaultsRecommend(zramScale, swapScale));
+}
+
+QString optimizeLinkedJson(const QString &anchor, const QString &seedJson) {
+    QProcess process;
+    process.setProgram(findBinary());
+    process.setArguments(argsDefaultsOptimizeLinked(anchor));
+    process.start();
+    if (!process.waitForStarted(3000)) {
+        QJsonObject obj;
+        obj.insert(QStringLiteral("error"), QStringLiteral("failed to start xzram CLI"));
+        return QString::fromUtf8(QJsonDocument(obj).toJson(QJsonDocument::Compact));
+    }
+    process.write(seedJson.toUtf8());
+    process.closeWriteChannel();
+    if (!process.waitForFinished(30000)) {
+        process.kill();
+        process.waitForFinished(3000);
+        QJsonObject obj;
+        obj.insert(QStringLiteral("error"), QStringLiteral("xzram CLI timed out"));
+        return QString::fromUtf8(QJsonDocument(obj).toJson(QJsonDocument::Compact));
+    }
+    const RunResult result = resultFromOutput(
+        process.exitCode(), process.exitStatus() == QProcess::CrashExit,
+        QString::fromUtf8(process.readAllStandardOutput()).trimmed(),
+        QString::fromUtf8(process.readAllStandardError()).trimmed());
+    if (!result.ok) {
+        QJsonObject obj;
+        obj.insert(QStringLiteral("error"), result.error);
+        return QString::fromUtf8(QJsonDocument(obj).toJson(QJsonDocument::Compact));
+    }
+    return result.stdoutText;
 }
 
 QString snapshotsJson() {
@@ -236,11 +290,19 @@ bool daemonIsActive() {
 }
 
 bool defaultsStage(QString *error) {
-    return runOk({QStringLiteral("defaults"), QStringLiteral("stage")}, error);
+    return defaultsStage(QStringLiteral("default"), QStringLiteral("default"), error);
+}
+
+bool defaultsStage(const QString &zramScale, const QString &swapScale, QString *error) {
+    return runOk(argsDefaultsStage(zramScale, swapScale), error);
 }
 
 bool defaultsApply(QString *error) {
-    return runOk(argsDefaultsApply(), error, 300000);
+    return defaultsApply(QStringLiteral("default"), QStringLiteral("default"), error);
+}
+
+bool defaultsApply(const QString &zramScale, const QString &swapScale, QString *error) {
+    return runOk(argsDefaultsApply(zramScale, swapScale), error, 300000);
 }
 
 bool zramSet(const QString &device, const QString &size, const QString &algorithm, int priority,

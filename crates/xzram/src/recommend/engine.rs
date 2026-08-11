@@ -4,10 +4,15 @@ use crate::error::Result;
 use crate::status;
 use crate::sysctl;
 
-use super::engine_build::recommend_from_context;
+use super::engine_build::recommend_from_context_scaled;
+use super::scales::RecommendScales;
 use super::types::RecommendedDefaults;
 
 pub fn recommend() -> Result<RecommendedDefaults> {
+    recommend_with_scales(RecommendScales::default())
+}
+
+pub fn recommend_with_scales(scales: RecommendScales) -> Result<RecommendedDefaults> {
     let detection = detect::detect()?;
     let status = status::status()?;
     let current_sysctl = sysctl::show().ok();
@@ -16,17 +21,22 @@ pub fn recommend() -> Result<RecommendedDefaults> {
         .and_then(|b| b.show().ok())
         .flatten();
 
-    Ok(recommend_from_context(
+    Ok(recommend_from_context_scaled(
         &detection,
         &status,
         current_sysctl,
         current_zram,
         None,
+        scales,
     ))
 }
 
 pub fn stage_recommended() -> Result<RecommendedDefaults> {
-    let report = recommend()?;
+    stage_recommended_with_scales(RecommendScales::default())
+}
+
+pub fn stage_recommended_with_scales(scales: RecommendScales) -> Result<RecommendedDefaults> {
+    let report = recommend_with_scales(scales)?;
     if !report.pending.zram.is_none()
         || report.pending.sysctl.is_some()
         || report.pending.disable_zram
@@ -41,7 +51,8 @@ pub fn stage_recommended() -> Result<RecommendedDefaults> {
 
 #[cfg(test)]
 mod tests {
-    use super::super::engine_build::{recommend_from_context, OverflowInputs};
+    use super::super::engine_build::{recommend_from_context_scaled, OverflowInputs};
+    use super::super::scales::{RecommendScales, RecommendSizeScale};
     use crate::apply::ZramConfig;
     use crate::detect::{DetectionReport, DistroFamily, DistroInfo, PackageManager, ZramBackend};
     use crate::status::{MemoryInfo, StatusReport};
@@ -82,7 +93,7 @@ mod tests {
 
     #[test]
     fn immutable_os_leaves_pending_empty() {
-        let report = recommend_from_context(
+        let report = recommend_from_context_scaled(
             &base_detection(true, true),
             &base_status(16 * 1024 * 1024),
             None,
@@ -92,6 +103,7 @@ mod tests {
                 configured_paths: vec![],
                 available_bytes: Some(100 * 1024 * 1024 * 1024),
             }),
+            RecommendScales::default(),
         );
         assert!(report.pending.zram.is_none());
         assert!(report.pending.sysctl.is_none());
@@ -104,12 +116,13 @@ mod tests {
 
     #[test]
     fn read_only_etc_leaves_pending_empty() {
-        let report = recommend_from_context(
+        let report = recommend_from_context_scaled(
             &base_detection(false, false),
             &base_status(16 * 1024 * 1024),
             None,
             None,
             Some(OverflowInputs::default()),
+            RecommendScales::default(),
         );
         assert!(report.pending.zram.is_none());
         assert!(report.pending.sysctl.is_none());
@@ -137,7 +150,7 @@ mod tests {
             fs_type: None,
             mount_point: None,
         };
-        let report = recommend_from_context(
+        let report = recommend_from_context_scaled(
             &base_detection(true, false),
             &base_status(16 * 1024 * 1024),
             Some(matching_sysctl),
@@ -147,6 +160,7 @@ mod tests {
                 configured_paths: vec![],
                 available_bytes: Some(100 * 1024 * 1024 * 1024),
             }),
+            RecommendScales::default(),
         );
         assert!(report.pending.swapfile.is_some());
         assert!(report.items.iter().any(|i| i.category == "swapfile"));
@@ -169,7 +183,7 @@ mod tests {
             watermark_scale_factor: Some(125),
             page_cluster: Some(0),
         };
-        let report = recommend_from_context(
+        let report = recommend_from_context_scaled(
             &base_detection(true, false),
             &base_status(16 * 1024 * 1024),
             Some(matching_sysctl),
@@ -179,9 +193,32 @@ mod tests {
                 configured_paths: vec!["/swapfile".into()],
                 available_bytes: Some(100 * 1024 * 1024 * 1024),
             }),
+            RecommendScales::default(),
         );
         let staged = report.pending.zram.expect("algo change should stage");
         assert_eq!(staged.zram_size.as_deref(), Some("min(ram, 8192)"));
         assert_eq!(staged.compression_algorithm.as_deref(), Some("zstd"));
+    }
+
+    #[test]
+    fn high_zram_scale_uses_larger_formula() {
+        let report = recommend_from_context_scaled(
+            &base_detection(true, false),
+            &base_status(8 * 1024 * 1024),
+            None,
+            None,
+            Some(OverflowInputs {
+                configured_disk_swap: true,
+                configured_paths: vec!["/swapfile".into()],
+                available_bytes: Some(100 * 1024 * 1024 * 1024),
+            }),
+            RecommendScales {
+                zram: RecommendSizeScale::High,
+                swapfile: RecommendSizeScale::Default,
+            },
+        );
+        let staged = report.pending.zram.expect("zram should stage");
+        assert_eq!(staged.zram_size.as_deref(), Some("min(ram, 8192)"));
+        assert_eq!(report.size_scales.zram.selected, RecommendSizeScale::High);
     }
 }

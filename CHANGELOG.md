@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Packaging hints for zram backends: PKGBUILD `optdepends`, debian `Recommends: systemd-zram-generator`, RPM `Recommends: zram-generator`
 - `xzram snapshot create --trigger app_open|manual`; GUI startup best-effort AppOpen snapshot
 - Split packages: `xzram` (CLI/daemon) and `xzram-gui` (Qt)
+- Linked auto-optimize: `xzram defaults optimize-linked` plus GUI Settings toggle (default on) that live-rewrites related ZRAM/sysctl/swapfile fields to recommend-aligned values
 
 ### Changed
 - `XZRAM_ETC_ROOT` honored for zram-generator conf and sysctl drop-in writes; restore skips privileged steps under hermetic etc roots
@@ -58,6 +59,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GUI CLI errors prefer this-process stderr/stdout over shared `/var/lib/xzram/last_error`
 - Doctor issue cards HTML-escape CLI messages; JSON uint64 parsing avoids raw double cast
 - GUI long CLI ops (apply, defaults apply, snapshot restore/rollback, swapfile create/resize, AppOpen) run via async `CliJob` with cancelable progress dialog; startup AppOpen deferred off the constructor
+- Accept `,` / `^` / `%` in zram-size expressions so recommended `min(ram / 2, 4096)` formulas pass helper validation
+- Recommended defaults dialog: Low / Recommended / High sliders for ZRAM and overflow swap (`--zram-scale` / `--swap-scale`)
 
 ## [0.2.0] — 2026-07-22
 

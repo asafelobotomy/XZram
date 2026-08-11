@@ -78,8 +78,9 @@ DeleteSnapshot(s id) / PruneSnapshots   # polkit: io.github.xzram.snapshot.delet
   - ZRAM / Swap Files / Sysctl (stage changes; apply via pending banner)
   - Doctor (issues + prepare nodatacow)
   - Snapshot (create/restore/delete/prune; rollback)
-  - Settings (auto-refresh interval, confirm-before-apply, prune default; read-only CLI/daemon status)
+  - Settings (auto-refresh interval, confirm-before-apply, prune default, linked-optimize toggle; read-only CLI/daemon status)
 - **No bottom Refresh / Start daemon / Apply bar** — live metrics via timer; Apply only in pending banner; `xzramd` not required for native GUI
+- **Linked optimize:** when Settings **Keep linked settings optimized** is on (default), edits on ZRAM / Sysctl / Swapfile debounce into `xzram defaults optimize-linked`, then paint all linked form fields. Invalid values are clamped to recommend-aligned alternatives before Stage. Toggle off restores independent Stage behavior.
 - **Icon:** Qt resource (`:/icons/xzram-icon.png`) for in-app window/header; theme icon
   `io.github.XZram` installed under `hicolor/{32..512}/apps/` for the desktop entry,
   AppStream (`icon type="stock"`), and taskbar (`setDesktopFileName` + `StartupWMClass`)

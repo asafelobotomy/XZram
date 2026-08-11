@@ -17,6 +17,7 @@ constexpr auto kSettingsOrg = "XZram";
 constexpr auto kSettingsApp = "xzram-qt";
 constexpr auto kKeyRefreshMs = "refreshIntervalMs";
 constexpr auto kKeyConfirmApply = "confirmBeforeApply";
+constexpr auto kKeyLinkedOptimize = "linkedOptimize";
 constexpr auto kKeyPruneKeep = "pruneKeepDefault";
 } // namespace
 
@@ -43,6 +44,14 @@ SettingsWidget::SettingsWidget(QWidget *parent) : QWidget(parent) {
 
     m_confirmApplyCheck = new QCheckBox(tr("Ask before applying pending changes"), prefs);
     form->addRow(tr("Safety"), m_confirmApplyCheck);
+
+    m_linkedOptimizeCheck =
+        new QCheckBox(tr("Keep linked settings optimized (adjust related fields while editing)"),
+                      prefs);
+    m_linkedOptimizeCheck->setToolTip(
+        tr("When enabled, editing ZRAM, sysctl, or swapfile fields updates related "
+           "recommended settings. Invalid values are replaced with safe recommendations."));
+    form->addRow(tr("Linked optimize"), m_linkedOptimizeCheck);
 
     m_pruneKeepSpin = new QSpinBox(prefs);
     m_pruneKeepSpin->setRange(1, 1000);
@@ -73,6 +82,8 @@ SettingsWidget::SettingsWidget(QWidget *parent) : QWidget(parent) {
     connect(m_intervalCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
             &SettingsWidget::onIntervalChanged);
     connect(m_confirmApplyCheck, &QCheckBox::toggled, this, &SettingsWidget::onConfirmToggled);
+    connect(m_linkedOptimizeCheck, &QCheckBox::toggled, this,
+            &SettingsWidget::onLinkedOptimizeToggled);
     connect(m_pruneKeepSpin, QOverload<int>::of(&QSpinBox::valueChanged), this,
             &SettingsWidget::onPruneKeepChanged);
 }
@@ -87,6 +98,8 @@ void SettingsWidget::loadSettings() {
     m_intervalCombo->setCurrentIndex(index >= 0 ? index : 2);
     m_confirmApplyCheck->setChecked(
         settings.value(QString::fromUtf8(kKeyConfirmApply), true).toBool());
+    m_linkedOptimizeCheck->setChecked(
+        settings.value(QString::fromUtf8(kKeyLinkedOptimize), true).toBool());
     m_pruneKeepSpin->setValue(settings.value(QString::fromUtf8(kKeyPruneKeep), 50).toInt());
 }
 
@@ -94,6 +107,7 @@ void SettingsWidget::saveSettings() {
     QSettings settings(QString::fromUtf8(kSettingsOrg), QString::fromUtf8(kSettingsApp));
     settings.setValue(QString::fromUtf8(kKeyRefreshMs), refreshIntervalMs());
     settings.setValue(QString::fromUtf8(kKeyConfirmApply), confirmBeforeApply());
+    settings.setValue(QString::fromUtf8(kKeyLinkedOptimize), linkedOptimize());
     settings.setValue(QString::fromUtf8(kKeyPruneKeep), pruneKeepDefault());
 }
 
@@ -103,6 +117,10 @@ int SettingsWidget::refreshIntervalMs() const {
 
 bool SettingsWidget::confirmBeforeApply() const {
     return m_confirmApplyCheck->isChecked();
+}
+
+bool SettingsWidget::linkedOptimize() const {
+    return m_linkedOptimizeCheck->isChecked();
 }
 
 int SettingsWidget::pruneKeepDefault() const {
@@ -127,6 +145,11 @@ void SettingsWidget::onIntervalChanged(int) {
 void SettingsWidget::onConfirmToggled(bool checked) {
     saveSettings();
     emit confirmBeforeApplyChanged(checked);
+}
+
+void SettingsWidget::onLinkedOptimizeToggled(bool checked) {
+    saveSettings();
+    emit linkedOptimizeChanged(checked);
 }
 
 void SettingsWidget::onPruneKeepChanged(int value) {

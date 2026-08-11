@@ -15,6 +15,10 @@ Hardware-aware defaults used by `xzram defaults recommend` and the Dashboard **A
 
 **Overflow gates:** skipped when active `/proc/swaps` disk swap exists, when fstab/managed inventory already lists non-zram swap, or when free space near `/swap` is below size + 512 MiB margin.
 
+**Size scale (GUI / CLI):** `xzram defaults recommend|stage|apply` accept `--zram-scale` and `--swap-scale` (`low` | `default` | `high`). The Recommended defaults dialog exposes the same tiers as sliders. Recommended matches the matrix above; Low is more conservative; High raises caps (overflow High caps at 16 GiB). See `size_scales` in `--json` output.
+
+**Linked optimize (GUI / CLI):** `xzram defaults optimize-linked --anchor <field> --json` takes a pending-shaped seed (stdin or `--seed-file`) and rewrites dependents to recommend-aligned values while preserving a valid anchor. Fatal inputs (bad zram expression, out-of-range sysctl, priority inversion) are replaced with the nearest safe recommendation. The GUI Settings toggle **Keep linked settings optimized** (`linkedOptimize`, default on) runs this live (debounced) across ZRAM, Sysctl, and Swapfile tabs so Stage persists the linked set.
+
 **Staging hard stops:** read-only `/etc` or `immutable_os` (NixOS / ostree / Silverblue) → no zram, sysctl, or swapfile staging.
 
 **Anchor IDs:** `profile-constrained`, `profile-conservative`, `profile-performance`, `sysctl-tuning`, `overflow-swapfile`, `priority-tiers`.

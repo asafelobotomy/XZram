@@ -11,7 +11,7 @@ _xzram() {
     local sysctl_cmds="show set"
     local pending_cmds="show clear"
     local daemon_cmds="start"
-    local defaults_cmds="recommend stage apply"
+    local defaults_cmds="recommend stage apply optimize-linked"
     local snapshot_cmds="list create restore delete prune"
 
     case "${words[1]}" in
@@ -62,10 +62,8 @@ _xzram() {
         defaults)
             if [[ $cword -eq 2 ]]; then
                 COMPREPLY=($(compgen -W "$defaults_cmds" -- "$cur"))
-            elif [[ $cword -eq 3 && ${words[2]} == "apply" ]]; then
-                COMPREPLY=($(compgen -W "--yes --json --dbus" -- "$cur"))
             else
-                COMPREPLY=($(compgen -W "--json --dbus" -- "$cur"))
+                COMPREPLY=($(compgen -W "--yes --zram-scale --swap-scale --json --dbus" -- "$cur"))
             fi
             ;;
         snapshot)

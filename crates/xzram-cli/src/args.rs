@@ -104,14 +104,43 @@ pub enum SnapshotCommands {
 #[derive(Subcommand)]
 pub enum DefaultsCommands {
     /// Review hardware-aware recommended defaults (does not stage)
-    Recommend,
+    Recommend {
+        /// ZRAM size tier: low, default, or high
+        #[arg(long, default_value = "default", value_parser = ["low", "default", "high"])]
+        zram_scale: String,
+        /// Overflow swapfile size tier: low, default, or high
+        #[arg(long, default_value = "default", value_parser = ["low", "default", "high"])]
+        swap_scale: String,
+    },
     /// Stage recommended defaults for review
-    Stage,
+    Stage {
+        /// ZRAM size tier: low, default, or high
+        #[arg(long, default_value = "default", value_parser = ["low", "default", "high"])]
+        zram_scale: String,
+        /// Overflow swapfile size tier: low, default, or high
+        #[arg(long, default_value = "default", value_parser = ["low", "default", "high"])]
+        swap_scale: String,
+    },
     /// Stage and apply recommended defaults
     Apply {
         /// Skip confirmation prompt
         #[arg(long)]
         yes: bool,
+        /// ZRAM size tier: low, default, or high
+        #[arg(long, default_value = "default", value_parser = ["low", "default", "high"])]
+        zram_scale: String,
+        /// Overflow swapfile size tier: low, default, or high
+        #[arg(long, default_value = "default", value_parser = ["low", "default", "high"])]
+        swap_scale: String,
+    },
+    /// Rewrite linked staged fields for a single edited anchor (no polkit)
+    OptimizeLinked {
+        /// Anchor field: zram_size, zram_algo, zram_priority, sysctl, swapfile_create, swapfile_resize, swapfile_remove
+        #[arg(long)]
+        anchor: String,
+        /// Pending-shaped seed JSON file (default: stdin)
+        #[arg(long)]
+        seed_file: Option<std::path::PathBuf>,
     },
 }
 

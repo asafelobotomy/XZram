@@ -33,6 +33,10 @@ bool runOk(const QStringList &args, QString *error = nullptr, int timeoutMs = 12
 // --- Argv builders for long-running async jobs ---
 QStringList argsApply();
 QStringList argsDefaultsApply();
+QStringList argsDefaultsApply(const QString &zramScale, const QString &swapScale);
+QStringList argsDefaultsStage(const QString &zramScale, const QString &swapScale);
+QStringList argsDefaultsRecommend(const QString &zramScale, const QString &swapScale);
+QStringList argsDefaultsOptimizeLinked(const QString &anchor);
 QStringList argsSwapfileCreate(const QString &path, quint64 sizeMb, int priority);
 QStringList argsSwapfileResize(const QString &path, quint64 sizeMb);
 QStringList argsSnapshotRestore(const QString &id);
@@ -50,6 +54,9 @@ QString swapsJson();
 QString sysctlJson();
 QString pendingJson();
 QString recommendedDefaultsJson();
+QString recommendedDefaultsJson(const QString &zramScale, const QString &swapScale);
+/// Run defaults optimize-linked --json with seed JSON on stdin (via process write).
+QString optimizeLinkedJson(const QString &anchor, const QString &seedJson);
 QString snapshotsJson();
 
 // --- Mutations (no --now unless noted) ---
@@ -58,7 +65,9 @@ bool clearPending(QString *error = nullptr);
 bool daemonStart(QString *error = nullptr);
 bool daemonIsActive();
 bool defaultsStage(QString *error = nullptr);
+bool defaultsStage(const QString &zramScale, const QString &swapScale, QString *error = nullptr);
 bool defaultsApply(QString *error = nullptr);
+bool defaultsApply(const QString &zramScale, const QString &swapScale, QString *error = nullptr);
 
 bool zramSet(const QString &device, const QString &size, const QString &algorithm, int priority,
              QString *error = nullptr);

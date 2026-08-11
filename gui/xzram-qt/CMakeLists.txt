@@ -5,17 +5,20 @@ set(SOURCES
     clijob.cpp
     formatutils.cpp
     jsonloader.cpp
+    linkedoptimize.cpp
     resources.qrc
     widgets/pendingbanner.cpp
     widgets/dashboardwidget.cpp
     widgets/zramwidget.cpp
     widgets/swapfilewidget.cpp
     widgets/swapfilewidget_btrfs.cpp
+    widgets/swapfilewidget_linked.cpp
     widgets/swapfilewidget_partition.cpp
     widgets/sysctlwidget.cpp
     widgets/doctorwidget.cpp
     widgets/recommendeddefaultsdialog.cpp
     widgets/recommendeddefaultsui.cpp
+    widgets/recommendeddefaultsscale.cpp
     widgets/snapshotwidget.cpp
     widgets/settingswidget.cpp
 )
@@ -26,6 +29,7 @@ set(HEADERS
     clijob.h
     formatutils.h
     jsonloader.h
+    linkedoptimize.h
     widgets/pendingbanner.h
     widgets/dashboardwidget.h
     widgets/zramwidget.h
@@ -34,6 +38,7 @@ set(HEADERS
     widgets/doctorwidget.h
     widgets/recommendeddefaultsdialog.h
     widgets/recommendeddefaultsui.h
+    widgets/recommendeddefaultsscale.h
     widgets/snapshotwidget.h
     widgets/settingswidget.h
 )

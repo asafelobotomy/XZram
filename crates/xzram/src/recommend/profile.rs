@@ -4,6 +4,7 @@ use crate::config::default_zram_config;
 use crate::detect::{self, DetectionReport};
 use crate::status::StatusReport;
 
+use super::scales::{zram_size_formula, RecommendSizeScale};
 use super::types::RecommendProfile;
 
 pub(super) fn pick_profile(detection: &DetectionReport, status: &StatusReport) -> RecommendProfile {
@@ -30,12 +31,13 @@ pub(super) fn build_recommended_zram(
     profile: RecommendProfile,
     detection: &DetectionReport,
     status: &StatusReport,
+    zram_scale: RecommendSizeScale,
 ) -> ZramConfig {
     let defaults = default_zram_config();
     let mem_gb = status.memory.mem_total_kb as f64 / (1024.0 * 1024.0);
     let algorithm = pick_compression_algorithm(mem_gb, detection);
-    let zram_size = pick_zram_size_formula(profile, mem_gb);
-    let zram_resident_limit = pick_zram_resident_limit(profile);
+    let zram_size = zram_size_formula(profile, mem_gb, zram_scale);
+    let zram_resident_limit = pick_zram_resident_limit(profile, zram_scale);
 
     ZramConfig {
         device: defaults.name,
@@ -67,24 +69,21 @@ fn pick_compression_algorithm_for_cores(
     }
 }
 
-fn pick_zram_size_formula(profile: RecommendProfile, mem_gb: f64) -> String {
+fn pick_zram_resident_limit(
+    profile: RecommendProfile,
+    zram_scale: RecommendSizeScale,
+) -> Option<String> {
     match profile {
-        RecommendProfile::Performance => "ram".into(),
-        RecommendProfile::Constrained => "min(ram, 4096)".into(),
-        RecommendProfile::Conservative => {
-            if mem_gb >= 32.0 {
-                "min(ram / 2, 8192)".into()
-            } else {
-                "min(ram / 2, 4096)".into()
-            }
+        // Keep resident-limit when size is full RAM (default/high performance).
+        RecommendProfile::Performance
+            if matches!(
+                zram_scale,
+                RecommendSizeScale::Default | RecommendSizeScale::High
+            ) =>
+        {
+            Some("ram / 2".into())
         }
-    }
-}
-
-fn pick_zram_resident_limit(profile: RecommendProfile) -> Option<String> {
-    match profile {
-        RecommendProfile::Performance => Some("ram / 2".into()),
-        RecommendProfile::Conservative | RecommendProfile::Constrained => None,
+        _ => None,
     }
 }
 
@@ -163,7 +162,8 @@ mod tests {
         };
         let profile = pick_profile(&detection, &status);
         assert_eq!(profile, RecommendProfile::Performance);
-        let zram = build_recommended_zram(profile, &detection, &status);
+        let zram =
+            build_recommended_zram(profile, &detection, &status, RecommendSizeScale::Default);
         assert_eq!(zram.zram_size.as_deref(), Some("ram"));
         assert_eq!(zram.zram_resident_limit.as_deref(), Some("ram / 2"));
     }
@@ -171,7 +171,11 @@ mod tests {
     #[test]
     fn conservative_large_ram_caps_at_8192() {
         assert_eq!(
-            pick_zram_size_formula(RecommendProfile::Conservative, 64.0),
+            zram_size_formula(
+                RecommendProfile::Conservative,
+                64.0,
+                RecommendSizeScale::Default
+            ),
             "min(ram / 2, 8192)"
         );
     }
@@ -179,7 +183,11 @@ mod tests {
     #[test]
     fn constrained_profile_size() {
         assert_eq!(
-            pick_zram_size_formula(RecommendProfile::Constrained, 2.0),
+            zram_size_formula(
+                RecommendProfile::Constrained,
+                2.0,
+                RecommendSizeScale::Default
+            ),
             "min(ram, 4096)"
         );
     }

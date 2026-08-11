@@ -1,6 +1,7 @@
 #ifndef SYSCTLWIDGET_H
 #define SYSCTLWIDGET_H
 
+#include <QJsonObject>
 #include <QWidget>
 
 class QPushButton;
@@ -14,13 +15,19 @@ public:
 
     void setSysctlJson(const QString &json);
 
+    QJsonObject pendingSeedFragment() const;
+    void applyLinkedSysctl(const QJsonObject &sysctl);
+    void setLinkedOptimizeBlocked(bool blocked);
+
 signals:
     void stagingChanged();
+    void linkedFieldEdited(const QString &anchor);
 
 private slots:
     void applyZramDefaults();
     void stageChanges();
     void updateActionEnabled();
+    void onSysctlEdited();
 
 private:
     void setSpinValue(QSpinBox *spin, const QJsonObject &obj, const QString &key);
@@ -33,6 +40,7 @@ private:
     QSpinBox *m_pageClusterSpin;
     QPushButton *m_defaultsButton;
     QPushButton *m_stageButton;
+    bool m_linkedOptimizeBlocked = false;
 
     int m_baselineSwappiness = -1;
     int m_baselineBoost = -1;

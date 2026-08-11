@@ -141,11 +141,11 @@ SwapfileWidget::SwapfileWidget(QWidget *parent) : QWidget(parent) {
     connect(m_prepareBtrfsButton, &QPushButton::clicked, this, &SwapfileWidget::prepareBtrfs);
     connect(m_swapOnButton, &QPushButton::clicked, this, &SwapfileWidget::swapOnSelected);
     connect(m_swapOffButton, &QPushButton::clicked, this, &SwapfileWidget::swapOffSelected);
-    connect(m_pathEdit, &QLineEdit::textChanged, this, &SwapfileWidget::updateActionEnabled);
+    connect(m_pathEdit, &QLineEdit::textChanged, this, &SwapfileWidget::onCreateFormEdited);
     connect(m_sizeSpin, QOverload<int>::of(&QSpinBox::valueChanged), this,
-            &SwapfileWidget::updateActionEnabled);
+            &SwapfileWidget::onCreateFormEdited);
     connect(m_prioritySpin, QOverload<int>::of(&QSpinBox::valueChanged), this,
-            &SwapfileWidget::updateActionEnabled);
+            &SwapfileWidget::onCreateFormEdited);
     connect(m_table->selectionModel(), &QItemSelectionModel::selectionChanged, this,
             [this]() { updateActionEnabled(); });
     connect(m_partitionTable->selectionModel(), &QItemSelectionModel::selectionChanged, this,
