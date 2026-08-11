@@ -26,7 +26,10 @@ pub(crate) fn run_privileged_pkexec(action: &str, payload: &str) -> anyhow::Resu
 }
 
 pub(crate) fn run_privileged(use_dbus: bool, action: &str, payload: &str) -> anyhow::Result<()> {
-    if use_dbus {
+    // Compound payloads need helper argv that D-Bus methods do not yet forward.
+    let force_pkexec = matches!(action, "apply" | "stage" | "zram.migrate")
+        && payload_needs_helper_passthrough(action, payload);
+    if use_dbus && !force_pkexec {
         match run_via_dbus(action, payload) {
             Ok(()) => return Ok(()),
             Err(e) if dbus_unavailable(&e) => {
@@ -37,6 +40,19 @@ pub(crate) fn run_privileged(use_dbus: bool, action: &str, payload: &str) -> any
     }
 
     run_privileged_pkexec(action, payload)
+}
+
+fn payload_needs_helper_passthrough(action: &str, payload: &str) -> bool {
+    let trimmed = payload.trim();
+    if trimmed.is_empty() || trimmed == "{}" {
+        return false;
+    }
+    match action {
+        "apply" => trimmed.contains("\"pending\""),
+        "stage" => trimmed.contains("\"prepare_swapfile\""),
+        "zram.migrate" => trimmed.contains("\"apply_now\""),
+        _ => false,
+    }
 }
 
 fn dbus_unavailable(err: &anyhow::Error) -> bool {

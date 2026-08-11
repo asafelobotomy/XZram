@@ -6,7 +6,7 @@ XZram stores versioned configuration snapshots under `/var/lib/xzram/snapshots/`
 
 | Trigger | When |
 |---------|------|
-| `app_open` | GUI startup via deferred async `CliJob` after first event-loop tick (and `xzram snapshot create --trigger app_open`). Skipped when `state_hash` matches the latest snapshot; hash covers managed `/etc` files plus canonical runtime swapfile/zram metadata. |
+| `app_open` | Explicit `xzram snapshot create --trigger app_open` only (GUI no longer auto-creates on startup). Skipped when `state_hash` matches the latest snapshot; hash covers managed `/etc` files plus canonical runtime swapfile/zram metadata. |
 | `pre_apply` | Immediately before every `xzram apply` |
 | `manual` | `xzram snapshot create` (default) |
 

@@ -5,8 +5,8 @@ use serde::Deserialize;
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 use xzram::apply::{
-    self, apply, apply_pending, clear_pending, stage, ApplyRequest, PendingConfig, SwapfileConfig,
-    ZramConfig,
+    self, apply, apply_pending, clear_pending, stage, stage_then_apply,
+    stage_with_optional_prepare, ApplyRequest, PendingConfig, SwapfileConfig, ZramConfig,
 };
 use xzram::backend::{available_swapfile_backend, ensure_zram_backend};
 use xzram::migrate::migrate_from_zram_tools;
@@ -45,10 +45,30 @@ fn run(action: &str, payload: &str) -> xzram::Result<()> {
     info!(action, "helper action");
     match action {
         "stage" => {
-            let partial: PendingConfig = serde_json::from_str(payload)
-                .map_err(|e| xzram::XzramError::Parse(e.to_string()))?;
-            xzram::validation::validate_staged_pending(&partial)?;
-            stage(&partial)?;
+            #[derive(Deserialize)]
+            struct PrepareSpec {
+                path: String,
+                #[serde(default)]
+                mkdir_parents: bool,
+            }
+            #[derive(Deserialize)]
+            struct StageWithPrepare {
+                pending: PendingConfig,
+                prepare_swapfile: PrepareSpec,
+            }
+            if let Ok(wrapped) = serde_json::from_str::<StageWithPrepare>(payload) {
+                stage_with_optional_prepare(
+                    &wrapped.pending,
+                    Some((
+                        &wrapped.prepare_swapfile.path,
+                        wrapped.prepare_swapfile.mkdir_parents,
+                    )),
+                )?;
+            } else {
+                let partial: PendingConfig = serde_json::from_str(payload)
+                    .map_err(|e| xzram::XzramError::Parse(e.to_string()))?;
+                stage_with_optional_prepare(&partial, None)?;
+            }
             println!("Configuration staged");
         }
         "pending.clear" => {
@@ -70,9 +90,26 @@ fn run(action: &str, payload: &str) -> xzram::Result<()> {
             println!("ZRAM disabled");
         }
         "swapfile.create" => {
-            let config: SwapfileConfig = serde_json::from_str(payload)
+            let value: serde_json::Value = serde_json::from_str(payload)
+                .map_err(|e| xzram::XzramError::Parse(e.to_string()))?;
+            let config: SwapfileConfig = serde_json::from_value(value.clone())
                 .map_err(|e| xzram::XzramError::Parse(e.to_string()))?;
             let config = xzram::validation::validate_swapfile_config(&config)?;
+            if value
+                .get("prepare")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false)
+            {
+                let mkdir = value
+                    .get("mkdir_parents")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false);
+                xzram::validation::validate_swapfile_prepare_path(&config.path)?;
+                xzram::swapfile_btrfs::prepare_nodatacow(
+                    std::path::Path::new(&config.path),
+                    mkdir,
+                )?;
+            }
             let backend = available_swapfile_backend();
             if !backend.is_available() {
                 return Err(xzram::XzramError::Backend(
@@ -166,17 +203,44 @@ fn run(action: &str, payload: &str) -> xzram::Result<()> {
             println!("Sysctl values applied");
         }
         "zram.migrate" => {
+            #[derive(Deserialize, Default)]
+            struct MigratePayload {
+                #[serde(default)]
+                apply_now: bool,
+            }
+            let opts: MigratePayload = if payload.trim().is_empty() || payload.trim() == "{}" {
+                MigratePayload::default()
+            } else {
+                serde_json::from_str(payload)
+                    .map_err(|e| xzram::XzramError::Parse(e.to_string()))?
+            };
             let pending = migrate_from_zram_tools()?;
-            stage(&pending)?;
-            println!("Staged migration from zram-tools; run 'xzram apply' to apply");
+            if opts.apply_now {
+                let result = stage_then_apply(&pending)?;
+                for msg in &result.messages {
+                    println!("{msg}");
+                }
+                println!("Migrated from zram-tools and applied");
+            } else {
+                stage(&pending)?;
+                println!("Staged migration from zram-tools; run 'xzram apply' to apply");
+            }
         }
         "apply" => {
-            let result = if payload == "{}" {
+            let result = if payload.trim().is_empty() || payload.trim() == "{}" {
                 apply_pending()?
             } else {
-                let request: ApplyRequest = serde_json::from_str(payload)
-                    .map_err(|e| xzram::XzramError::Parse(e.to_string()))?;
-                apply(&request)?
+                #[derive(Deserialize)]
+                struct ApplyBundle {
+                    pending: PendingConfig,
+                }
+                if let Ok(bundle) = serde_json::from_str::<ApplyBundle>(payload) {
+                    stage_then_apply(&bundle.pending)?
+                } else {
+                    let request: ApplyRequest = serde_json::from_str(payload)
+                        .map_err(|e| xzram::XzramError::Parse(e.to_string()))?;
+                    apply(&request)?
+                }
             };
             for msg in &result.messages {
                 println!("{msg}");
@@ -236,14 +300,6 @@ fn run(action: &str, payload: &str) -> xzram::Result<()> {
                 .map_err(|e| xzram::XzramError::Parse(e.to_string()))?;
             let removed = snapshot::prune_snapshots(p.keep)?;
             println!("Pruned {removed} snapshot(s)");
-        }
-        "snapshot.list" => {
-            let list = snapshot::list_snapshots()?;
-            println!(
-                "{}",
-                serde_json::to_string(&list)
-                    .map_err(|e| xzram::XzramError::Parse(e.to_string()))?
-            );
         }
         "daemon.start" => {
             apply::run_systemctl(&["daemon-reload"])?;

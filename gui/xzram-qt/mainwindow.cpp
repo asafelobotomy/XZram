@@ -40,8 +40,6 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     m_linkedOptimizeEnabled = m_settingsPage->linkedOptimize();
     configureRefreshTimer(m_settingsPage->refreshIntervalMs());
     refreshAll();
-    // Defer AppOpen so the window can paint; silent best-effort (no progress dialog).
-    QTimer::singleShot(0, this, &MainWindow::startAppOpenSnapshot);
 }
 
 void MainWindow::setupUi() {
@@ -387,10 +385,4 @@ void MainWindow::recommendDefaults() {
                "Apply in the pending banner."));
         // Do not refreshAll() here — it reloads live config and wipes staged tab preview.
     }
-}
-
-void MainWindow::startAppOpenSnapshot() {
-    auto *job = new CliJob(this);
-    connect(job, &CliJob::finished, job, &QObject::deleteLater);
-    job->start(XzramCli::argsSnapshotCreateAppOpen(), 60000);
 }

@@ -116,9 +116,21 @@ QStringList argsDefaultsOptimizeLinked(const QString &anchor) {
 }
 
 QStringList argsSwapfileCreate(const QString &path, quint64 sizeMb, int priority) {
-    return {QStringLiteral("swapfile"), QStringLiteral("create"), path,
-            QStringLiteral("--size-mb"), QString::number(sizeMb), QStringLiteral("--priority"),
-            QString::number(priority)};
+    return argsSwapfileCreate(path, sizeMb, priority, false, false);
+}
+
+QStringList argsSwapfileCreate(const QString &path, quint64 sizeMb, int priority, bool prepare,
+                               bool mkdirParents) {
+    QStringList args = {QStringLiteral("swapfile"), QStringLiteral("create"), path,
+                        QStringLiteral("--size-mb"), QString::number(sizeMb),
+                        QStringLiteral("--priority"), QString::number(priority)};
+    if (prepare) {
+        args.append(QStringLiteral("--prepare"));
+        if (mkdirParents) {
+            args.append(QStringLiteral("--mkdir"));
+        }
+    }
+    return args;
 }
 
 QStringList argsSwapfileResize(const QString &path, quint64 sizeMb) {
@@ -128,11 +140,6 @@ QStringList argsSwapfileResize(const QString &path, quint64 sizeMb) {
 
 QStringList argsSnapshotRestore(const QString &id) {
     return {QStringLiteral("snapshot"), QStringLiteral("restore"), id};
-}
-
-QStringList argsSnapshotCreateAppOpen() {
-    return {QStringLiteral("snapshot"), QStringLiteral("create"), QStringLiteral("--trigger"),
-            QStringLiteral("app_open")};
 }
 
 QStringList argsRollback() {
@@ -338,10 +345,6 @@ bool snapshotCreate(const QString &label, QString *error) {
         args << QStringLiteral("--label") << label;
     }
     return runOk(args, error);
-}
-
-bool snapshotCreateAppOpen(QString *error) {
-    return runOk(argsSnapshotCreateAppOpen(), error, 60000);
 }
 
 bool snapshotRestore(const QString &id, QString *error) {

@@ -122,13 +122,14 @@ impl Manager {
         &self,
         #[zbus(header)] hdr: Header<'_>,
     ) -> zbus::fdo::Result<JsonReply> {
+        let report = recommend::recommend().map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
+        if pending_is_empty(&report.pending) {
+            return Ok(json_map(&report));
+        }
         authorize(&self.connection, &hdr, "io.github.xzram.stage").await?;
         let _guard = self.gate.lock().await;
-        let report = recommend::recommend().map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
-        if !pending_is_empty(&report.pending) {
-            validate_staged_pending(&report.pending)?;
-            stage(&report.pending).map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
-        }
+        validate_staged_pending(&report.pending)?;
+        stage(&report.pending).map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
         Ok(json_map(&report))
     }
 
@@ -137,7 +138,7 @@ impl Manager {
         #[zbus(header)] hdr: Header<'_>,
         config_json: &str,
     ) -> zbus::fdo::Result<()> {
-        authorize(&self.connection, &hdr, "io.github.xzram.zram.configure").await?;
+        authorize(&self.connection, &hdr, "io.github.xzram.stage").await?;
         let config: ZramConfig = serde_json::from_str(config_json)
             .map_err(|e| zbus::fdo::Error::InvalidArgs(e.to_string()))?;
         validation::validate_zram_config(&config)
@@ -152,7 +153,7 @@ impl Manager {
     }
 
     async fn disable_zram(&self, #[zbus(header)] hdr: Header<'_>) -> zbus::fdo::Result<()> {
-        authorize(&self.connection, &hdr, "io.github.xzram.zram.disable").await?;
+        authorize(&self.connection, &hdr, "io.github.xzram.stage").await?;
         let pending = PendingConfig {
             disable_zram: true,
             ..Default::default()
@@ -169,7 +170,7 @@ impl Manager {
         size_mb: u64,
         priority: i32,
     ) -> zbus::fdo::Result<()> {
-        authorize(&self.connection, &hdr, "io.github.xzram.swapfile.create").await?;
+        authorize(&self.connection, &hdr, "io.github.xzram.stage").await?;
         let config = SwapfileConfig {
             path: path.into(),
             size_mb,
@@ -191,7 +192,7 @@ impl Manager {
         #[zbus(header)] hdr: Header<'_>,
         path: &str,
     ) -> zbus::fdo::Result<()> {
-        authorize(&self.connection, &hdr, "io.github.xzram.swapfile.remove").await?;
+        authorize(&self.connection, &hdr, "io.github.xzram.stage").await?;
         validation::validate_swapfile_remove_path(path)
             .map_err(|e| zbus::fdo::Error::InvalidArgs(e.to_string()))?;
         let pending = PendingConfig {
@@ -209,7 +210,7 @@ impl Manager {
         path: &str,
         size_mb: u64,
     ) -> zbus::fdo::Result<()> {
-        authorize(&self.connection, &hdr, "io.github.xzram.swapfile.resize").await?;
+        authorize(&self.connection, &hdr, "io.github.xzram.stage").await?;
         validation::validate_swapfile_resize_path(path, size_mb)
             .map_err(|e| zbus::fdo::Error::InvalidArgs(e.to_string()))?;
         let pending = PendingConfig {
@@ -229,7 +230,7 @@ impl Manager {
         #[zbus(header)] hdr: Header<'_>,
         values_json: &str,
     ) -> zbus::fdo::Result<()> {
-        authorize(&self.connection, &hdr, "io.github.xzram.sysctl.set").await?;
+        authorize(&self.connection, &hdr, "io.github.xzram.stage").await?;
         let values: SysctlValues = serde_json::from_str(values_json)
             .map_err(|e| zbus::fdo::Error::InvalidArgs(e.to_string()))?;
         let pending = PendingConfig {

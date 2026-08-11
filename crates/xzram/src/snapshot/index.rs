@@ -23,7 +23,7 @@ pub(crate) fn ensure_snapshots_initialized_unlocked() -> Result<()> {
 }
 
 pub fn list_snapshots() -> Result<Vec<SnapshotMeta>> {
-    ensure_snapshots_initialized()?;
+    // Read-only: do not create dirs or migrate on list (avoids EACCES → polkit prompts).
     load_index()
 }
 
@@ -155,7 +155,7 @@ pub(crate) fn write_index_unlocked(index: &[SnapshotMeta]) -> Result<()> {
         use std::os::unix::fs::PermissionsExt;
         let _ = fs::set_permissions(snapshots_root(), fs::Permissions::from_mode(0o700));
         let data = data_dir();
-        let _ = fs::set_permissions(&data, fs::Permissions::from_mode(0o700));
+        let _ = fs::set_permissions(&data, fs::Permissions::from_mode(0o755));
     }
     let content =
         serde_json::to_string_pretty(index).map_err(|e| XzramError::Parse(e.to_string()))?;
@@ -163,7 +163,7 @@ pub(crate) fn write_index_unlocked(index: &[SnapshotMeta]) -> Result<()> {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        let _ = fs::set_permissions(index_path(), fs::Permissions::from_mode(0o600));
+        let _ = fs::set_permissions(index_path(), fs::Permissions::from_mode(0o644));
     }
     Ok(())
 }
@@ -194,6 +194,16 @@ mod tests {
     fn cleanup_test_env() {
         std::env::remove_var("XZRAM_DATA_DIR");
         std::env::remove_var("XZRAM_ETC_ROOT");
+    }
+
+    #[test]
+    fn list_snapshots_empty_without_creating_store() {
+        let _guard = test_lock().lock().unwrap();
+        let data = tempfile::tempdir().unwrap();
+        std::env::set_var("XZRAM_DATA_DIR", data.path());
+        assert!(list_snapshots().unwrap().is_empty());
+        assert!(!snapshots_root().exists());
+        std::env::remove_var("XZRAM_DATA_DIR");
     }
 
     #[test]

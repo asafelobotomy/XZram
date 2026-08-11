@@ -58,8 +58,11 @@ pub(crate) fn run(command: DefaultsCommands, json: bool, dbus: bool) -> anyhow::
                     return Ok(());
                 }
             }
-            run_privileged(dbus, "stage", &serde_json::to_string(&report.pending)?)?;
-            run_privileged(dbus, "apply", "{}")?;
+            run_privileged(
+                dbus,
+                "apply",
+                &serde_json::json!({ "pending": report.pending }).to_string(),
+            )?;
             println!("Recommended defaults applied");
         }
         DefaultsCommands::OptimizeLinked { anchor, seed_file } => {

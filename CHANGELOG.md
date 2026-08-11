@@ -7,7 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.3.0] — 2026-08-11
+### Changed
+- Privilege UX: `defaults apply` and `zram migrate --now` use one polkit challenge; swapfile create `--prepare` folds Btrfs prepare into the same stage/create call
+- D-Bus stage-only methods (`ConfigureZram`, etc.) authorize `io.github.xzram.stage` instead of mutate action IDs
+- Store metadata: data dir `0755`, `pending.json` and snapshot index `0644` (payload archives stay `0700`/`0600`); `store.read` is `allow_active=yes`
+- GUI no longer auto-creates an AppOpen snapshot on startup (Apply PreApply remains the automatic baseline)
+- Empty `xzram apply` and empty `StageRecommendedDefaults` skip privilege
+
+### Removed
+- Dead helper verb `snapshot.list`
+- GUI startup AppOpen `pkexec` path
 
 ### Security
 - Path/INI/argv hardening for swapfile, zram-generator, and swap activate (validation + `--` separators)

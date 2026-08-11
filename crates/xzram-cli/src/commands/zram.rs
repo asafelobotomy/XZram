@@ -68,10 +68,12 @@ pub(crate) fn run(command: ZramCommands, json: bool, dbus: bool) -> anyhow::Resu
             }
         }
         ZramCommands::Migrate { now } => {
-            run_privileged(dbus, "zram.migrate", "{}")?;
-            if now {
-                run_privileged(dbus, "apply", "{}")?;
-            }
+            let payload = if now {
+                serde_json::json!({ "apply_now": true }).to_string()
+            } else {
+                "{}".into()
+            };
+            run_privileged(dbus, "zram.migrate", &payload)?;
         }
     }
     Ok(())

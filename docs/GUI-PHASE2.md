@@ -50,23 +50,30 @@ GetPending() -> a{sv}                   # PendingConfig (or null)
 GetRecommendedDefaults() -> a{sv}       # RecommendationReport
 CheckSwapfileBtrfs(s path) -> a{sv}     # NodatacowStatus (read)
 PrepareSwapfileBtrfs(s path, b mkdir)   # polkit: io.github.xzram.swapfile.prepare (via helper)
-ConfigureZram(s config)                 # polkit: io.github.xzram.zram.configure (stages)
-DisableZram()                           # polkit: io.github.xzram.zram.disable (stages; CLI --dbus then Apply)
-CreateSwapfile(s path, t size, i prio)  # polkit: io.github.xzram.swapfile.create
-RemoveSwapfile(s path)                  # polkit: io.github.xzram.swapfile.remove
-ResizeSwapfile(s path, t size)          # polkit: io.github.xzram.swapfile.resize
-SetSysctl(s values_json)                # polkit: io.github.xzram.sysctl.set
+ConfigureZram(s config)                 # polkit: io.github.xzram.stage (stages only)
+DisableZram()                           # polkit: io.github.xzram.stage (stages only)
+CreateSwapfile(s path, t size, i prio)  # polkit: io.github.xzram.stage (stages only)
+RemoveSwapfile(s path)                  # polkit: io.github.xzram.stage (stages only)
+ResizeSwapfile(s path, t size)          # polkit: io.github.xzram.stage (stages only)
+SetSysctl(s values_json)                # polkit: io.github.xzram.stage (stages only)
 StageAction(s pending_json)             # polkit: io.github.xzram.stage
-StageRecommendedDefaults()              # polkit: io.github.xzram.stage
+StageRecommendedDefaults()              # polkit: io.github.xzram.stage (skips auth when nothing to stage)
 ClearPending()                          # polkit: io.github.xzram.pending.clear
 MigrateZram()                           # polkit: io.github.xzram.zram.migrate
 Apply()                                 # polkit: io.github.xzram.apply
 Rollback()                              # polkit: io.github.xzram.rollback
-ListSnapshots() / GetSnapshot(s id)     # read
+ListSnapshots() / GetSnapshot(s id)     # polkit: io.github.xzram.store.read (allow_active=yes)
 CreateSnapshot(s trigger, s label)      # polkit: io.github.xzram.snapshot.create
 RestoreSnapshot(s id)                   # polkit: io.github.xzram.snapshot.restore
 DeleteSnapshot(s id) / PruneSnapshots   # polkit: io.github.xzram.snapshot.delete
 ```
+
+### Privilege UX
+
+- Single-gesture compounds use **one** polkit challenge: `defaults apply` (stage+apply bundle), `zram migrate --now`, and swapfile create `--prepare` (prepare+stage or prepare+create).
+- Deliberate **Stage** then banner **Apply now** remain two prompts (review barrier).
+- Pending metadata (`pending.json`, snapshot index) is world-readable; snapshot payload archives stay private. Active-session `store.read` is `allow_active=yes` so refresh does not prompt.
+- Empty `xzram apply` / empty recommended stage skip privilege entirely.
 
 ### xzram-qt (C++20 / Qt6)
 
@@ -91,7 +98,7 @@ DeleteSnapshot(s id) / PruneSnapshots   # polkit: io.github.xzram.snapshot.delet
 GUI uses CLI verbs: `xzram snapshot list|create|restore|delete|prune`.
 Daemon still exposes the D-Bus snapshot methods for other clients.
 
-Startup creates a best-effort `app_open` snapshot via async `CliJob` after the first event-loop tick (polkit may prompt; cancel/failure is ignored). Long mutations (apply, restore, rollback, large swapfile stage) use a cancelable progress dialog. See [SNAPSHOTS.md](SNAPSHOTS.md).
+Apply creates a `pre_apply` snapshot inside the privileged apply path (no extra prompt). The GUI does **not** auto-create an `app_open` snapshot on startup (use `xzram snapshot create --trigger app_open` manually if desired). Long mutations (apply, restore, rollback, large swapfile stage) use a cancelable progress dialog. See [SNAPSHOTS.md](SNAPSHOTS.md).
 
 ### Packaging
 

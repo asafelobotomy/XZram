@@ -17,7 +17,8 @@ pub fn data_dir() -> PathBuf {
 fn ensure_data_dir() -> PathBuf {
     let dir = data_dir();
     let _ = std::fs::create_dir_all(&dir);
-    set_mode(&dir, 0o700);
+    // Metadata (pending/index) is world-readable; snapshot payloads stay private.
+    set_mode(&dir, 0o755);
     dir
 }
 
@@ -35,6 +36,10 @@ fn set_mode(path: &Path, mode: u32) {
 
 fn set_mode_600(path: &Path) {
     set_mode(path, 0o600);
+}
+
+fn set_mode_644(path: &Path) {
+    set_mode(path, 0o644);
 }
 
 /// Path to the last privileged-helper error (survives systemd-run swallowing stderr).
@@ -152,7 +157,7 @@ fn write_pending_unlocked(config: &PendingConfig) -> Result<()> {
     let content =
         serde_json::to_string_pretty(config).map_err(|e| XzramError::Parse(e.to_string()))?;
     std::fs::write(&path, content)?;
-    set_mode_600(&path);
+    set_mode_644(&path);
     Ok(())
 }
 

@@ -38,9 +38,10 @@ QStringList argsDefaultsStage(const QString &zramScale, const QString &swapScale
 QStringList argsDefaultsRecommend(const QString &zramScale, const QString &swapScale);
 QStringList argsDefaultsOptimizeLinked(const QString &anchor);
 QStringList argsSwapfileCreate(const QString &path, quint64 sizeMb, int priority);
+QStringList argsSwapfileCreate(const QString &path, quint64 sizeMb, int priority, bool prepare,
+                               bool mkdirParents);
 QStringList argsSwapfileResize(const QString &path, quint64 sizeMb);
 QStringList argsSnapshotRestore(const QString &id);
-QStringList argsSnapshotCreateAppOpen();
 QStringList argsRollback();
 
 // --- JSON reads ---
@@ -83,7 +84,6 @@ bool swapOn(const QString &device, QString *error = nullptr);
 bool swapOff(const QString &device, QString *error = nullptr);
 
 bool snapshotCreate(const QString &label, QString *error = nullptr);
-bool snapshotCreateAppOpen(QString *error = nullptr);
 bool snapshotRestore(const QString &id, QString *error = nullptr);
 bool snapshotDelete(const QString &id, QString *error = nullptr);
 bool snapshotPrune(int keep, QString *error = nullptr);

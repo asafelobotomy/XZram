@@ -299,6 +299,7 @@ void SwapfileWidget::stageCreate() {
     if (m_pathEdit->text().isEmpty()) {
         return;
     }
+    bool prepare = false;
     if (m_onBtrfs) {
         const QString check = XzramCli::swapfileCheckJson(m_pathEdit->text());
         QString parseError;
@@ -306,18 +307,21 @@ void SwapfileWidget::stageCreate() {
         if (!JsonLoader::optionalBool(root, QStringLiteral("ready"), false)) {
             const auto answer = QMessageBox::question(
                 this, tr("Btrfs not ready"),
-                tr("This path is not ready for a swap file yet. Prepare the directory first?\n\n%1")
+                tr("This path is not ready for a swap file yet. Prepare the directory and stage "
+                   "create in one step?\n\n%1")
                     .arg(JsonLoader::optionalString(root, QStringLiteral("message"))));
-            if (answer == QMessageBox::Yes) {
-                prepareBtrfs();
+            if (answer != QMessageBox::Yes) {
+                return;
             }
-            return;
+            prepare = true;
         }
     }
     QStringList args = XzramCli::argsSwapfileCreate(
-        m_pathEdit->text(), static_cast<quint64>(m_sizeSpin->value()), m_prioritySpin->value());
-    runCliWithProgress(this, tr("Staging swap file create…"), args, 300000,
-                       [this](const XzramCli::RunResult &result) {
+        m_pathEdit->text(), static_cast<quint64>(m_sizeSpin->value()), m_prioritySpin->value(),
+        prepare, m_mkdirCheck->isChecked());
+    runCliWithProgress(this, prepare ? tr("Preparing and staging swap file…")
+                                     : tr("Staging swap file create…"),
+                       args, 300000, [this](const XzramCli::RunResult &result) {
                            if (result.error == QLatin1String("cancelled")) {
                                return;
                            }
@@ -327,6 +331,9 @@ void SwapfileWidget::stageCreate() {
                            }
                            captureCreateBaseline();
                            updateActionEnabled();
+                           if (m_onBtrfs) {
+                               updateBtrfsStatus(XzramCli::swapfileCheckJson(m_pathEdit->text()));
+                           }
                            emit stagingChanged();
                        });
 }

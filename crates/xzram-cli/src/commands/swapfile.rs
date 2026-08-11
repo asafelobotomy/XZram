@@ -24,9 +24,11 @@ pub(crate) fn run(command: SwapfileCommands, json: bool, dbus: bool) -> anyhow::
             size_mb,
             priority,
             now,
+            prepare,
+            mkdir,
         } => {
             let config = SwapfileConfig {
-                path,
+                path: path.clone(),
                 size_mb,
                 priority,
             };
@@ -35,7 +37,24 @@ pub(crate) fn run(command: SwapfileCommands, json: bool, dbus: bool) -> anyhow::
                 ..Default::default()
             };
             if now {
-                run_privileged(dbus, "swapfile.create", &serde_json::to_string(&config)?)?;
+                let mut create_payload = serde_json::to_value(&config)?;
+                if prepare {
+                    if let Some(obj) = create_payload.as_object_mut() {
+                        obj.insert("prepare".into(), serde_json::Value::Bool(true));
+                        obj.insert("mkdir_parents".into(), serde_json::Value::Bool(mkdir));
+                    }
+                }
+                run_privileged(dbus, "swapfile.create", &create_payload.to_string())?;
+            } else if prepare {
+                let payload = serde_json::json!({
+                    "pending": pending,
+                    "prepare_swapfile": {
+                        "path": path,
+                        "mkdir_parents": mkdir,
+                    }
+                });
+                run_privileged(dbus, "stage", &payload.to_string())?;
+                println!("Staged swapfile create (with prepare); run 'xzram apply' to apply");
             } else {
                 run_privileged(dbus, "stage", &serde_json::to_string(&pending)?)?;
                 println!("Staged swapfile create; run 'xzram apply' to apply");

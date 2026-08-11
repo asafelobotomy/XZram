@@ -39,7 +39,6 @@ private slots:
     void onLinkedOptimizeChanged(bool enabled);
     void onLinkedFieldEdited(const QString &anchor);
     void runLinkedOptimize();
-    void startAppOpenSnapshot();
 
 private:
     void setupUi();

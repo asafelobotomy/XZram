@@ -30,6 +30,27 @@ pub fn apply_pending() -> Result<ApplyResult> {
     Ok(result)
 }
 
+/// Stage `pending` then apply it in one privileged session (single polkit challenge).
+pub fn stage_then_apply(pending: &PendingConfig) -> Result<ApplyResult> {
+    crate::validation::validate_staged_pending(pending)?;
+    super::pending::stage(pending)?;
+    apply_pending()
+}
+
+/// Optionally prepare a swapfile parent, then stage pending (single polkit `stage` challenge).
+pub fn stage_with_optional_prepare(
+    pending: &PendingConfig,
+    prepare: Option<(&str, bool)>,
+) -> Result<()> {
+    if let Some((path, mkdir_parents)) = prepare {
+        crate::validation::validate_swapfile_prepare_path(path)?;
+        crate::swapfile_btrfs::prepare_nodatacow(std::path::Path::new(path), mkdir_parents)?;
+    }
+    crate::validation::validate_staged_pending(pending)?;
+    super::pending::stage(pending)?;
+    Ok(())
+}
+
 pub(crate) fn apply_from_pending(pending: &PendingConfig) -> Result<ApplyResult> {
     let request = ApplyRequest {
         zram: pending.zram.clone(),
@@ -114,7 +135,7 @@ pub fn rollback() -> Result<ApplyResult> {
 
 #[cfg(test)]
 mod tests {
-    use super::super::pending::write_pending;
+    use super::super::pending::{load_pending, write_pending};
     use super::*;
     use crate::apply::test_lock;
     use crate::sysctl::SysctlValues;
@@ -156,6 +177,35 @@ mod tests {
         let content = fs::read_to_string(&drop_in).unwrap();
         assert!(content.contains("vm.swappiness = 180"));
         assert!(content.contains("vm.page-cluster = 0"));
+
+        std::env::remove_var("XZRAM_DATA_DIR");
+        std::env::remove_var("XZRAM_ETC_ROOT");
+    }
+
+    #[test]
+    fn stage_then_apply_sysctl_bundle() {
+        let _guard = test_lock().lock().unwrap();
+        let data = tempfile::tempdir().unwrap();
+        let etc = tempfile::tempdir().unwrap();
+        std::env::set_var("XZRAM_DATA_DIR", data.path());
+        std::env::set_var("XZRAM_ETC_ROOT", etc.path());
+
+        let pending = PendingConfig {
+            sysctl: Some(SysctlValues {
+                swappiness: Some(150),
+                watermark_boost_factor: Some(0),
+                watermark_scale_factor: Some(125),
+                page_cluster: Some(0),
+            }),
+            ..Default::default()
+        };
+        let result = stage_then_apply(&pending).unwrap();
+        assert!(result.success);
+        assert!(load_pending().unwrap().is_none());
+        let drop_in = etc.path().join("sysctl.d/99-xzram.conf");
+        assert!(fs::read_to_string(drop_in)
+            .unwrap()
+            .contains("vm.swappiness = 150"));
 
         std::env::remove_var("XZRAM_DATA_DIR");
         std::env::remove_var("XZRAM_ETC_ROOT");

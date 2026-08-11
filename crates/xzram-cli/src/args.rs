@@ -204,6 +204,12 @@ pub enum SwapfileCommands {
         /// Apply immediately instead of staging
         #[arg(long)]
         now: bool,
+        /// Prepare Btrfs parent (nodatacow) in the same privileged stage/create call
+        #[arg(long)]
+        prepare: bool,
+        /// With `--prepare`, create parent directories as needed
+        #[arg(long)]
+        mkdir: bool,
     },
     /// Resize an existing swap file
     Resize {

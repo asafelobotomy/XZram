@@ -46,7 +46,7 @@ Architecture (**stage → apply**, caller-bound polkit, hardened `xzramd` + root
 | S-12 | Unit hardening vs privileged helper escape | **Partial** — xzramd hardened; helper transient unit is full-priv by design |
 | S-13 | SELinux labeling after swapfile create | **Mitigated** — best-effort `restorecon -F` when present |
 | S-14 | Helper stage skips field validation | **Mitigated** — `validate_staged_pending` in helper |
-| S-15 | `/var/lib/xzram` artifact modes | **Mitigated** — data dir `0o700`, pending/index/last_error `0o600` |
+| S-15 | `/var/lib/xzram` artifact modes | **Mitigated** — data dir `0755`, pending/index `0644` (readable metadata); snapshot payloads/`last_error` stay private; `store.read` `allow_active=yes` |
 | S-16 | GUI JSON error escaping incomplete | **Mitigated** — `QJsonDocument`/`QJsonObject` in `xzramcli.cpp` |
 | S-17 | Immutable-OS coverage (SteamOS) | **Mitigated** — steamos id/VARIANT + `steamos-readonly` / `steamos-release` |
 | S-18 | Bus policy allows all users to call Manager | **Partial** — writes polkit-gated; `GetPending` / snapshot reads require `io.github.xzram.store.read`; status/detect/doctor remain public |
@@ -109,7 +109,7 @@ Surfaces newly reviewed: GUI/CLI argv, packaging/CI/install, polkit/D-Bus policy
 |----|-------|--------|
 | CI-01 | Pin GitHub Actions to commit SHAs | **Mitigated** |
 | SNAP-01 | AppOpen hash ignores runtime | **Mitigated** — runtime swapfile/zram in hash |
-| GUI-01 | AppOpen not wired in GUI | **Mitigated** — startup best-effort create |
+| GUI-01 | AppOpen not wired in GUI | **Accepted** — GUI no longer auto-creates AppOpen (avoids startup polkit); PreApply on Apply remains |
 | GUI-02 | Configure preview wiped by refreshAll | **Mitigated** |
 | GUI-03 | Ungated `XZRAM_CLI` | **Mitigated** — `XZRAM_ALLOW_DEV_CLI` |
 | GUI-04 | Swap on/off without confirm | **Mitigated** |

@@ -32,7 +32,7 @@ _xzram() {
             case $cword in
                 2) COMPREPLY=($(compgen -W "$swapfile_cmds" -- "$cur")) ;;
                 *)
-                    COMPREPLY=($(compgen -W "--size-mb --priority --now --json" -- "$cur"))
+                    COMPREPLY=($(compgen -W "--size-mb --priority --now --prepare --mkdir --json" -- "$cur"))
                     ;;
             esac
             ;;
