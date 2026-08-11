@@ -6,7 +6,7 @@ use crate::privileged::find_helper_for_pkexec;
 
 pub(crate) fn resolve_snapshot_id(id: &str) -> anyhow::Result<String> {
     match id {
-        "latest" => snapshot::list_snapshots()?
+        "latest" => crate::store_read::list_snapshots()?
             .into_iter()
             .next()
             .map(|s| s.id)
@@ -18,9 +18,10 @@ pub(crate) fn resolve_snapshot_id(id: &str) -> anyhow::Result<String> {
 
 pub(crate) fn run_snapshot_create_pkexec(
     label: Option<&str>,
+    trigger: SnapshotTrigger,
 ) -> anyhow::Result<snapshot::SnapshotMeta> {
     let payload = serde_json::json!({
-        "trigger": SnapshotTrigger::Manual.as_str(),
+        "trigger": trigger.as_str(),
         "label": label,
     });
     let helper = find_helper_for_pkexec()?;
@@ -48,6 +49,7 @@ pub(crate) fn run_snapshot_create_pkexec(
 
 pub(crate) fn run_snapshot_create_dbus(
     label: Option<&str>,
+    trigger: SnapshotTrigger,
 ) -> anyhow::Result<snapshot::SnapshotMeta> {
     let conn = zbus::blocking::Connection::system()?;
     let proxy = zbus::blocking::Proxy::new(
@@ -56,10 +58,7 @@ pub(crate) fn run_snapshot_create_dbus(
         "/io/github/XZram",
         "io.github.XZram.Manager",
     )?;
-    let reply = proxy.call_method(
-        "CreateSnapshot",
-        &(SnapshotTrigger::Manual.as_str(), label.unwrap_or("")),
-    )?;
+    let reply = proxy.call_method("CreateSnapshot", &(trigger.as_str(), label.unwrap_or("")))?;
     let map: std::collections::HashMap<String, zbus::zvariant::OwnedValue> =
         reply.body().deserialize()?;
     let json = map

@@ -4,6 +4,7 @@ mod dbus_client;
 mod print;
 mod privileged;
 mod snapshot_ops;
+mod store_read;
 
 use clap::Parser;
 use tracing_subscriber::EnvFilter;

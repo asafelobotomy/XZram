@@ -132,14 +132,15 @@ layout; it is not the primary path for iterating on a git clone.
 
 ```bash
 dpkg-buildpackage -us -uc -b
-sudo dpkg -i ../xzram_*.deb
-sudo systemctl enable --now xzramd
+sudo dpkg -i ../xzram_*.deb ../xzram-gui_*.deb   # GUI optional
+# xzramd is D-Bus-activated; enable optional:
+# sudo systemctl enable --now xzramd
 ```
 
 ### Fedora
 
 Build from [`packaging/xzram.spec`](packaging/xzram.spec) with `rpmbuild` (or your
-usual RPM workflow). Enable `xzramd` after install as on other distros.
+usual RPM workflow). Packages: `xzram` (CLI/daemon) and `xzram-gui` (Qt).
 
 ## CLI reference
 

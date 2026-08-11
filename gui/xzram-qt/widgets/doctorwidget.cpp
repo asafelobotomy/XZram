@@ -102,13 +102,16 @@ QWidget *DoctorWidget::makeIssueCard(const QJsonObject &issue) {
     card->setStyleSheet(QStringLiteral("background: %1; color: %2; border-radius: 6px;").arg(bg, fg));
 
     auto *title = new QLabel(
-        QStringLiteral("<b>%1</b> — %2").arg(FormatUtils::severityLabel(severity), message), card);
+        QStringLiteral("<b>%1</b> — %2")
+            .arg(FormatUtils::severityLabel(severity).toHtmlEscaped(), message.toHtmlEscaped()),
+        card);
     title->setWordWrap(true);
     layout->addWidget(title);
 
     if (!suggestion.isEmpty()) {
         auto *suggestRow = new QHBoxLayout();
-        auto *suggest = new QLabel(QStringLiteral("<i>%1</i>").arg(suggestion), card);
+        auto *suggest =
+            new QLabel(QStringLiteral("<i>%1</i>").arg(suggestion.toHtmlEscaped()), card);
         suggest->setWordWrap(true);
         suggestRow->addWidget(suggest, 1);
 
@@ -124,7 +127,8 @@ QWidget *DoctorWidget::makeIssueCard(const QJsonObject &issue) {
     const QString actionType = JsonLoader::optionalString(action, QStringLiteral("type"));
     if (actionType == QLatin1String("prepare_btrfs_swapfile")) {
         const QString path = JsonLoader::optionalString(action, QStringLiteral("path"));
-        auto *prepareButton = new QPushButton(tr("Prepare for swap: %1").arg(path), card);
+        auto *prepareButton =
+            new QPushButton(tr("Prepare for swap: %1").arg(path), card);
         prepareButton->setToolTip(
             tr("Mark this folder so a swap file can be created safely on btrfs."));
         connect(prepareButton, &QPushButton::clicked, this, [this, path]() {

@@ -73,7 +73,7 @@ _xzram() {
                 2) COMPREPLY=($(compgen -W "$snapshot_cmds" -- "$cur")) ;;
                 3)
                     case ${words[2]} in
-                        create) COMPREPLY=($(compgen -W "--label --json --dbus" -- "$cur")) ;;
+                        create) COMPREPLY=($(compgen -W "--label --trigger --json --dbus" -- "$cur")) ;;
                         restore|delete) COMPREPLY=($(compgen -W "--yes --json --dbus" -- "$cur")) ;;
                         prune) COMPREPLY=($(compgen -W "--keep --yes --json --dbus" -- "$cur")) ;;
                     esac

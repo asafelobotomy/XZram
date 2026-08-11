@@ -3,6 +3,8 @@
 
 #include <QString>
 #include <QStringList>
+#include <QtGlobal>
+#include <QMetaType>
 
 namespace XzramCli {
 
@@ -16,13 +18,26 @@ struct RunResult {
 
 QString findBinary();
 
-/// Run xzram; on failure prefers /var/lib/xzram/last_error then stderr.
+/// Build a RunResult from process output (shared by sync run and CliJob).
+RunResult resultFromOutput(int exitCode, bool crashed, const QString &stdoutText,
+                           const QString &stderrText);
+
+/// Run xzram; on failure prefers process streams then /var/lib/xzram/last_error.
 RunResult run(const QStringList &args, int timeoutMs = 120000);
 
 /// Convenience: stdout on success, or {"error":"..."} JSON string on failure.
 QString runJson(const QStringList &args, int timeoutMs = 30000);
 
 bool runOk(const QStringList &args, QString *error = nullptr, int timeoutMs = 120000);
+
+// --- Argv builders for long-running async jobs ---
+QStringList argsApply();
+QStringList argsDefaultsApply();
+QStringList argsSwapfileCreate(const QString &path, quint64 sizeMb, int priority);
+QStringList argsSwapfileResize(const QString &path, quint64 sizeMb);
+QStringList argsSnapshotRestore(const QString &id);
+QStringList argsSnapshotCreateAppOpen();
+QStringList argsRollback();
 
 // --- JSON reads ---
 QString statusJson();
@@ -61,11 +76,14 @@ bool swapOn(const QString &device, QString *error = nullptr);
 bool swapOff(const QString &device, QString *error = nullptr);
 
 bool snapshotCreate(const QString &label, QString *error = nullptr);
+bool snapshotCreateAppOpen(QString *error = nullptr);
 bool snapshotRestore(const QString &id, QString *error = nullptr);
 bool snapshotDelete(const QString &id, QString *error = nullptr);
 bool snapshotPrune(int keep, QString *error = nullptr);
 bool rollback(QString *error = nullptr);
 
 } // namespace XzramCli
+
+Q_DECLARE_METATYPE(XzramCli::RunResult)
 
 #endif

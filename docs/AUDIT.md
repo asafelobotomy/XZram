@@ -49,7 +49,7 @@ Architecture (**stage → apply**, caller-bound polkit, hardened `xzramd` + root
 | S-15 | `/var/lib/xzram` artifact modes | **Mitigated** — data dir `0o700`, pending/index/last_error `0o600` |
 | S-16 | GUI JSON error escaping incomplete | **Mitigated** — `QJsonDocument`/`QJsonObject` in `xzramcli.cpp` |
 | S-17 | Immutable-OS coverage (SteamOS) | **Mitigated** — steamos id/VARIANT + `steamos-readonly` / `steamos-release` |
-| S-18 | Bus policy allows all users to call Manager | **Accepted** — writes still polkit-gated |
+| S-18 | Bus policy allows all users to call Manager | **Partial** — writes polkit-gated; `GetPending` / snapshot reads require `io.github.xzram.store.read`; status/detect/doctor remain public |
 | S-19 | D-Bus mutators authorize caller | **Mitigated** — `Subject::new_for_message_header` (historical P0-1) |
 | Q-01 | `snapshot/restore.rs` untested | **Mitigated** — hermetic restore tests under `XZRAM_ETC_ROOT` |
 | Q-02 | `recommend/engine.rs` untested | **Mitigated** — `recommend_from_context` + unit tests |
@@ -64,13 +64,13 @@ Caller-bound polkit, migrate action, btrfs auto-prepare, staged disable, empty-o
 
 ## Packaging
 
-| Artifact | CLI | Helper | Daemon | GUI | zram-generator hint |
-|----------|-----|--------|--------|-----|---------------------|
-| `PKGBUILD` | yes | yes | yes | yes | `optdepends=('systemd-zram-generator')` |
-| `debian/` | yes | yes | yes | yes | `Recommends: systemd-zram-generator` |
-| `packaging/xzram.spec` | yes | yes | yes | yes | `Recommends: zram-generator` |
+| Artifact | CLI package | GUI package | zram-generator hint |
+|----------|-------------|-------------|---------------------|
+| `PKGBUILD` | `xzram` | `xzram-gui` | `optdepends` on CLI |
+| `debian/` | `xzram` | `xzram-gui` | `Recommends` on CLI |
+| `packaging/xzram.spec` | `xzram` | `xzram-gui` | `Recommends` on CLI |
 
-Flatpak: **removed** (see [SCOPE.md](SCOPE.md)).
+Flatpak: **removed** (see [SCOPE.md](SCOPE.md)). Cargo vendor for offline distro builds remains deferred.
 
 ---
 
@@ -78,52 +78,54 @@ Flatpak: **removed** (see [SCOPE.md](SCOPE.md)).
 
 Surfaces newly reviewed: GUI/CLI argv, packaging/CI/install, polkit/D-Bus policy, migrate/sysctl/swap listing, recommend overflow.
 
-### Privilege / migrate (batch A — committed earlier)
+### Privilege / migrate (batch A)
 
 | ID | Topic | Status |
 |----|-------|--------|
-| T3-01 | pkexec of non-annotated helper / `XZRAM_DEV_HELPER` | **Mitigated** — annotated path only; dev override gated |
-| T3-02 | `systemd-run` env expansion of helper argv | **Mitigated** — `--expand-environment=no` |
-| T3-03 | Helper timeout without unit RuntimeMaxSec | **Mitigated** — `RuntimeMaxSec=300` on transient unit |
-| T3-M01 | Finalize zram-tools on any apply | **Mitigated** — `pending.finalize_zram_tools` from migrate only |
-| T3-M02 | Migrate finalize ignores systemctl failure | **Mitigated** — propagate disable errors |
-| T3-D01 | Hibernate-on-zram shown healthy | **Mitigated** — severity Error |
-| T3-H02 | `prune --keep 0` deletes all snapshots | **Mitigated** — reject keep=0 |
-| T3-deb | Debian prerm disable-on-upgrade / invalid start | **Mitigated** — prerm/postinst cleaned |
+| T3-01 | pkexec of non-annotated helper / `XZRAM_DEV_HELPER` | **Mitigated** |
+| T3-02 | `systemd-run` env expansion of helper argv | **Mitigated** |
+| T3-03 | Helper timeout without unit RuntimeMaxSec | **Mitigated** |
+| T3-M01 | Finalize zram-tools on any apply | **Mitigated** |
+| T3-M02 | Migrate finalize ignores systemctl failure | **Mitigated** |
+| T3-D01 | Hibernate-on-zram shown healthy | **Mitigated** |
+| T3-H02 | `prune --keep 0` deletes all snapshots | **Mitigated** |
+| T3-deb | Debian prerm disable-on-upgrade / invalid start | **Mitigated** |
 
-### Correctness / packaging (batch B — final unaudited surfaces)
+### Correctness / packaging (batch B)
 
 | ID | Topic | Status |
 |----|-------|--------|
-| SYSCTL-01 | Partial sysctl `--now` overwrites drop-in | **Mitigated** — merge-write existing keys |
-| MIG-01 | Migrate ignores `SIZE`/`PRIORITY` | **Mitigated** — parse SIZE (MiB) + PRIORITY |
-| MIG-02 | `eval_zram_size_mb` misses percent formulas | **Mitigated** — `ram/100*N` + absolute MiB |
-| SWAP-01 | One bad UUID aborts partition list | **Mitigated** — soft-fail per entry |
-| SWAP-02 | Active match misses by-uuid vs `/dev/sdX` | **Mitigated** — canonicalize compare |
-| REC-01 | Overflow staged when `df` fails | **Mitigated** — skip when free space unknown |
-| PKG-01 | PKGBUILD `source=…/..` packs parent dir | **Mitigated** — `file://$startdir` |
-| PKG-03 | Debian/RPM/`make` omit `--locked` | **Mitigated** |
-| PKG-04/05 | RPM missing `%preun` / `%license` | **Mitigated** |
-| PKG-07 | Debian enables xzramd on install | **Mitigated** — `--no-enable --no-start` |
-| PKG-09 | Wrong upstream homepage URL | **Mitigated** — `asafelobotomy/XZram` |
-| CI-02/03/06 | permissions / macOS / `--locked` | **Mitigated** |
-| CI-04 | Debian CI mounts source RW | **Mitigated** — `:ro` + writable copy |
-| INST-01 | `PREFIX` vs hardcoded `/usr/libexec` | **Documented** — install with `PREFIX=/usr` |
-| INST-02 | `install-post` under `DESTDIR` | **Mitigated** — refuse `DESTDIR` |
-| INST-03 | Missing `StateDirectory=xzram` | **Mitigated** |
-| INST-04 | bash-completion missing `snapshot` | **Mitigated** |
-| GUI-01 | Docs claim AppOpen on GUI startup | **Documented** — not wired; docs corrected |
+| SYSCTL-01 | Partial sysctl `--now` overwrites drop-in | **Mitigated** |
+| MIG-01 | Migrate ignores `SIZE`/`PRIORITY` | **Mitigated** |
+| MIG-02 | `eval_zram_size_mb` misses percent formulas | **Mitigated** |
+| SWAP-01/02 | UUID list / active match | **Mitigated** |
+| REC-01 | Overflow when `df` fails | **Mitigated** |
+| PKG-01..09 | PKGBUILD/RPM/Debian/CI packaging | **Mitigated** (vendor deferred) |
+| INST-01..04 | PREFIX docs, install-post, StateDirectory, completion | **Mitigated** / documented |
 
-### Open follow-ups (not blocking)
+### Residuals closure (batch C)
+
+| ID | Topic | Status |
+|----|-------|--------|
+| CI-01 | Pin GitHub Actions to commit SHAs | **Mitigated** |
+| SNAP-01 | AppOpen hash ignores runtime | **Mitigated** — runtime swapfile/zram in hash |
+| GUI-01 | AppOpen not wired in GUI | **Mitigated** — startup best-effort create |
+| GUI-02 | Configure preview wiped by refreshAll | **Mitigated** |
+| GUI-03 | Ungated `XZRAM_CLI` | **Mitigated** — `XZRAM_ALLOW_DEV_CLI` |
+| GUI-04 | Swap on/off without confirm | **Mitigated** |
+| PKG-06 | Qt hard Depends | **Mitigated** — `xzram` / `xzram-gui` split |
+| DBUS-01 | Unauthenticated pending/snapshot reads | **Mitigated** — `store.read` + CLI EACCES→D-Bus |
+| HELPER-02 | Sysctl range checks | **Mitigated** — `validate_sysctl_values` (0–200 / 0–10000 / 0–8) |
+| GUI-05a | Prefer shared `last_error` over process stderr | **Mitigated** — process streams first |
+| GUI-05b | Sync `QProcess` on UI thread | **Partial** — long ops (apply/restore/rollback/swapfile create-resize/AppOpen) use async `CliJob` + progress; timer refresh reads remain sync |
+| GUI-06 | Doctor HTML escape / uint64 double parse | **Mitigated** |
+
+### Still deferred
 
 | ID | Topic | Notes |
 |----|-------|-------|
-| CI-01 | Pin GitHub Actions to commit SHAs | Tags still floating; permissions least-privilege applied |
-| SNAP-01 | AppOpen hash ignores runtime swap/zram | Config-only by design until GUI wires AppOpen |
-| GUI-02..06 | Preview wipe, `XZRAM_CLI` trust, swap confirm, HTML escape | GUI polish backlog |
-| PKG-06/08 | Qt hard Depends / no cargo vendor | Distro packaging follow-up |
-| DBUS-01 | Unauthenticated read of pending/snapshots | Accepted with S-18; writes still polkit |
-| HELPER-02 | Sysctl range checks | GUI caps; CLI accepts `u32` |
+| PKG-08 | Cargo vendor / offline builds | Distro packaging when required |
+| GUI-05b-refresh | Async/parallel timer `refreshLive` reads | Follow-up after long-ops path |
 
 ---
 

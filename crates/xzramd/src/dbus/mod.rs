@@ -1,13 +1,14 @@
 mod apply_now;
 mod auth;
 mod serve;
+mod store_reads;
 mod util;
 
 use std::collections::HashMap;
 
 use xzram::apply::{
-    clear_pending, load_pending, pending_is_empty, stage, PendingConfig, SwapfileConfig,
-    SwapfileResizeConfig, ZramConfig,
+    clear_pending, pending_is_empty, stage, PendingConfig, SwapfileConfig, SwapfileResizeConfig,
+    ZramConfig,
 };
 use xzram::backend::{available_swapfile_backend, ensure_zram_backend};
 use xzram::detect;
@@ -90,9 +91,8 @@ impl Manager {
         Ok(json_map(&values))
     }
 
-    async fn get_pending(&self) -> zbus::fdo::Result<JsonReply> {
-        let pending = load_pending().map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
-        Ok(json_map(&pending))
+    async fn get_pending(&self, #[zbus(header)] hdr: Header<'_>) -> zbus::fdo::Result<JsonReply> {
+        store_reads::get_pending(self, hdr).await
     }
 
     async fn check_swapfile_btrfs(&self, path: &str) -> zbus::fdo::Result<JsonReply> {
@@ -254,16 +254,19 @@ impl Manager {
         crate::privileged::run_helper("rollback", "{}").await
     }
 
-    async fn list_snapshots(&self) -> zbus::fdo::Result<JsonReply> {
-        let list =
-            snapshot::list_snapshots().map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
-        Ok(json_map(&list))
+    async fn list_snapshots(
+        &self,
+        #[zbus(header)] hdr: Header<'_>,
+    ) -> zbus::fdo::Result<JsonReply> {
+        store_reads::list_snapshots(self, hdr).await
     }
 
-    async fn get_snapshot(&self, id: &str) -> zbus::fdo::Result<JsonReply> {
-        let meta =
-            snapshot::get_snapshot(id).map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
-        Ok(json_map(&meta))
+    async fn get_snapshot(
+        &self,
+        #[zbus(header)] hdr: Header<'_>,
+        id: &str,
+    ) -> zbus::fdo::Result<JsonReply> {
+        store_reads::get_snapshot(self, hdr, id).await
     }
 
     async fn create_snapshot(

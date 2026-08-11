@@ -30,6 +30,7 @@ private slots:
     void recommendDefaults();
     void onRefreshIntervalChanged(int intervalMs);
     void onPruneKeepDefaultChanged(int keep);
+    void startAppOpenSnapshot();
 
 private:
     void setupUi();

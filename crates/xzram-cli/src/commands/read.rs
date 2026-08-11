@@ -1,5 +1,4 @@
 use tracing::debug;
-use xzram::apply::load_pending;
 use xzram::detect;
 use xzram::doctor;
 use xzram::status;
@@ -43,7 +42,7 @@ pub(crate) fn doctor(json: bool) -> anyhow::Result<()> {
 }
 
 pub(crate) fn pending_show(json: bool) -> anyhow::Result<()> {
-    let pending = load_pending()?;
+    let pending = crate::store_read::load_pending_readable()?;
     if json {
         println!("{}", serde_json::to_string_pretty(&pending)?);
     } else if let Some(p) = pending {

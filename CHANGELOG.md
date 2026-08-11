@@ -18,10 +18,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - xzramd `systemd-run` uses `--expand-environment=no` and `RuntimeMaxSec=300`
 - zram-tools finalize only runs when pending was staged via migrate (not on unrelated applies)
 - Swap device validation rejects `..` path components
+- D-Bus `GetPending` / `ListSnapshots` / `GetSnapshot` require polkit `io.github.xzram.store.read`
+- GUI `XZRAM_CLI` override gated behind `XZRAM_ALLOW_DEV_CLI`; prefers `/usr/bin/xzram`
+- CI GitHub Actions pinned to full commit SHAs
+- Sysctl values validated to kernel-aligned ranges (swappiness 0–200, watermarks 0–10000, page-cluster 0–8)
 
 ### Added
 - Hermetic unit tests for snapshot restore, recommend engine (`recommend_from_context`), and sysctl-only apply under `XZRAM_ETC_ROOT`
 - Packaging hints for zram backends: PKGBUILD `optdepends`, debian `Recommends: systemd-zram-generator`, RPM `Recommends: zram-generator`
+- `xzram snapshot create --trigger app_open|manual`; GUI startup best-effort AppOpen snapshot
+- Split packages: `xzram` (CLI/daemon) and `xzram-gui` (Qt)
 
 ### Changed
 - `XZRAM_ETC_ROOT` honored for zram-generator conf and sysctl drop-in writes; restore skips privileged steps under hermetic etc roots
@@ -32,7 +38,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Migrate maps zram-tools `SIZE`/`PRIORITY`; recommend size evaluator understands percent formulas
 - CI: `permissions: contents: read`, `--locked` builds, Linux-only matrix; Debian package build from RO mount + copy
 - Packaging: PKGBUILD source is repo root (not parent); RPM `%preun`/`%license`; Debian systemd `--no-enable --no-start`
+- Debian Depends: `polkitd | policykit-1 | polkit`; GUI relies on `${shlibs:Depends}` (no nonexistent `qt6-base`); postinst no longer embeds `#DEBHELPER#` in a comment
 - Upstream URLs point at `https://github.com/asafelobotomy/XZram`
+- Snapshot `state_hash` includes canonical runtime swapfile and zram metadata
+- CLI `pending show` / `snapshot list` fall back to D-Bus when store is not readable
 
 ### Removed
 - Flatpak packaging path (`flatpak/` manifest and `docs/FLATPAK.md`); distribution is native packages only (PKGBUILD, debian/, RPM)
@@ -44,6 +53,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Swap partition listing soft-fails unresolved UUIDs; active match uses canonicalize
 - Overflow recommend skips when free-space probe fails; bash-completion covers `snapshot`
 - `xzramd` unit declares `StateDirectory=xzram`; Makefile `install-post` refuses `DESTDIR`
+- GUI Configure recommended defaults no longer wipes staged tab preview via `refreshAll`
+- Partition swap Enable/Disable require confirmation dialogs
+- GUI CLI errors prefer this-process stderr/stdout over shared `/var/lib/xzram/last_error`
+- Doctor issue cards HTML-escape CLI messages; JSON uint64 parsing avoids raw double cast
+- GUI long CLI ops (apply, defaults apply, snapshot restore/rollback, swapfile create/resize, AppOpen) run via async `CliJob` with cancelable progress dialog; startup AppOpen deferred off the constructor
 
 ## [0.2.0] — 2026-07-22
 

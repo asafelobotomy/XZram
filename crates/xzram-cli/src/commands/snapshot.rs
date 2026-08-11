@@ -1,4 +1,4 @@
-use xzram::snapshot;
+use xzram::snapshot::SnapshotTrigger;
 
 use crate::args::SnapshotCommands;
 use crate::dbus_client;
@@ -11,7 +11,7 @@ use crate::snapshot_ops::{
 pub(crate) fn run(command: SnapshotCommands, json: bool, dbus: bool) -> anyhow::Result<()> {
     match command {
         SnapshotCommands::List => {
-            let list = snapshot::list_snapshots()?;
+            let list = crate::store_read::list_snapshots()?;
             if json {
                 println!("{}", serde_json::to_string_pretty(&list)?);
             } else if list.is_empty() {
@@ -23,11 +23,12 @@ pub(crate) fn run(command: SnapshotCommands, json: bool, dbus: bool) -> anyhow::
                 }
             }
         }
-        SnapshotCommands::Create { label } => {
+        SnapshotCommands::Create { label, trigger } => {
+            let trigger = SnapshotTrigger::parse(&trigger)?;
             let meta = if dbus && dbus_client::is_available() {
-                run_snapshot_create_dbus(label.as_deref())?
+                run_snapshot_create_dbus(label.as_deref(), trigger)?
             } else {
-                run_snapshot_create_pkexec(label.as_deref())?
+                run_snapshot_create_pkexec(label.as_deref(), trigger)?
             };
             if json {
                 println!("{}", serde_json::to_string_pretty(&meta)?);

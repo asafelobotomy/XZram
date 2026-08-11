@@ -20,5 +20,8 @@ pub fn validate_staged_pending(pending: &PendingConfig) -> Result<()> {
     if let Some(ref zram) = pending.zram {
         validate_zram_config(zram)?;
     }
+    if let Some(ref sysctl) = pending.sysctl {
+        crate::sysctl::validate_sysctl_values(sysctl)?;
+    }
     Ok(())
 }

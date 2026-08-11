@@ -78,9 +78,44 @@ fn merge_sysctl_overlay(base: SysctlValues, overlay: &SysctlValues) -> SysctlVal
     }
 }
 
+/// Validate sysctl values against kernel-aligned ranges (matches GUI spin caps).
+pub fn validate_sysctl_values(values: &SysctlValues) -> Result<()> {
+    if let Some(v) = values.swappiness {
+        if v > 200 {
+            return Err(XzramError::Validation(format!(
+                "vm.swappiness must be 0–200 (got {v})"
+            )));
+        }
+    }
+    if let Some(v) = values.watermark_boost_factor {
+        if v > 10000 {
+            return Err(XzramError::Validation(format!(
+                "vm.watermark_boost_factor must be 0–10000 (got {v})"
+            )));
+        }
+    }
+    if let Some(v) = values.watermark_scale_factor {
+        if v > 10000 {
+            return Err(XzramError::Validation(format!(
+                "vm.watermark_scale_factor must be 0–10000 (got {v})"
+            )));
+        }
+    }
+    if let Some(v) = values.page_cluster {
+        if v > 8 {
+            return Err(XzramError::Validation(format!(
+                "vm.page-cluster must be 0–8 (got {v})"
+            )));
+        }
+    }
+    Ok(())
+}
+
 pub fn set(values: &SysctlValues) -> Result<()> {
+    validate_sysctl_values(values)?;
     let path = etc_path(SYSCTL_FILE);
     let merged = merge_sysctl_overlay(read_drop_in(&path), values);
+    validate_sysctl_values(&merged)?;
 
     let mut lines = Vec::new();
     if let Some(v) = merged.swappiness {
@@ -166,5 +201,42 @@ mod tests {
         assert!(content.contains("vm.page-cluster = 0"));
         assert!(content.contains("vm.watermark_scale_factor = 125"));
         std::env::remove_var("XZRAM_ETC_ROOT");
+    }
+
+    #[test]
+    fn validate_sysctl_accepts_gui_ranges() {
+        assert!(validate_sysctl_values(&SysctlValues {
+            swappiness: Some(200),
+            watermark_boost_factor: Some(10000),
+            watermark_scale_factor: Some(0),
+            page_cluster: Some(8),
+        })
+        .is_ok());
+        assert!(validate_sysctl_values(&zram_tuning_defaults()).is_ok());
+    }
+
+    #[test]
+    fn validate_sysctl_rejects_out_of_range() {
+        assert!(validate_sysctl_values(&SysctlValues {
+            swappiness: Some(201),
+            watermark_boost_factor: None,
+            watermark_scale_factor: None,
+            page_cluster: None,
+        })
+        .is_err());
+        assert!(validate_sysctl_values(&SysctlValues {
+            swappiness: None,
+            watermark_boost_factor: Some(10001),
+            watermark_scale_factor: None,
+            page_cluster: None,
+        })
+        .is_err());
+        assert!(validate_sysctl_values(&SysctlValues {
+            swappiness: None,
+            watermark_boost_factor: None,
+            watermark_scale_factor: None,
+            page_cluster: Some(9),
+        })
+        .is_err());
     }
 }

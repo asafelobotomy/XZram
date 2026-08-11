@@ -8,13 +8,23 @@ URL:            https://github.com/asafelobotomy/XZram
 Source0:        %{name}-%{version}.tar.gz
 
 BuildRequires:  rust cargo cmake qt6-qtbase-devel
-Requires:       polkit systemd util-linux qt6-qtbase
+Requires:       polkit systemd util-linux
 Recommends:     zram-generator
+Suggests:       %{name}-gui
 
 %description
-XZram is a CLI and Qt6 GUI for creating, removing, and customizing swap on
-systemd-based Linux distributions. It supports zram via systemd-zram-generator,
-swap file management, sysctl tuning, and configuration snapshots.
+XZram is a CLI and system D-Bus daemon for creating, removing, and customizing
+swap on systemd-based Linux distributions. It supports zram via
+systemd-zram-generator, swap file management, sysctl tuning, and configuration
+snapshots.
+
+%package gui
+Summary:        Qt6 GUI for XZram swap management
+Requires:       %{name} = %{version}-%{release} qt6-qtbase
+
+%description gui
+Desktop GUI for XZram that shells out to the xzram CLI for status, staging,
+and polkit-gated apply.
 
 %prep
 %autosetup
@@ -44,7 +54,6 @@ done
 %files
 %license LICENSE
 %{_bindir}/xzram
-%{_bindir}/xzram-qt
 %{_libexecdir}/xzram-helper
 %{_libexecdir}/xzramd
 %{_datadir}/polkit-1/actions/io.github.xzram.policy
@@ -52,6 +61,9 @@ done
 %{_unitdir}/xzramd.service
 %{_datadir}/dbus-1/system.d/io.github.XZram.conf
 %{_datadir}/dbus-1/system-services/io.github.XZram1.service
+
+%files gui
+%{_bindir}/xzram-qt
 %{_datadir}/applications/io.github.XZram.desktop
 %{_datadir}/metainfo/io.github.XZram.metainfo.xml
 %{_datadir}/icons/hicolor/*/apps/io.github.XZram.png
@@ -66,6 +78,9 @@ done
 %systemd_postun xzramd.service
 
 %changelog
+* Tue Aug 11 2026 XZram contributors <xzram@example.com> - 0.2.0-1
+- Split GUI subpackage; store.read polkit; audit follow-ups
+
 * Wed Jul 22 2026 XZram contributors <xzram@example.com> - 0.2.0-1
 - GUI CLI-first runner, settings/snapshot tabs, recommend hardening, versioning
 

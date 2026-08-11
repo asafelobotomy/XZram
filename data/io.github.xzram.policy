@@ -6,6 +6,17 @@
   <vendor>XZram</vendor>
   <vendor_url>https://github.com/asafelobotomy/XZram</vendor_url>
 
+  <action id="io.github.xzram.store.read">
+    <description>Read XZram pending configuration and snapshots</description>
+    <message>Authentication is required to read staged swap configuration and snapshots</message>
+    <icon_name>io.github.XZram</icon_name>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+  </action>
+
   <action id="io.github.xzram.zram.configure">
     <description>Configure ZRAM swap</description>
     <message>Authentication is required to configure ZRAM swap</message>

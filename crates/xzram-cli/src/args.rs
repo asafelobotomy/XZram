@@ -73,10 +73,13 @@ pub enum Commands {
 pub enum SnapshotCommands {
     /// List stored snapshots
     List,
-    /// Create a manual snapshot
+    /// Create a snapshot
     Create {
         #[arg(long)]
         label: Option<String>,
+        /// Snapshot trigger: `manual` (default) or `app_open`
+        #[arg(long, default_value = "manual")]
+        trigger: String,
     },
     /// Restore a snapshot
     Restore {

@@ -2,6 +2,7 @@ set(SOURCES
     main.cpp
     mainwindow.cpp
     xzramcli.cpp
+    clijob.cpp
     formatutils.cpp
     jsonloader.cpp
     resources.qrc
@@ -10,6 +11,7 @@ set(SOURCES
     widgets/zramwidget.cpp
     widgets/swapfilewidget.cpp
     widgets/swapfilewidget_btrfs.cpp
+    widgets/swapfilewidget_partition.cpp
     widgets/sysctlwidget.cpp
     widgets/doctorwidget.cpp
     widgets/recommendeddefaultsdialog.cpp
@@ -21,6 +23,7 @@ set(SOURCES
 set(HEADERS
     mainwindow.h
     xzramcli.h
+    clijob.h
     formatutils.h
     jsonloader.h
     widgets/pendingbanner.h

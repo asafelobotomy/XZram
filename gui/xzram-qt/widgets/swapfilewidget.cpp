@@ -1,5 +1,6 @@
 #include "swapfilewidget.h"
 
+#include "clijob.h"
 #include "jsonloader.h"
 #include "xzramcli.h"
 
@@ -313,15 +314,21 @@ void SwapfileWidget::stageCreate() {
             return;
         }
     }
-    QString error;
-    if (!XzramCli::swapfileCreate(m_pathEdit->text(), static_cast<quint64>(m_sizeSpin->value()),
-                                  m_prioritySpin->value(), &error)) {
-        QMessageBox::warning(this, tr("Stage failed"), error);
-        return;
-    }
-    captureCreateBaseline();
-    updateActionEnabled();
-    emit stagingChanged();
+    QStringList args = XzramCli::argsSwapfileCreate(
+        m_pathEdit->text(), static_cast<quint64>(m_sizeSpin->value()), m_prioritySpin->value());
+    runCliWithProgress(this, tr("Staging swap file create…"), args, 300000,
+                       [this](const XzramCli::RunResult &result) {
+                           if (result.error == QLatin1String("cancelled")) {
+                               return;
+                           }
+                           if (!result.ok) {
+                               QMessageBox::warning(this, tr("Stage failed"), result.error);
+                               return;
+                           }
+                           captureCreateBaseline();
+                           updateActionEnabled();
+                           emit stagingChanged();
+                       });
 }
 
 void SwapfileWidget::stageResize() {
@@ -330,12 +337,18 @@ void SwapfileWidget::stageResize() {
         QMessageBox::information(this, tr("Resize"), tr("Select a swap file row first."));
         return;
     }
-    QString error;
-    if (!XzramCli::swapfileResize(path, static_cast<quint64>(m_sizeSpin->value()), &error)) {
-        QMessageBox::warning(this, tr("Stage failed"), error);
-        return;
-    }
-    emit stagingChanged();
+    runCliWithProgress(this, tr("Staging swap file resize…"),
+                       XzramCli::argsSwapfileResize(path, static_cast<quint64>(m_sizeSpin->value())),
+                       300000, [this](const XzramCli::RunResult &result) {
+                           if (result.error == QLatin1String("cancelled")) {
+                               return;
+                           }
+                           if (!result.ok) {
+                               QMessageBox::warning(this, tr("Stage failed"), result.error);
+                               return;
+                           }
+                           emit stagingChanged();
+                       });
 }
 
 void SwapfileWidget::stageRemove() {
@@ -355,32 +368,4 @@ void SwapfileWidget::stageRemove() {
         return;
     }
     emit stagingChanged();
-}
-
-void SwapfileWidget::swapOnSelected() {
-    const QString device = selectedPartitionDevice();
-    if (device.isEmpty()) {
-        QMessageBox::information(this, tr("Enable swap"), tr("Select a swap partition first."));
-        return;
-    }
-    QString error;
-    if (!XzramCli::swapOn(device, &error)) {
-        QMessageBox::warning(this, tr("Enable swap failed"), error);
-        return;
-    }
-    emit refreshRequested();
-}
-
-void SwapfileWidget::swapOffSelected() {
-    const QString device = selectedPartitionDevice();
-    if (device.isEmpty()) {
-        QMessageBox::information(this, tr("Disable swap"), tr("Select a swap partition first."));
-        return;
-    }
-    QString error;
-    if (!XzramCli::swapOff(device, &error)) {
-        QMessageBox::warning(this, tr("Disable swap failed"), error);
-        return;
-    }
-    emit refreshRequested();
 }

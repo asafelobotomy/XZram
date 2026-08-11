@@ -143,7 +143,7 @@ pub(crate) fn capture_system_state() -> Result<CapturedState> {
     });
 
     let backend = available_swapfile_backend();
-    let swapfiles = backend
+    let mut swapfiles = backend
         .list()
         .unwrap_or_default()
         .into_iter()
@@ -153,13 +153,32 @@ pub(crate) fn capture_system_state() -> Result<CapturedState> {
             priority: sf.priority,
             present_on_disk: Path::new(&sf.path).exists(),
         })
-        .collect();
+        .collect::<Vec<_>>();
+    swapfiles.sort_by(|a, b| a.path.cmp(&b.path));
+
+    hash.update(b"runtime:swapfiles");
+    for sf in &swapfiles {
+        hash.update(sf.path.as_bytes());
+        hash.update(sf.size_mb.to_le_bytes());
+        hash.update(sf.priority.to_le_bytes());
+        hash.update([u8::from(sf.present_on_disk)]);
+    }
+
+    let mut zram_devices = status.zram_devices;
+    zram_devices.sort_by(|a, b| a.name.cmp(&b.name));
+    hash.update(b"runtime:zram");
+    for z in &zram_devices {
+        hash.update(z.name.as_bytes());
+        hash.update(z.algorithm.as_bytes());
+        hash.update(z.disk_size_bytes.to_le_bytes());
+        hash.update(z.mount_point.as_bytes());
+    }
 
     Ok(CapturedState {
         state_hash: format!("{:x}", hash.finalize()),
         artifacts,
         swapfiles,
-        zram_devices: status.zram_devices,
+        zram_devices,
     })
 }
 

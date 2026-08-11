@@ -1,5 +1,6 @@
 #include "mainwindow.h"
 
+#include "clijob.h"
 #include "jsonloader.h"
 #include "xzramcli.h"
 #include "widgets/dashboardwidget.h"
@@ -18,17 +19,21 @@
 #include <QJsonObject>
 #include <QLabel>
 #include <QMessageBox>
+#include <QMetaType>
 #include <QTabWidget>
 #include <QTimer>
 #include <QVBoxLayout>
 #include <QWidget>
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
+    qRegisterMetaType<XzramCli::RunResult>();
     m_refreshTimer = new QTimer(this);
     connect(m_refreshTimer, &QTimer::timeout, this, &MainWindow::refreshLive);
     setupUi();
     configureRefreshTimer(m_settingsPage->refreshIntervalMs());
     refreshAll();
+    // Defer AppOpen so the window can paint; silent best-effort (no progress dialog).
+    QTimer::singleShot(0, this, &MainWindow::startAppOpenSnapshot);
 }
 
 void MainWindow::setupUi() {
@@ -196,13 +201,19 @@ void MainWindow::applyPending() {
         }
     }
 
-    QString error;
-    if (!XzramCli::apply(&error)) {
-        QMessageBox::warning(this, tr("Apply failed"), error);
-        return;
-    }
-    QMessageBox::information(this, tr("Apply"), tr("Pending configuration applied."));
-    refreshAll();
+    runCliWithProgress(this, tr("Applying configuration…"), XzramCli::argsApply(), 300000,
+                       [this](const XzramCli::RunResult &result) {
+                           if (result.error == QLatin1String("cancelled")) {
+                               return;
+                           }
+                           if (!result.ok) {
+                               QMessageBox::warning(this, tr("Apply failed"), result.error);
+                               return;
+                           }
+                           QMessageBox::information(this, tr("Apply"),
+                                                    tr("Pending configuration applied."));
+                           refreshAll();
+                       });
 }
 
 void MainWindow::clearPending() {
@@ -283,14 +294,21 @@ void MainWindow::recommendDefaults() {
     }
 
     if (choice == RecommendedDefaultsDialog::Choice::ApplyDefaults) {
-        QString error;
-        if (!XzramCli::defaultsApply(&error)) {
-            QMessageBox::warning(this, tr("Apply failed"), error);
-            return;
-        }
-        QMessageBox::information(this, tr("Apply complete"),
-                                 tr("Recommended defaults have been applied."));
-        refreshAll();
+        runCliWithProgress(this, tr("Applying recommended defaults…"),
+                           XzramCli::argsDefaultsApply(), 300000,
+                           [this](const XzramCli::RunResult &result) {
+                               if (result.error == QLatin1String("cancelled")) {
+                                   return;
+                               }
+                               if (!result.ok) {
+                                   QMessageBox::warning(this, tr("Apply failed"), result.error);
+                                   return;
+                               }
+                               QMessageBox::information(
+                                   this, tr("Apply complete"),
+                                   tr("Recommended defaults have been applied."));
+                               refreshAll();
+                           });
         return;
     }
 
@@ -307,6 +325,12 @@ void MainWindow::recommendDefaults() {
             this, tr("Defaults staged"),
             tr("Recommended defaults are staged. Review each tab, adjust if needed, then use "
                "Apply in the pending banner."));
-        refreshAll();
+        // Do not refreshAll() here — it reloads live config and wipes staged tab preview.
     }
+}
+
+void MainWindow::startAppOpenSnapshot() {
+    auto *job = new CliJob(this);
+    connect(job, &CliJob::finished, job, &QObject::deleteLater);
+    job->start(XzramCli::argsSnapshotCreateAppOpen(), 60000);
 }

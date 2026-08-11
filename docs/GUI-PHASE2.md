@@ -90,7 +90,12 @@ DeleteSnapshot(s id) / PruneSnapshots   # polkit: io.github.xzram.snapshot.delet
 GUI uses CLI verbs: `xzram snapshot list|create|restore|delete|prune`.
 Daemon still exposes the D-Bus snapshot methods for other clients.
 
-Startup `app_open` snapshots are supported by the library/daemon but are **not** created by the Qt GUI yet (GUI create uses `manual`). See [SNAPSHOTS.md](SNAPSHOTS.md).
+Startup creates a best-effort `app_open` snapshot via async `CliJob` after the first event-loop tick (polkit may prompt; cancel/failure is ignored). Long mutations (apply, restore, rollback, large swapfile stage) use a cancelable progress dialog. See [SNAPSHOTS.md](SNAPSHOTS.md).
+
+### Packaging
+
+- **`xzram`:** CLI, helper, xzramd, polkit/dbus/completion
+- **`xzram-gui`:** xzram-qt + desktop/AppStream/icons (Depends on `xzram` + Qt6)
 
 ## File layout
 

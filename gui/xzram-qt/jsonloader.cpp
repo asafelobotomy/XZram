@@ -56,10 +56,21 @@ int optionalInt(const QJsonObject &obj, const QString &key, int defaultValue) {
 
 quint64 optionalUInt64(const QJsonObject &obj, const QString &key, quint64 defaultValue) {
     const QJsonValue value = obj.value(key);
-    if (!value.isDouble()) {
+    if (value.isNull() || value.isUndefined()) {
         return defaultValue;
     }
-    return static_cast<quint64>(value.toDouble(defaultValue));
+    if (value.isString()) {
+        bool ok = false;
+        const quint64 parsed = value.toString().toULongLong(&ok);
+        return ok ? parsed : defaultValue;
+    }
+    if (value.isDouble() || value.isBool()) {
+        // Prefer QVariant path over double cast to reduce precision loss near 2^53.
+        bool ok = false;
+        const quint64 parsed = value.toVariant().toULongLong(&ok);
+        return ok ? parsed : defaultValue;
+    }
+    return defaultValue;
 }
 
 bool optionalBool(const QJsonObject &obj, const QString &key, bool defaultValue) {

@@ -1,5 +1,6 @@
 #include "snapshotwidget.h"
 
+#include "clijob.h"
 #include "jsonloader.h"
 #include "xzramcli.h"
 
@@ -167,15 +168,20 @@ void SnapshotWidget::restoreSelected() {
         return;
     }
 
-    QString error;
-    if (!XzramCli::snapshotRestore(id, &error)) {
-        QMessageBox::warning(this, tr("Restore failed"), error);
-        return;
-    }
-    QMessageBox::information(this, tr("Restore complete"),
-                             tr("Configuration restored from snapshot."));
-    refresh();
-    emit configurationChanged();
+    runCliWithProgress(this, tr("Restoring snapshot…"), XzramCli::argsSnapshotRestore(id), 300000,
+                       [this](const XzramCli::RunResult &result) {
+                           if (result.error == QLatin1String("cancelled")) {
+                               return;
+                           }
+                           if (!result.ok) {
+                               QMessageBox::warning(this, tr("Restore failed"), result.error);
+                               return;
+                           }
+                           QMessageBox::information(this, tr("Restore complete"),
+                                                    tr("Configuration restored from snapshot."));
+                           refresh();
+                           emit configurationChanged();
+                       });
 }
 
 void SnapshotWidget::deleteSelected() {
@@ -229,13 +235,19 @@ void SnapshotWidget::rollback() {
         return;
     }
 
-    QString error;
-    if (!XzramCli::rollback(&error)) {
-        QMessageBox::warning(this, tr("Rollback failed"), error);
-        return;
-    }
-    QMessageBox::information(this, tr("Rollback complete"),
-                             tr("Last known-good configuration restored."));
-    refresh();
-    emit configurationChanged();
+    runCliWithProgress(this, tr("Rolling back configuration…"), XzramCli::argsRollback(), 300000,
+                       [this](const XzramCli::RunResult &result) {
+                           if (result.error == QLatin1String("cancelled")) {
+                               return;
+                           }
+                           if (!result.ok) {
+                               QMessageBox::warning(this, tr("Rollback failed"), result.error);
+                               return;
+                           }
+                           QMessageBox::information(
+                               this, tr("Rollback complete"),
+                               tr("Last known-good configuration restored."));
+                           refresh();
+                           emit configurationChanged();
+                       });
 }

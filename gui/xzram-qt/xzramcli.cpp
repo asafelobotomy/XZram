@@ -27,10 +27,7 @@ bool isSystemdRunNoise(const QString &text) {
 }
 
 QString bestError(const QString &stderrText, const QString &stdoutText) {
-    const QString last = readLastErrorFile();
-    if (!last.isEmpty()) {
-        return last;
-    }
+    // Prefer this-process streams over shared last_error (avoids stale/cross-process TOCTOU).
     if ((stderrText.contains(QStringLiteral("xzram-helper:"))
          || stderrText.contains(QStringLiteral("xzram:")))
         && !isSystemdRunNoise(stderrText)) {
@@ -46,6 +43,7 @@ QString bestError(const QString &stderrText, const QString &stdoutText) {
     if (!stdoutText.isEmpty() && !isSystemdRunNoise(stdoutText)) {
         return stdoutText;
     }
+    const QString last = readLastErrorFile();
     if (!last.isEmpty()) {
         return last;
     }
@@ -59,17 +57,66 @@ namespace XzramCli {
 
 QString findBinary() {
     const QByteArray overridePath = qgetenv("XZRAM_CLI");
-    if (!overridePath.isEmpty()) {
+    if (!overridePath.isEmpty() && qEnvironmentVariableIsSet("XZRAM_ALLOW_DEV_CLI")) {
         const QString path = QString::fromLocal8Bit(overridePath);
         if (QFile::exists(path)) {
             return path;
         }
+    }
+    const QString packaged = QStringLiteral("/usr/bin/xzram");
+    if (QFile::exists(packaged)) {
+        return packaged;
     }
     const QString path = QStandardPaths::findExecutable(QStringLiteral("xzram"));
     if (!path.isEmpty()) {
         return path;
     }
     return QStringLiteral("xzram");
+}
+
+RunResult resultFromOutput(int exitCode, bool crashed, const QString &stdoutText,
+                           const QString &stderrText) {
+    RunResult result;
+    result.exitCode = exitCode;
+    result.stdoutText = stdoutText;
+    result.stderrText = stderrText;
+    result.ok = !crashed && exitCode == 0;
+    if (!result.ok) {
+        result.error = bestError(stderrText, stdoutText);
+    }
+    return result;
+}
+
+QStringList argsApply() {
+    return {QStringLiteral("apply")};
+}
+
+QStringList argsDefaultsApply() {
+    return {QStringLiteral("defaults"), QStringLiteral("apply"), QStringLiteral("--yes")};
+}
+
+QStringList argsSwapfileCreate(const QString &path, quint64 sizeMb, int priority) {
+    return {QStringLiteral("swapfile"), QStringLiteral("create"), path,
+            QStringLiteral("--size-mb"), QString::number(sizeMb), QStringLiteral("--priority"),
+            QString::number(priority)};
+}
+
+QStringList argsSwapfileResize(const QString &path, quint64 sizeMb) {
+    return {QStringLiteral("swapfile"), QStringLiteral("resize"), path,
+            QStringLiteral("--size-mb"), QString::number(sizeMb)};
+}
+
+QStringList argsSnapshotRestore(const QString &id) {
+    return {QStringLiteral("snapshot"), QStringLiteral("restore"), id};
+}
+
+QStringList argsSnapshotCreateAppOpen() {
+    return {QStringLiteral("snapshot"), QStringLiteral("create"), QStringLiteral("--trigger"),
+            QStringLiteral("app_open")};
+}
+
+QStringList argsRollback() {
+    return {QStringLiteral("rollback")};
 }
 
 RunResult run(const QStringList &args, int timeoutMs) {
@@ -88,14 +135,10 @@ RunResult run(const QStringList &args, int timeoutMs) {
         result.error = QStringLiteral("xzram CLI timed out");
         return result;
     }
-    result.exitCode = process.exitCode();
-    result.stdoutText = QString::fromUtf8(process.readAllStandardOutput()).trimmed();
-    result.stderrText = QString::fromUtf8(process.readAllStandardError()).trimmed();
-    result.ok = process.exitStatus() == QProcess::NormalExit && result.exitCode == 0;
-    if (!result.ok) {
-        result.error = bestError(result.stderrText, result.stdoutText);
-    }
-    return result;
+    return resultFromOutput(
+        process.exitCode(), process.exitStatus() == QProcess::CrashExit,
+        QString::fromUtf8(process.readAllStandardOutput()).trimmed(),
+        QString::fromUtf8(process.readAllStandardError()).trimmed());
 }
 
 QString runJson(const QStringList &args, int timeoutMs) {
@@ -168,7 +211,7 @@ QString snapshotsJson() {
 }
 
 bool apply(QString *error) {
-    return runOk({QStringLiteral("apply")}, error, 300000);
+    return runOk(argsApply(), error, 300000);
 }
 
 bool clearPending(QString *error) {
@@ -197,9 +240,7 @@ bool defaultsStage(QString *error) {
 }
 
 bool defaultsApply(QString *error) {
-    return runOk(
-        {QStringLiteral("defaults"), QStringLiteral("apply"), QStringLiteral("--yes")},
-        error, 300000);
+    return runOk(argsDefaultsApply(), error, 300000);
 }
 
 bool zramSet(const QString &device, const QString &size, const QString &algorithm, int priority,
@@ -227,16 +268,11 @@ bool zramMigrate(QString *error) {
 }
 
 bool swapfileCreate(const QString &path, quint64 sizeMb, int priority, QString *error) {
-    return runOk({QStringLiteral("swapfile"), QStringLiteral("create"), path,
-                  QStringLiteral("--size-mb"), QString::number(sizeMb),
-                  QStringLiteral("--priority"), QString::number(priority)},
-                 error, 300000);
+    return runOk(argsSwapfileCreate(path, sizeMb, priority), error, 300000);
 }
 
 bool swapfileResize(const QString &path, quint64 sizeMb, QString *error) {
-    return runOk({QStringLiteral("swapfile"), QStringLiteral("resize"), path,
-                  QStringLiteral("--size-mb"), QString::number(sizeMb)},
-                 error, 300000);
+    return runOk(argsSwapfileResize(path, sizeMb), error, 300000);
 }
 
 bool swapfileRemove(const QString &path, QString *error) {
@@ -273,8 +309,12 @@ bool snapshotCreate(const QString &label, QString *error) {
     return runOk(args, error);
 }
 
+bool snapshotCreateAppOpen(QString *error) {
+    return runOk(argsSnapshotCreateAppOpen(), error, 60000);
+}
+
 bool snapshotRestore(const QString &id, QString *error) {
-    return runOk({QStringLiteral("snapshot"), QStringLiteral("restore"), id}, error, 300000);
+    return runOk(argsSnapshotRestore(id), error, 300000);
 }
 
 bool snapshotDelete(const QString &id, QString *error) {
@@ -289,7 +329,7 @@ bool snapshotPrune(int keep, QString *error) {
 }
 
 bool rollback(QString *error) {
-    return runOk({QStringLiteral("rollback")}, error, 300000);
+    return runOk(argsRollback(), error, 300000);
 }
 
 } // namespace XzramCli
