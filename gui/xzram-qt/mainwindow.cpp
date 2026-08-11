@@ -35,6 +35,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     m_linkedOptimizeTimer->setSingleShot(true);
     m_linkedOptimizeTimer->setInterval(200);
     connect(m_linkedOptimizeTimer, &QTimer::timeout, this, &MainWindow::runLinkedOptimize);
+    m_linkedOptimizeRunner = new LinkedOptimize::Runner(this);
     setupUi();
     m_linkedOptimizeEnabled = m_settingsPage->linkedOptimize();
     configureRefreshTimer(m_settingsPage->refreshIntervalMs());
@@ -135,6 +136,11 @@ void MainWindow::onPruneKeepDefaultChanged(int keep) {
 
 void MainWindow::onLinkedOptimizeChanged(bool enabled) {
     m_linkedOptimizeEnabled = enabled;
+    if (!enabled) {
+        m_pendingLinkedAnchor.clear();
+        m_linkedOptimizeTimer->stop();
+        m_linkedOptimizeRunner->cancel();
+    }
 }
 
 void MainWindow::onLinkedFieldEdited(const QString &anchor) {
@@ -146,24 +152,21 @@ void MainWindow::onLinkedFieldEdited(const QString &anchor) {
 }
 
 void MainWindow::runLinkedOptimize() {
-    if (!m_linkedOptimizeEnabled || m_pendingLinkedAnchor.isEmpty()) {
+    if (!m_linkedOptimizeEnabled || m_pendingLinkedAnchor.isEmpty() || m_applyingLinkedOptimize) {
         return;
     }
     const QString anchor = m_pendingLinkedAnchor;
     m_pendingLinkedAnchor.clear();
     const QString seed =
         LinkedOptimize::gatherSeedJson(m_zramPage, m_sysctlPage, m_swapfilePage);
-    const QString json = XzramCli::optimizeLinkedJson(anchor, seed);
-    QString parseError;
-    const QJsonObject result = JsonLoader::parseObject(json, &parseError);
-    if (result.contains(QStringLiteral("error"))) {
-        m_statusLabel->setText(
-            tr("Linked optimize failed: %1").arg(result.value(QStringLiteral("error")).toString()));
-        return;
-    }
-    m_applyingLinkedOptimize = true;
-    LinkedOptimize::applyResult(m_zramPage, m_sysctlPage, m_swapfilePage, m_statusLabel, result);
-    m_applyingLinkedOptimize = false;
+    m_linkedOptimizeRunner->start(
+        anchor, seed, m_zramPage, m_sysctlPage, m_swapfilePage, m_statusLabel,
+        [this](bool applying) { m_applyingLinkedOptimize = applying; },
+        [this]() {
+            if (!m_pendingLinkedAnchor.isEmpty()) {
+                m_linkedOptimizeTimer->start();
+            }
+        });
 }
 
 void MainWindow::updateStatusLabel() {

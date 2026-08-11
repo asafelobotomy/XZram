@@ -228,37 +228,6 @@ QString recommendedDefaultsJson(const QString &zramScale, const QString &swapSca
     return runJson(argsDefaultsRecommend(zramScale, swapScale));
 }
 
-QString optimizeLinkedJson(const QString &anchor, const QString &seedJson) {
-    QProcess process;
-    process.setProgram(findBinary());
-    process.setArguments(argsDefaultsOptimizeLinked(anchor));
-    process.start();
-    if (!process.waitForStarted(3000)) {
-        QJsonObject obj;
-        obj.insert(QStringLiteral("error"), QStringLiteral("failed to start xzram CLI"));
-        return QString::fromUtf8(QJsonDocument(obj).toJson(QJsonDocument::Compact));
-    }
-    process.write(seedJson.toUtf8());
-    process.closeWriteChannel();
-    if (!process.waitForFinished(30000)) {
-        process.kill();
-        process.waitForFinished(3000);
-        QJsonObject obj;
-        obj.insert(QStringLiteral("error"), QStringLiteral("xzram CLI timed out"));
-        return QString::fromUtf8(QJsonDocument(obj).toJson(QJsonDocument::Compact));
-    }
-    const RunResult result = resultFromOutput(
-        process.exitCode(), process.exitStatus() == QProcess::CrashExit,
-        QString::fromUtf8(process.readAllStandardOutput()).trimmed(),
-        QString::fromUtf8(process.readAllStandardError()).trimmed());
-    if (!result.ok) {
-        QJsonObject obj;
-        obj.insert(QStringLiteral("error"), result.error);
-        return QString::fromUtf8(QJsonDocument(obj).toJson(QJsonDocument::Compact));
-    }
-    return result.stdoutText;
-}
-
 QString snapshotsJson() {
     return runJson(
         {QStringLiteral("snapshot"), QStringLiteral("list"), QStringLiteral("--json")});

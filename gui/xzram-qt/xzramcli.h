@@ -55,8 +55,6 @@ QString sysctlJson();
 QString pendingJson();
 QString recommendedDefaultsJson();
 QString recommendedDefaultsJson(const QString &zramScale, const QString &swapScale);
-/// Run defaults optimize-linked --json with seed JSON on stdin (via process write).
-QString optimizeLinkedJson(const QString &anchor, const QString &seedJson);
 QString snapshotsJson();
 
 // --- Mutations (no --now unless noted) ---

@@ -39,7 +39,7 @@ private slots:
 
 private:
     void updateLiveStats(const QJsonObject &status);
-    void updateConfigForm(const QJsonValue &config);
+    void updateConfigForm(const QJsonValue &config, bool resetBaseline = true);
     void updateMismatchWarning();
     void captureBaseline();
     bool formDirty() const;

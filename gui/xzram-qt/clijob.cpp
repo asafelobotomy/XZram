@@ -28,13 +28,14 @@ bool CliJob::isRunning() const {
     return m_process->state() != QProcess::NotRunning;
 }
 
-void CliJob::start(const QStringList &args, int timeoutMs) {
+void CliJob::start(const QStringList &args, int timeoutMs, const QByteArray &stdinData) {
     if (isRunning()) {
         return;
     }
     m_emitted = false;
     m_timedOut = false;
     m_canceled = false;
+    m_stdinData = stdinData;
     m_process->setProgram(XzramCli::findBinary());
     m_process->setArguments(args);
     m_process->start();
@@ -52,7 +53,13 @@ void CliJob::cancel() {
     m_process->kill();
 }
 
-void CliJob::onStarted() {}
+void CliJob::onStarted() {
+    if (!m_stdinData.isEmpty()) {
+        m_process->write(m_stdinData);
+        m_stdinData.clear();
+    }
+    m_process->closeWriteChannel();
+}
 
 void CliJob::onFinished(int exitCode, QProcess::ExitStatus status) {
     m_timeout->stop();

@@ -17,6 +17,10 @@ class QTabWidget;
 class QTimer;
 class QJsonObject;
 
+namespace LinkedOptimize {
+class Runner;
+}
+
 class MainWindow : public QMainWindow {
     Q_OBJECT
 
@@ -58,6 +62,7 @@ private:
     QLabel *m_statusLabel;
     QTimer *m_refreshTimer;
     QTimer *m_linkedOptimizeTimer;
+    LinkedOptimize::Runner *m_linkedOptimizeRunner = nullptr;
     QString m_pendingLinkedAnchor;
     bool m_linkedOptimizeEnabled = true;
     bool m_applyingLinkedOptimize = false;

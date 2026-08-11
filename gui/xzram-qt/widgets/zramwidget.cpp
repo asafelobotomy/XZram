@@ -159,14 +159,16 @@ void ZramWidget::setZramConfigJson(const QString &json) {
     updateMismatchWarning();
 }
 
-void ZramWidget::updateConfigForm(const QJsonValue &config) {
+void ZramWidget::updateConfigForm(const QJsonValue &config, bool resetBaseline) {
     if (config.isNull()) {
         m_deviceEdit->setText(QStringLiteral("zram0"));
         m_sizeEdit->setText(QStringLiteral("min(ram / 2, 4096)"));
         m_residentLimitEdit->clear();
         m_algoCombo->setCurrentText(QStringLiteral("zstd"));
         m_prioritySpin->setValue(100);
-        captureBaseline();
+        if (resetBaseline) {
+            captureBaseline();
+        }
         updateActionEnabled();
         return;
     }
@@ -197,7 +199,9 @@ void ZramWidget::updateConfigForm(const QJsonValue &config) {
     if (obj.contains(QStringLiteral("swap_priority"))) {
         m_prioritySpin->setValue(JsonLoader::optionalInt(obj, QStringLiteral("swap_priority"), 100));
     }
-    captureBaseline();
+    if (resetBaseline) {
+        captureBaseline();
+    }
     updateActionEnabled();
 }
 
@@ -336,7 +340,7 @@ void ZramWidget::applyLinkedZram(const QJsonObject &zram) {
         return;
     }
     m_linkedOptimizeBlocked = true;
-    updateConfigForm(zram);
+    // Keep baseline so Stage stays enabled after linked paint.
+    updateConfigForm(zram, false);
     m_linkedOptimizeBlocked = false;
-    updateActionEnabled();
 }

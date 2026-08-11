@@ -1,5 +1,5 @@
 Name:           xzram
-Version:        0.2.0
+Version:        0.3.0
 Release:        1%{?dist}
 Summary:        Cross-distro Linux swap management
 
@@ -78,6 +78,9 @@ done
 %systemd_postun xzramd.service
 
 %changelog
+* Tue Aug 11 2026 XZram contributors <xzram@example.com> - 0.3.0-1
+- Linked auto-optimize, recommend size scales, async GUI linked optimize
+
 * Tue Aug 11 2026 XZram contributors <xzram@example.com> - 0.2.0-1
 - Split GUI subpackage; store.read polkit; audit follow-ups
 

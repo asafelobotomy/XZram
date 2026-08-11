@@ -1,8 +1,11 @@
 #include "linkedoptimize.h"
 
+#include "clijob.h"
+#include "jsonloader.h"
 #include "widgets/swapfilewidget.h"
 #include "widgets/sysctlwidget.h"
 #include "widgets/zramwidget.h"
+#include "xzramcli.h"
 
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -63,6 +66,72 @@ void applyResult(ZramWidget *zram, SysctlWidget *sysctl, SwapfileWidget *swapfil
             QObject::tr("Linked optimize: %1").arg(lines.join(QStringLiteral(" · "))));
         status->setToolTip(lines.join(QLatin1Char('\n')));
     }
+}
+
+Runner::Runner(QObject *parent) : QObject(parent) {}
+
+void Runner::cancel() {
+    ++m_gen;
+    if (m_job) {
+        m_job->cancel();
+        m_job = nullptr;
+    }
+}
+
+void Runner::start(const QString &anchor, const QString &seed, ZramWidget *zram,
+                   SysctlWidget *sysctl, SwapfileWidget *swapfile, QLabel *status,
+                   const std::function<void(bool)> &setApplying,
+                   const std::function<void()> &maybeRerun) {
+    ++m_gen;
+    const quint64 gen = m_gen;
+    if (m_job) {
+        m_job->cancel();
+        m_job = nullptr;
+    }
+
+    auto *job = new CliJob(this);
+    m_job = job;
+    connect(job, &CliJob::finished, this,
+            [this, job, gen, zram, sysctl, swapfile, status, setApplying,
+             maybeRerun](const XzramCli::RunResult &result) {
+                job->deleteLater();
+                if (gen != m_gen) {
+                    return;
+                }
+                m_job = nullptr;
+                if (!result.ok) {
+                    if (status && result.error != QLatin1String("cancelled")) {
+                        status->setText(
+                            QObject::tr("Linked optimize failed: %1").arg(result.error));
+                    }
+                    if (maybeRerun) {
+                        maybeRerun();
+                    }
+                    return;
+                }
+                QString parseError;
+                const QJsonObject parsed = JsonLoader::parseObject(result.stdoutText, &parseError);
+                if (!parseError.isEmpty() || parsed.contains(QStringLiteral("error"))) {
+                    if (status) {
+                        const QString err = parsed.contains(QStringLiteral("error"))
+                                                ? parsed.value(QStringLiteral("error")).toString()
+                                                : parseError;
+                        status->setText(QObject::tr("Linked optimize failed: %1").arg(err));
+                    }
+                    return;
+                }
+                if (setApplying) {
+                    setApplying(true);
+                }
+                applyResult(zram, sysctl, swapfile, status, parsed);
+                if (setApplying) {
+                    setApplying(false);
+                }
+                if (maybeRerun) {
+                    maybeRerun();
+                }
+            });
+    job->start(XzramCli::argsDefaultsOptimizeLinked(anchor), 30000, seed.toUtf8());
 }
 
 } // namespace LinkedOptimize

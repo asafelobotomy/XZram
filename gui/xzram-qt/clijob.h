@@ -3,6 +3,7 @@
 
 #include "xzramcli.h"
 
+#include <QByteArray>
 #include <QObject>
 #include <QProcess>
 #include <QString>
@@ -22,7 +23,8 @@ public:
     ~CliJob() override;
 
     bool isRunning() const;
-    void start(const QStringList &args, int timeoutMs = 120000);
+    void start(const QStringList &args, int timeoutMs = 120000,
+               const QByteArray &stdinData = QByteArray());
     void cancel();
 
 signals:
@@ -39,6 +41,7 @@ private:
 
     QProcess *m_process = nullptr;
     QTimer *m_timeout = nullptr;
+    QByteArray m_stdinData;
     bool m_emitted = false;
     bool m_timedOut = false;
     bool m_canceled = false;

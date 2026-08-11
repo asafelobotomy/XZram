@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-08-11
+
 ### Security
 - Path/INI/argv hardening for swapfile, zram-generator, and swap activate (validation + `--` separators)
 - Advisory store lock for pending/snapshot mutations; helper validates staged pending
@@ -29,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `xzram snapshot create --trigger app_open|manual`; GUI startup best-effort AppOpen snapshot
 - Split packages: `xzram` (CLI/daemon) and `xzram-gui` (Qt)
 - Linked auto-optimize: `xzram defaults optimize-linked` plus GUI Settings toggle (default on) that live-rewrites related ZRAM/sysctl/swapfile fields to recommend-aligned values
+- Recommend size scales (`--zram-scale` / `--swap-scale`) and Low / Recommended / High sliders in the defaults dialog
 
 ### Changed
 - `XZRAM_ETC_ROOT` honored for zram-generator conf and sysctl drop-in writes; restore skips privileged steps under hermetic etc roots
@@ -49,6 +52,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Desktop/AppStream theme icon: install `hicolor` sizes 32–512 as `io.github.XZram.png` in Makefile, PKGBUILD, Debian, RPM; set Qt `desktopFileName` and `StartupWMClass` for taskbar matching
+- Linked optimize: keep ZRAM Stage enabled after paint (no baseline reset); run optimize-linked via async `CliJob` with stdin instead of blocking the UI thread
 - Debian `prerm` no longer disables xzramd on upgrade; `postinst` defers enable/start to dh_installsystemd
 - Migrate finalize propagates `systemctl disable --now` failures
 - Swap partition listing soft-fails unresolved UUIDs; active match uses canonicalize
@@ -60,7 +64,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Doctor issue cards HTML-escape CLI messages; JSON uint64 parsing avoids raw double cast
 - GUI long CLI ops (apply, defaults apply, snapshot restore/rollback, swapfile create/resize, AppOpen) run via async `CliJob` with cancelable progress dialog; startup AppOpen deferred off the constructor
 - Accept `,` / `^` / `%` in zram-size expressions so recommended `min(ram / 2, 4096)` formulas pass helper validation
-- Recommended defaults dialog: Low / Recommended / High sliders for ZRAM and overflow swap (`--zram-scale` / `--swap-scale`)
 
 ## [0.2.0] — 2026-07-22
 
@@ -88,5 +91,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Staged apply, zram/swapfile/sysctl management, doctor, snapshots
 - Packaging stubs (Arch PKGBUILD, Fedora spec, Debian)
 
-[0.2.0]: https://github.com/xzram/xzram/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/xzram/xzram/releases/tag/v0.1.0
+[0.3.0]: https://github.com/asafelobotomy/XZram/compare/v0.2.0...v0.3.0
+[0.2.0]: https://github.com/asafelobotomy/XZram/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/asafelobotomy/XZram/releases/tag/v0.1.0
