@@ -74,6 +74,25 @@ Flatpak: **removed** (see [SCOPE.md](SCOPE.md)).
 
 ---
 
+## Third-pass findings (2026-08-11)
+
+Surfaces newly reviewed: GUI CLI argv, helper discovery, xzramd `systemd-run`, doctor/migrate, packaging scriptlets, CI/install.
+
+| ID | Topic | Status |
+|----|-------|--------|
+| T3-01 | pkexec of non-annotated helper / `XZRAM_DEV_HELPER` | **Mitigated** — annotated path only; dev override gated |
+| T3-02 | `systemd-run` env expansion of helper argv | **Mitigated** — `--expand-environment=no` |
+| T3-03 | Helper timeout without unit RuntimeMaxSec | **Mitigated** — `RuntimeMaxSec=300` on transient unit |
+| T3-M01 | Finalize zram-tools on any apply | **Mitigated** — `pending.finalize_zram_tools` from migrate only |
+| T3-M02 | Migrate finalize ignores systemctl failure | **Mitigated** — propagate disable errors |
+| T3-D01 | Hibernate-on-zram shown healthy | **Mitigated** — severity Error |
+| T3-H02 | `prune --keep 0` deletes all snapshots | **Mitigated** — reject keep=0 |
+| T3-deb | Debian prerm disable-on-upgrade / invalid start | **Mitigated** — prerm/postinst cleaned |
+
+Open follow-ups (not blocking): swap UUID soft-fail listing, AppOpen hash excludes runtime swap state, PKGBUILD `source=` path, CI action SHA pinning, RPM `%preun`/`%license`, bash-completion `snapshot`.
+
+---
+
 ## Release checklist (polkit / privileged)
 
 Before tagging a release that touches helper, daemon, or polkit:

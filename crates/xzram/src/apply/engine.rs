@@ -53,7 +53,10 @@ pub(crate) fn apply_from_pending(pending: &PendingConfig) -> Result<ApplyResult>
         result.messages.push("Applied sysctl values".into());
     }
 
-    if std::env::var_os("XZRAM_ETC_ROOT").is_none() && migrate::zramswap_config_exists() {
+    if pending.finalize_zram_tools
+        && std::env::var_os("XZRAM_ETC_ROOT").is_none()
+        && migrate::zramswap_config_exists()
+    {
         let migrate_msgs = migrate::finalize_zram_tools_migration()?;
         result.messages.extend(migrate_msgs);
     }

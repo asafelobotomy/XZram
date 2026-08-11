@@ -27,10 +27,12 @@ pub(crate) fn run(command: SwapCommands, json: bool, dbus: bool) -> anyhow::Resu
             }
         }
         SwapCommands::On { device } => {
+            xzram::validation::validate_swap_device(&device)?;
             let payload = serde_json::json!({ "action": "on", "device": device });
             run_privileged(dbus, "swap.activate", &payload.to_string())?;
         }
         SwapCommands::Off { device } => {
+            xzram::validation::validate_swap_device(&device)?;
             let payload = serde_json::json!({ "action": "off", "device": device });
             run_privileged(dbus, "swap.activate", &payload.to_string())?;
         }

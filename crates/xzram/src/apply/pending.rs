@@ -115,6 +115,9 @@ fn merge_pending(current: &mut PendingConfig, partial: &PendingConfig) {
     if let Some(ref sysctl) = partial.sysctl {
         current.sysctl = Some(merge_sysctl(current.sysctl.as_ref(), sysctl));
     }
+    if partial.finalize_zram_tools {
+        current.finalize_zram_tools = true;
+    }
 }
 
 fn merge_sysctl(existing: Option<&SysctlValues>, incoming: &SysctlValues) -> SysctlValues {
@@ -170,6 +173,7 @@ pub fn pending_is_empty(config: &PendingConfig) -> bool {
         && config.swapfile_resize.is_none()
         && config.remove_swapfile.is_none()
         && config.sysctl.is_none()
+        && !config.finalize_zram_tools
 }
 
 #[cfg(test)]

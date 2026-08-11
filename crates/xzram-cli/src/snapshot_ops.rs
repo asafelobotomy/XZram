@@ -2,7 +2,7 @@ use std::process::Command;
 
 use xzram::snapshot::{self, SnapshotTrigger};
 
-use crate::privileged::find_helper;
+use crate::privileged::find_helper_for_pkexec;
 
 pub(crate) fn resolve_snapshot_id(id: &str) -> anyhow::Result<String> {
     match id {
@@ -23,7 +23,7 @@ pub(crate) fn run_snapshot_create_pkexec(
         "trigger": SnapshotTrigger::Manual.as_str(),
         "label": label,
     });
-    let helper = find_helper()?;
+    let helper = find_helper_for_pkexec()?;
     let output = Command::new("pkexec")
         .arg(&helper)
         .arg("snapshot.create")

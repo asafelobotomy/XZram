@@ -146,7 +146,7 @@ fn check_zswap(issues: &mut Vec<DoctorIssue>) {
 fn check_hibernation(issues: &mut Vec<DoctorIssue>, swaps: &[crate::status::SwapEntry]) {
     if checks::hibernation_zram_conflict(swaps) {
         issues.push(DoctorIssue {
-            severity: IssueSeverity::Warning,
+            severity: IssueSeverity::Error,
             code: "hibernate_zram".into(),
             message: "Hibernation resume device points to zram".into(),
             suggestion: Some(

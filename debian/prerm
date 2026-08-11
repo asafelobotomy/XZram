@@ -2,10 +2,9 @@
 set -e
 
 case "$1" in
-    remove|upgrade|deconfigure)
-        if command -v deb-systemd-helper >/dev/null 2>&1; then
-            deb-systemd-helper stop xzramd.service >/dev/null || true
-            deb-systemd-helper disable xzramd.service >/dev/null || true
+    remove|deconfigure)
+        if command -v deb-systemd-invoke >/dev/null 2>&1; then
+            deb-systemd-invoke stop xzramd.service >/dev/null || true
         fi
         ;;
 esac

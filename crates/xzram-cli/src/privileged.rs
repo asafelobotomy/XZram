@@ -1,11 +1,15 @@
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use tracing::info;
 
 use crate::dbus_client;
 
+/// Polkit policy annotates only this path (`org.freedesktop.policykit.exec.path`).
+const ANNOTATED_HELPER: &str = "/usr/libexec/xzram-helper";
+
 pub(crate) fn run_privileged_pkexec(action: &str, payload: &str) -> anyhow::Result<()> {
-    let helper = find_helper()?;
+    let helper = find_helper_for_pkexec()?;
     let status = Command::new("pkexec")
         .arg(&helper)
         .arg(action)
@@ -52,33 +56,26 @@ fn run_via_dbus(action: &str, payload: &str) -> anyhow::Result<()> {
     dbus_client::call(action, payload)
 }
 
-pub(crate) fn find_helper() -> anyhow::Result<String> {
-    if let Ok(dev) = std::env::var("XZRAM_DEV_HELPER") {
-        if std::path::Path::new(&dev).exists() {
-            return Ok(dev);
+/// Helper path for pkexec — must match the polkit `exec.path` annotation unless
+/// explicitly opted into a development binary via `XZRAM_ALLOW_DEV_HELPER=1`.
+pub(crate) fn find_helper_for_pkexec() -> anyhow::Result<String> {
+    if std::env::var_os("XZRAM_ALLOW_DEV_HELPER").is_some() {
+        if let Ok(dev) = std::env::var("XZRAM_DEV_HELPER") {
+            let path = PathBuf::from(&dev);
+            if path.is_absolute() && path.exists() {
+                info!(?path, "using XZRAM_DEV_HELPER (XZRAM_ALLOW_DEV_HELPER set)");
+                return Ok(dev);
+            }
+            anyhow::bail!("XZRAM_DEV_HELPER must be an absolute existing path");
         }
     }
 
-    for path in [
-        "/usr/libexec/xzram-helper",
-        "/usr/local/libexec/xzram-helper",
-        concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../xzram-helper/../../target/release/xzram-helper"
-        ),
-    ] {
-        if std::path::Path::new(path).exists() {
-            return Ok(path.into());
-        }
+    if Path::new(ANNOTATED_HELPER).exists() {
+        return Ok(ANNOTATED_HELPER.into());
     }
 
-    let local_libexec = format!(
-        "{}/.local/libexec/xzram-helper",
-        std::env::var("HOME").unwrap_or_else(|_| "/root".into())
-    );
-    if std::path::Path::new(&local_libexec).exists() {
-        return Ok(local_libexec);
-    }
-
-    anyhow::bail!("xzram-helper not found; install xzram or set XZRAM_DEV_HELPER")
+    anyhow::bail!(
+        "xzram-helper not found at {ANNOTATED_HELPER}; install the xzram package \
+         (or set XZRAM_ALLOW_DEV_HELPER=1 and XZRAM_DEV_HELPER for development)"
+    )
 }

@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Best-effort `restorecon -F` after swapfile create/resize when SELinux tools are present
 - GUI CLI error JSON built with `QJsonDocument` (no manual quote escaping)
 - SteamOS/immutable detection expanded (`steamos` id/VARIANT, `steamos-readonly`, `/etc/steamos-release`)
+- pkexec helper path restricted to annotated `/usr/libexec/xzram-helper` (dev override requires `XZRAM_ALLOW_DEV_HELPER`)
+- xzramd `systemd-run` uses `--expand-environment=no` and `RuntimeMaxSec=300`
+- zram-tools finalize only runs when pending was staged via migrate (not on unrelated applies)
 
 ### Added
 - Hermetic unit tests for snapshot restore, recommend engine (`recommend_from_context`), and sysctl-only apply under `XZRAM_ETC_ROOT`
@@ -22,12 +25,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - `XZRAM_ETC_ROOT` honored for zram-generator conf and sysctl drop-in writes; restore skips privileged steps under hermetic etc roots
 - Living audit register rewrite ([docs/AUDIT.md](docs/AUDIT.md)); Snapshot GUI docs updated for delete/prune
+- Doctor marks hibernation-on-zram as Error (not Warning)
+- Snapshot prune rejects `keep=0`; CLI validates swap devices before pkexec
 
 ### Removed
 - Flatpak packaging path (`flatpak/` manifest and `docs/FLATPAK.md`); distribution is native packages only (PKGBUILD, debian/, RPM)
 
 ### Fixed
 - Desktop/AppStream theme icon: install `hicolor` sizes 32–512 as `io.github.XZram.png` in Makefile, PKGBUILD, Debian, RPM; set Qt `desktopFileName` and `StartupWMClass` for taskbar matching
+- Debian `prerm` no longer disables xzramd on upgrade; `postinst` defers enable/start to dh_installsystemd
+- Migrate finalize propagates `systemctl disable --now` failures
 
 ## [0.2.0] — 2026-07-22
 

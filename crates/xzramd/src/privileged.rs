@@ -3,6 +3,7 @@ use std::process::Command;
 use std::time::Duration;
 
 const HELPER_TIMEOUT: Duration = Duration::from_secs(300);
+const ANNOTATED_HELPER: &str = "/usr/libexec/xzram-helper";
 
 /// Run a privileged xzram-helper action outside the xzramd systemd sandbox.
 ///
@@ -27,12 +28,15 @@ fn run_helper_blocking(action: &str, payload: &str) -> zbus::fdo::Result<Vec<Str
             "--wait",
             "--collect",
             "--pipe",
+            "--expand-environment=no",
             "-p",
             "ProtectSystem=no",
             "-p",
             "ProtectHome=no",
             "-p",
             "ProtectKernelTunables=no",
+            "-p",
+            "RuntimeMaxSec=300",
             &helper,
             action,
             payload,
@@ -72,16 +76,11 @@ fn run_helper_blocking(action: &str, payload: &str) -> zbus::fdo::Result<Vec<Str
 }
 
 fn locate_helper() -> zbus::fdo::Result<String> {
-    const CANDIDATES: &[&str] = &[
-        "/usr/libexec/xzram-helper",
-        "/usr/local/libexec/xzram-helper",
-    ];
-    for path in CANDIDATES {
-        if Path::new(path).exists() {
-            return Ok((*path).to_string());
-        }
+    // Must match polkit `exec.path` annotation in data/io.github.xzram.policy.
+    if Path::new(ANNOTATED_HELPER).exists() {
+        return Ok(ANNOTATED_HELPER.to_string());
     }
     Err(zbus::fdo::Error::Failed(
-        "xzram-helper not found; install the xzram package".into(),
+        "xzram-helper not found at /usr/libexec/xzram-helper; install the xzram package".into(),
     ))
 }

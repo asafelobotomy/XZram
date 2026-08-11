@@ -60,6 +60,7 @@ pub fn migrate_from_zram_tools() -> Result<PendingConfig> {
             fs_type: None,
             mount_point: None,
         }),
+        finalize_zram_tools: true,
         ..Default::default()
     })
 }
@@ -72,8 +73,14 @@ pub fn finalize_zram_tools_migration() -> Result<Vec<String>> {
 
     let mut messages = Vec::new();
 
-    let _ = apply::run_systemctl(&["disable", "--now", "zramswap.service"]);
-    messages.push("Disabled zramswap.service".into());
+    match apply::run_systemctl(&["disable", "--now", "zramswap.service"]) {
+        Ok(()) => messages.push("Disabled zramswap.service".into()),
+        Err(e) => {
+            return Err(XzramError::Command(format!(
+                "failed to disable zramswap.service before archiving config: {e}"
+            )));
+        }
+    }
 
     let archive = snapshot::etc_root().join("default/zramswap.xzram.bak");
     std::fs::rename(zramswap_path(), &archive)?;

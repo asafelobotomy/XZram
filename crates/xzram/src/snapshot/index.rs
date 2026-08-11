@@ -64,6 +64,11 @@ fn delete_snapshot_unlocked(id: &str) -> Result<()> {
 }
 
 pub fn prune_snapshots(keep: usize) -> Result<u32> {
+    if keep == 0 {
+        return Err(XzramError::Validation(
+            "prune keep must be at least 1 (refusing to delete all snapshots)".into(),
+        ));
+    }
     with_store_lock(|| {
         let index = load_index()?;
         if index.len() <= keep {

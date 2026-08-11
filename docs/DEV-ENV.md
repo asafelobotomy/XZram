@@ -7,7 +7,8 @@ variables in the shell (or test harness) as needed.
 |----------|---------|
 | `XZRAM_DATA_DIR` | Override `/var/lib/xzram` (pending config, snapshots). Used heavily in unit tests. |
 | `XZRAM_ETC_ROOT` | Override filesystem root for `/etc` paths during snapshot/restore tests. |
-| `XZRAM_DEV_HELPER` | Absolute path to a development `xzram-helper` binary; bypasses system helper lookup. |
+| `XZRAM_DEV_HELPER` | Absolute path to a development `xzram-helper` binary. Only used when `XZRAM_ALLOW_DEV_HELPER=1` is also set (pkexec must otherwise use `/usr/libexec/xzram-helper`). |
+| `XZRAM_ALLOW_DEV_HELPER` | Opt-in to allow `XZRAM_DEV_HELPER` for pkexec (development only). |
 | `RUST_LOG` | Tracing filter for `xzram`, `xzram-helper`, and `xzramd` (via `tracing-subscriber`). Default when unset: `warn`. |
 
 Example (scratch dirs for a manual apply dry-run in tests):
@@ -28,6 +29,7 @@ RUST_LOG=debug cargo run -p xzram-cli -- status
 When pointing the CLI at a locally built helper:
 
 ```bash
+export XZRAM_ALLOW_DEV_HELPER=1
 export XZRAM_DEV_HELPER=$PWD/target/debug/xzram-helper
 cargo run -p xzram-cli -- status
 ```

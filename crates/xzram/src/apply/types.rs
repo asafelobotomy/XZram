@@ -46,6 +46,9 @@ pub struct PendingConfig {
     pub swapfile_resize: Option<SwapfileResizeConfig>,
     pub remove_swapfile: Option<String>,
     pub sysctl: Option<SysctlValues>,
+    /// When true, apply archives zram-tools config and disables zramswap.service.
+    #[serde(default)]
+    pub finalize_zram_tools: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
