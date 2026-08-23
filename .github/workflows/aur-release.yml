@@ -131,11 +131,23 @@ jobs:
           if-no-files-found: error
 
       - name: Attach packages to GitHub Release
-        if: github.event_name == 'release'
+        if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && steps.meta.outputs.mode == 'release')
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           shopt -s nullglob
-          files=(aur-out/*.pkg.tar.zst aur-out/*.pkg.tar.xz aur-out/PKGBUILD aur-out/.SRCINFO)
-          gh release upload "${{ github.event.release.tag_name }}" "${files[@]}" --clobber
+          tag="${{ steps.meta.outputs.tag }}"
+          files=(aur-out/*.pkg.tar.zst aur-out/*.pkg.tar.xz)
+          # Prefer non-debug packages on the release page.
+          upload=()
+          for f in "${files[@]}"; do
+            [[ "$f" == *-debug-* ]] && continue
+            upload+=("$f")
+          done
+          upload+=(aur-out/PKGBUILD)
+          if [[ -f aur-out/.SRCINFO ]]; then
+            cp aur-out/.SRCINFO aur-out/SRCINFO
+            upload+=(aur-out/SRCINFO)
+          fi
+          gh release upload "$tag" "${upload[@]}" --clobber
