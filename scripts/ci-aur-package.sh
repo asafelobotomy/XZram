@@ -88,25 +88,22 @@ case "$AUR_MODE" in
     ;;
 esac
 
-# Non-root builder required by makepkg.
+# Ensure build tools and a non-root makepkg user (container root path).
 if [[ "$(id -u)" -eq 0 ]]; then
+  pacman -Syu --noconfirm --needed \
+    base-devel git namcap sudo curl shadow util-linux \
+    rust cargo cmake qt6-base \
+    polkit systemd
   if ! id builder >/dev/null 2>&1; then
     useradd --create-home --shell /bin/bash builder
   fi
+  mkdir -p /etc/sudoers.d
   printf 'builder ALL=(ALL) NOPASSWD: /usr/bin/pacman\n' >/etc/sudoers.d/builder-pacman
   chmod 440 /etc/sudoers.d/builder-pacman
   chown -R builder:builder "$workdir"
   run() { runuser -u builder -- env HOME=/home/builder "$@"; }
 else
   run() { env "$@"; }
-fi
-
-# Ensure build tools (best-effort when root in container).
-if [[ "$(id -u)" -eq 0 ]]; then
-  pacman -Syu --noconfirm --needed \
-    base-devel git namcap sudo curl \
-    rust cargo cmake qt6-base \
-    polkit systemd util-linux
 fi
 
 run makepkg --syncdeps --cleanbuild --noconfirm --force
