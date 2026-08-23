@@ -69,7 +69,8 @@ case "$AUR_MODE" in
   release)
     echo "Downloading $source_url"
     curl -fsSL -o "$tarball" "$source_url"
-    top="$(tar -tzf "$tarball" | awk -F/ 'NR==1 { print $1; exit }')"
+    tar -tzf "$tarball" >"$workdir/tarball.list"
+    top="$(awk -F/ 'NR==1 { print $1; exit }' "$workdir/tarball.list")"
     if [[ "$top" != "$extract_prefix" ]]; then
       echo "unexpected archive root '$top' (expected '$extract_prefix')" >&2
       exit 1
