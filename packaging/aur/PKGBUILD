@@ -16,7 +16,7 @@ _srcname=XZram
 # GitHub source archives for tag v$pkgver extract to XZram-$pkgver (leading v stripped).
 source=("$_srcname-$pkgver.tar.gz::https://github.com/asafelobotomy/XZram/archive/refs/tags/v$pkgver.tar.gz")
 # Placeholder until the first v$pkgver GitHub release exists; release CI runs updpkgsums.
-sha256sums=('SKIP')
+sha256sums=('86883f5aad55f397df24a01e46622f10fb0b895e23a25386fa832de215cbea76')
 
 prepare() {
   cd "$_srcname-$pkgver"

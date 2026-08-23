@@ -11,7 +11,7 @@ pkgbase = xzram
 	makedepends = cmake
 	makedepends = qt6-base
 	source = XZram-0.3.0.tar.gz::https://github.com/asafelobotomy/XZram/archive/refs/tags/v0.3.0.tar.gz
-	sha256sums = SKIP
+	sha256sums = 86883f5aad55f397df24a01e46622f10fb0b895e23a25386fa832de215cbea76
 
 pkgname = xzram
 	pkgdesc = CLI, helper, and D-Bus daemon for Linux swap management
