@@ -50,11 +50,11 @@ concurrency:
 
 jobs:
   aur-build:
-    name: Build AUR packages (${{ github.event_name == 'release' && 'release' || inputs.mode || 'local' }})
+    name: Build AUR packages
     runs-on: ubuntu-latest
     timeout-minutes: 90
     permissions:
-      contents: ${{ github.event_name == 'release' && 'write' || 'read' }}
+      contents: write
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -62,14 +62,19 @@ jobs:
 
       - name: Resolve build mode
         id: meta
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          DISPATCH_MODE: ${{ github.event.inputs.mode }}
+          DISPATCH_TAG: ${{ github.event.inputs.tag }}
         run: |
           set -euo pipefail
-          if [[ "${{ github.event_name }}" == "release" ]]; then
+          if [[ "$EVENT_NAME" == "release" ]]; then
             mode=release
-            tag="${{ github.event.release.tag_name }}"
-          elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            mode="${{ inputs.mode }}"
-            tag="${{ inputs.tag }}"
+            tag="$RELEASE_TAG"
+          elif [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            mode="${DISPATCH_MODE:-local}"
+            tag="${DISPATCH_TAG:-}"
           else
             mode=local
             tag=""
