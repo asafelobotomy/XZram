@@ -139,7 +139,10 @@ jobs:
           grep -q "^pkgbase=xzram$" packaging/aur/PKGBUILD
           grep -q "pkgname=('xzram' 'xzram-gui')" packaging/aur/PKGBUILD
           grep -q 'cargo build --release --locked' packaging/aur/PKGBUILD
-          grep -q 'archive/refs/tags/v\$pkgver.tar.gz' packaging/aur/PKGBUILD
-          ! grep -q 'file://' packaging/aur/PKGBUILD
+          grep -q 'archive/refs/tags/v$pkgver.tar.gz' packaging/aur/PKGBUILD
+          if grep -E '^[[:space:]]*source=.*file://' packaging/aur/PKGBUILD; then
+            echo "AUR PKGBUILD must not use file:// sources" >&2
+            exit 1
+          fi
           test -f packaging/aur/.SRCINFO
           test -x scripts/ci-aur-package.sh
