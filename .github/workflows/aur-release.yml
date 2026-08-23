@@ -1,0 +1,133 @@
+name: AUR package
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - packaging/aur/**
+      - scripts/ci-aur-package.sh
+      - .github/workflows/aur-release.yml
+      - Cargo.lock
+      - Cargo.toml
+      - crates/**
+      - gui/**
+      - data/**
+      - VERSION
+  pull_request:
+    paths:
+      - packaging/aur/**
+      - scripts/ci-aur-package.sh
+      - .github/workflows/aur-release.yml
+      - Cargo.lock
+      - Cargo.toml
+      - crates/**
+      - gui/**
+      - data/**
+      - VERSION
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Build mode"
+        required: true
+        default: local
+        type: choice
+        options:
+          - local
+          - release
+      tag:
+        description: "Release tag for release mode (e.g. v0.3.0)"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: aur-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  aur-build:
+    name: Build AUR packages (${{ github.event_name == 'release' && 'release' || inputs.mode || 'local' }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: ${{ github.event_name == 'release' && 'write' || 'read' }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Resolve build mode
+        id: meta
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            mode=release
+            tag="${{ github.event.release.tag_name }}"
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            mode="${{ inputs.mode }}"
+            tag="${{ inputs.tag }}"
+          else
+            mode=local
+            tag=""
+          fi
+          if [[ "$mode" == "release" && -z "$tag" ]]; then
+            echo "release mode requires a tag" >&2
+            exit 1
+          fi
+          pkgver="$(sed -n 's/^pkgver=//p' packaging/aur/PKGBUILD | head -1)"
+          echo "mode=$mode" >>"$GITHUB_OUTPUT"
+          echo "tag=$tag" >>"$GITHUB_OUTPUT"
+          echo "pkgver=$pkgver" >>"$GITHUB_OUTPUT"
+          echo "Building AUR mode=$mode tag=${tag:-none} pkgver=$pkgver"
+
+      - name: Validate AUR PKGBUILD shape
+        run: |
+          set -euo pipefail
+          grep -q "^pkgbase=xzram$" packaging/aur/PKGBUILD
+          grep -q "pkgname=('xzram' 'xzram-gui')" packaging/aur/PKGBUILD
+          grep -q 'cargo build --release --locked' packaging/aur/PKGBUILD
+          grep -q 'archive/refs/tags/v\$pkgver.tar.gz' packaging/aur/PKGBUILD
+          ! grep -q 'file://' packaging/aur/PKGBUILD
+
+      - name: Build packages in Arch container
+        env:
+          AUR_MODE: ${{ steps.meta.outputs.mode }}
+          AUR_TAG: ${{ steps.meta.outputs.tag }}
+          AUR_OUT: /out
+        run: |
+          set -euo pipefail
+          mkdir -p "$PWD/aur-out"
+          docker run --rm \
+            -v "$PWD:/src:ro" \
+            -v "$PWD/aur-out:/out" \
+            -e AUR_MODE \
+            -e AUR_TAG \
+            -e AUR_OUT=/out \
+            -e SRC_ROOT=/src \
+            archlinux:latest \
+            bash /src/scripts/ci-aur-package.sh
+
+      - name: Upload AUR build artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: xzram-aur-${{ steps.meta.outputs.pkgver }}-${{ steps.meta.outputs.mode }}
+          path: |
+            aur-out/PKGBUILD
+            aur-out/.SRCINFO
+            aur-out/*.pkg.tar.zst
+            aur-out/*.pkg.tar.xz
+          if-no-files-found: error
+
+      - name: Attach packages to GitHub Release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=(aur-out/*.pkg.tar.zst aur-out/*.pkg.tar.xz aur-out/PKGBUILD aur-out/.SRCINFO)
+          gh release upload "${{ github.event.release.tag_name }}" "${files[@]}" --clobber

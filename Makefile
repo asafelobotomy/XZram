@@ -88,6 +88,7 @@ version-check:
 	@grep -q 'version = "$(XZRAM_VERSION)"' Cargo.toml
 	@grep -q 'project(xzram-qt VERSION $(XZRAM_VERSION)' gui/CMakeLists.txt
 	@grep -q '^pkgver=$(XZRAM_VERSION)$$' PKGBUILD
+	@grep -q '^pkgver=$(XZRAM_VERSION)$$' packaging/aur/PKGBUILD
 	@grep -q '^Version:[[:space:]]*$(XZRAM_VERSION)$$' packaging/xzram.spec
 	@grep -q 'version="$(XZRAM_VERSION)"' data/io.github.XZram.metainfo.xml
 	@head -1 debian/changelog | grep -q "$(XZRAM_VERSION)-"

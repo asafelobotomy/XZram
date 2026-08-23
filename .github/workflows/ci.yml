@@ -126,10 +126,20 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      - name: Validate PKGBUILD syntax
+      - name: Validate local PKGBUILD syntax
         run: |
           grep -q "pkgname=(" PKGBUILD
           grep -q '^pkgver=' PKGBUILD
           grep -q 'cargo build --release --locked' PKGBUILD
           grep -q 'file://\$startdir"' PKGBUILD
           ! grep -q 'file://\$startdir/\.\.' PKGBUILD
+
+      - name: Validate AUR PKGBUILD shape
+        run: |
+          grep -q "^pkgbase=xzram$" packaging/aur/PKGBUILD
+          grep -q "pkgname=('xzram' 'xzram-gui')" packaging/aur/PKGBUILD
+          grep -q 'cargo build --release --locked' packaging/aur/PKGBUILD
+          grep -q 'archive/refs/tags/v\$pkgver.tar.gz' packaging/aur/PKGBUILD
+          ! grep -q 'file://' packaging/aur/PKGBUILD
+          test -f packaging/aur/.SRCINFO
+          test -x scripts/ci-aur-package.sh

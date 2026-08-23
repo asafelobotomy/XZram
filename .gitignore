@@ -1,5 +1,6 @@
 /target/
 /build-gui/
+/aur-out/
 **/*.rs.bk
 *.pdb
 *.pkg.tar.zst
