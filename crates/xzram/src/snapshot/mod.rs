@@ -13,6 +13,6 @@ pub use restore::*;
 pub use types::*;
 
 #[cfg(test)]
-pub(crate) fn test_lock() -> &'static std::sync::Mutex<()> {
+pub(crate) fn test_lock() -> std::sync::MutexGuard<'static, ()> {
     crate::test_env_lock()
 }

@@ -143,7 +143,7 @@ mod tests {
 
     #[test]
     fn apply_pending_empty_errors() {
-        let _guard = test_lock().lock().unwrap();
+        let _guard = test_lock();
         let dir = tempfile::tempdir().unwrap();
         std::env::set_var("XZRAM_DATA_DIR", dir.path());
         write_pending(&PendingConfig::default()).unwrap();
@@ -154,7 +154,7 @@ mod tests {
 
     #[test]
     fn apply_from_pending_sysctl_under_etc_root() {
-        let _guard = test_lock().lock().unwrap();
+        let _guard = test_lock();
         let data = tempfile::tempdir().unwrap();
         let etc = tempfile::tempdir().unwrap();
         std::env::set_var("XZRAM_DATA_DIR", data.path());
@@ -184,7 +184,7 @@ mod tests {
 
     #[test]
     fn stage_then_apply_sysctl_bundle() {
-        let _guard = test_lock().lock().unwrap();
+        let _guard = test_lock();
         let data = tempfile::tempdir().unwrap();
         let etc = tempfile::tempdir().unwrap();
         std::env::set_var("XZRAM_DATA_DIR", data.path());

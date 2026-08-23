@@ -281,7 +281,7 @@ mod tests {
 
     #[test]
     fn restore_unknown_id_errors() {
-        let _guard = test_lock().lock().unwrap();
+        let _guard = test_lock();
         let _env = test_env();
         let err = restore_snapshot("does-not-exist").unwrap_err().to_string();
         assert!(err.contains("not found") || err.contains("NotFound") || err.contains("missing"));
@@ -290,7 +290,7 @@ mod tests {
 
     #[test]
     fn restore_writes_etc_files_from_snapshot() {
-        let _guard = test_lock().lock().unwrap();
+        let _guard = test_lock();
         let env = test_env();
         let etc = env._etc.path();
 

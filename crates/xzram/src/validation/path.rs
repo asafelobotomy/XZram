@@ -287,7 +287,7 @@ mod tests {
 
     #[test]
     fn rejects_symlink_components() {
-        let _guard = crate::test_env_lock().lock().unwrap();
+        let _guard = crate::test_env_lock();
         let dir = tempfile::tempdir().unwrap();
         let target = dir.path().join("target");
         let link = dir.path().join("link");
@@ -298,7 +298,7 @@ mod tests {
 
     #[test]
     fn removable_requires_known_swap() {
-        let _guard = crate::test_env_lock().lock().unwrap();
+        let _guard = crate::test_env_lock();
         let etc = tempfile::tempdir().unwrap();
         std::env::set_var("XZRAM_ETC_ROOT", etc.path());
         fs::write(

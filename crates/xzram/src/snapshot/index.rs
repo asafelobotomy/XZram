@@ -198,7 +198,7 @@ mod tests {
 
     #[test]
     fn list_snapshots_empty_without_creating_store() {
-        let _guard = test_lock().lock().unwrap();
+        let _guard = test_lock();
         let data = tempfile::tempdir().unwrap();
         std::env::set_var("XZRAM_DATA_DIR", data.path());
         assert!(list_snapshots().unwrap().is_empty());
@@ -208,7 +208,7 @@ mod tests {
 
     #[test]
     fn delete_and_prune_snapshots() {
-        let _guard = test_lock().lock().unwrap();
+        let _guard = test_lock();
         let env = test_env();
         fs::write(env._etc.path().join("fstab"), "a\n").unwrap();
         create_snapshot(SnapshotTrigger::Manual, Some("one"), None).unwrap();

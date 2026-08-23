@@ -156,6 +156,7 @@ mod tests {
 
     #[test]
     fn managed_path_honors_etc_root() {
+        let _guard = crate::test_env_lock();
         let etc = tempfile::tempdir().unwrap();
         std::env::set_var("XZRAM_ETC_ROOT", etc.path());
         let path = ZramGeneratorBackend::managed_config_path();

@@ -16,7 +16,7 @@ Linux distributions. It includes a Qt6 GUI and system D-Bus daemon (`xzramd`).
 - **Polkit integration** — granular privileged operations (no blanket sudo)
 - **D-Bus daemon** — `xzramd` on `io.github.XZram1` for `--dbus` / other clients; D-Bus activation starts it on demand (native GUI does not auto-start or require it)
 - **Qt6 GUI** — dashboard, zram, swap files, sysctl, doctor, snapshots, and settings (CLI/pkexec-first; daemon optional)
-- **Configuration snapshots** — automatic backups on GUI open and before every apply; versioned restore
+- **Configuration snapshots** — automatic backups before every apply; versioned restore (`app_open` is manual)
 
 ## Supported distros
 
@@ -24,13 +24,13 @@ Linux distributions. It includes a Qt6 GUI and system D-Bus daemon (`xzramd`).
 |--------|---------------------|------------------------|
 | Fedora / RHEL / CentOS Stream | Full | [`packaging/xzram.spec`](packaging/xzram.spec) |
 | Debian / Ubuntu / derivatives | Full | [`debian/`](debian/) |
-| Arch / CachyOS / Manjaro | Full | [`PKGBUILD`](PKGBUILD) |
+| Arch / CachyOS / Manjaro | Full | [`packaging/aur/`](packaging/aur/) (AUR) · [`PKGBUILD`](PKGBUILD) (local) |
 | openSUSE | Full | Packaging TBD (detection supported) |
 | Gentoo | Partial | — |
 | NixOS / Alpine / non-systemd | Out of scope v1 | — |
 
-Published distro packages are not assumed; use From source or the in-tree packaging files
-when building locally.
+Published distro packages are not assumed until an AUR/release is cut; use From source or the
+in-tree packaging files (`packaging/aur/`, `debian/`, `packaging/xzram.spec`) when building locally.
 
 The release version is recorded in [`VERSION`](VERSION) and [`CHANGELOG.md`](CHANGELOG.md).
 Keep packaging (`PKGBUILD`, `packaging/xzram.spec`, `debian/changelog`, AppStream) and
@@ -73,7 +73,7 @@ Do **not** use `sudo` for smoke checks of `status` / `detect` / `doctor`.
 ## Verify
 
 ```bash
-make lint          # fmt --check + clippy -D warnings (matches CI)
+make lint          # fmt --check + clippy -D warnings + loc-check (matches CI)
 make test-lib      # fast unit tests for crates/xzram
 make test          # full cargo test workspace
 make gui-smoke     # Qt6 offscreen launch smoke (needs GUI deps)
@@ -122,11 +122,18 @@ make build-gui
 # Binary: build-gui/xzram-qt/xzram-qt
 ```
 
-### Arch / CachyOS (packaging source)
+### Arch / CachyOS / AUR
 
-The in-tree [`PKGBUILD`](PKGBUILD) is the packaging source. For a normal developer
-checkout, prefer **From source** above. `makepkg -si` expects a packaging-oriented
-layout; it is not the primary path for iterating on a git clone.
+- **Local checkout:** root [`PKGBUILD`](PKGBUILD) (`file://$startdir`) for packaging experiments from a clone.
+- **AUR:** [`packaging/aur/`](packaging/aur/) — split package `xzram` + `xzram-gui` from the `v$pkgver` GitHub source archive.
+
+```bash
+# After the package is published on the AUR:
+yay -S xzram          # CLI / helper / daemon
+yay -S xzram-gui      # Qt6 GUI (depends on xzram)
+```
+
+Release CI (`.github/workflows/aur-release.yml`) builds the AUR packages in an Arch container and, on a published GitHub Release (`v*`), uploads `.pkg.tar.zst` plus pinned `PKGBUILD` / `.SRCINFO` to that release. First-time AUR publish is still a manual `git push` to `ssh://aur@aur.archlinux.org/xzram.git` using those files (see [`packaging/aur/README.md`](packaging/aur/README.md)).
 
 ### Debian
 

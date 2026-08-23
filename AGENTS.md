@@ -25,7 +25,7 @@ cargo run -p xzram-cli -- status
 | CLI | `cargo run -p xzram-cli -- …` or `./target/release/xzram` | Primary |
 | Helper | `xzram-helper` via pkexec | Root only |
 | Daemon | `xzramd` / `systemctl enable --now xzramd` | Privileged next step |
-| GUI | `make build-gui` → `build-gui/xzram-qt/xzram-qt` | Optional; Qt6; CLI-backed; auto-refresh; `XZRAM_CLI` override |
+| GUI | `make build-gui` → `build-gui/xzram-qt/xzram-qt` | Optional; Qt6; CLI-backed; auto-refresh; `XZRAM_ALLOW_DEV_CLI=1` + `XZRAM_CLI` override |
 
 Prefer `make install-cli` over `make install` when Qt is not needed.
 

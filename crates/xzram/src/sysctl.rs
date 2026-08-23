@@ -176,7 +176,7 @@ mod tests {
 
     #[test]
     fn set_merges_existing_drop_in_keys() {
-        let _guard = crate::test_env_lock().lock().unwrap();
+        let _guard = crate::test_env_lock();
         let dir = tempfile::tempdir().unwrap();
         let etc = dir.path().join("etc");
         std::fs::create_dir_all(etc.join("sysctl.d")).unwrap();

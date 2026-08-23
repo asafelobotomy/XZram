@@ -313,7 +313,7 @@ mod tests {
 
     #[test]
     fn create_and_list_snapshot() {
-        let _guard = test_lock().lock().unwrap();
+        let _guard = test_lock();
         let env = test_env();
         let etc = env._etc.path();
         fs::create_dir_all(etc.join("systemd")).unwrap();
@@ -331,7 +331,7 @@ mod tests {
 
     #[test]
     fn app_open_dedup_skips_identical_hash() {
-        let _guard = test_lock().lock().unwrap();
+        let _guard = test_lock();
         let env = test_env();
         fs::write(env._etc.path().join("fstab"), "test\n").unwrap();
 

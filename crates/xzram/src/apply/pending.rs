@@ -260,7 +260,7 @@ mod tests {
 
     #[test]
     fn stage_and_load_pending() {
-        let _guard = test_lock().lock().unwrap();
+        let _guard = test_lock();
         let dir = tempfile::tempdir().unwrap();
         std::env::set_var("XZRAM_DATA_DIR", dir.path());
 
