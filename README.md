@@ -1,5 +1,7 @@
 # XZram
 
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/U5R225QZH3)
+
 Cross-distro Linux swap management: zram, swap files, partitions, and sysctl tuning.
 
 XZram is a CLI-first tool for creating, removing, and customizing swap on systemd-based
