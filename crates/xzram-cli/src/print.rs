@@ -45,13 +45,13 @@ pub(crate) fn print_status(report: &status::StatusReport) {
             0.0
         };
         println!(
-            "  {}  {}  {} / {}  ratio {:.1}x  streams {}  {}",
+            "  {}  {}  {} / {}  ratio {:.1}x  peak {}  {}",
             z.name,
             z.algorithm,
             format_bytes(z.compressed_bytes),
             format_bytes(z.disk_size_bytes),
             ratio,
-            z.streams,
+            format_bytes(z.mem_used_max_bytes),
             z.mount_point
         );
     }

@@ -19,7 +19,8 @@ pub struct ZramDevice {
     pub data_bytes: u64,
     pub compressed_bytes: u64,
     pub total_bytes: u64,
-    pub streams: u32,
+    /// Peak memory zram has ever used to store data (`mm_stat` field 5, `mem_used_max`), in bytes.
+    pub mem_used_max_bytes: u64,
     pub mount_point: String,
 }
 
@@ -86,7 +87,7 @@ pub fn parse_zram_devices() -> Result<Vec<ZramDevice>> {
         let disk_size = read_sysfs_u64(&base.join("disksize"))?;
         let mount_point = detect_zram_mount(&name);
 
-        let (data, compr, total, streams) = read_mm_stat(&base.join("mm_stat"))?;
+        let (data, compr, total, mem_used_max) = read_mm_stat(&base.join("mm_stat"))?;
 
         devices.push(ZramDevice {
             name,
@@ -95,7 +96,7 @@ pub fn parse_zram_devices() -> Result<Vec<ZramDevice>> {
             data_bytes: data,
             compressed_bytes: compr,
             total_bytes: total,
-            streams,
+            mem_used_max_bytes: mem_used_max,
             mount_point,
         });
     }
@@ -118,7 +119,12 @@ fn read_sysfs_u64(path: &std::path::Path) -> Result<u64> {
         .map_err(|_| XzramError::Parse(format!("invalid u64 in {}", path.display())))
 }
 
-fn read_mm_stat(path: &std::path::Path) -> Result<(u64, u64, u64, u32)> {
+/// Parses `/sys/block/zramN/mm_stat`. Field order per
+/// `Documentation/admin-guide/blockdev/zram.rst`: orig_data_size, compr_data_size,
+/// mem_used_total, mem_limit, mem_used_max, same_pages, pages_compacted, huge_pages,
+/// huge_pages_since. There is no "streams" field — multi-stream compression has been
+/// unconditional (and `max_comp_streams` unavailable) since Linux 4.7.
+fn read_mm_stat(path: &std::path::Path) -> Result<(u64, u64, u64, u64)> {
     let content = std::fs::read_to_string(path).unwrap_or_default();
     let parts: Vec<&str> = content.split_whitespace().collect();
     Ok((

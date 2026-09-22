@@ -151,12 +151,12 @@ void DashboardWidget::setStatusJson(const QString &json) {
             const quint64 data = JsonLoader::optionalUInt64(dev, QStringLiteral("data_bytes"));
             const quint64 compr = JsonLoader::optionalUInt64(dev, QStringLiteral("compressed_bytes"));
             const quint64 disk = JsonLoader::optionalUInt64(dev, QStringLiteral("disk_size_bytes"));
-            const quint64 streams = JsonLoader::optionalUInt64(dev, QStringLiteral("streams"));
+            const quint64 memUsedMax = JsonLoader::optionalUInt64(dev, QStringLiteral("mem_used_max_bytes"));
             const QString mount = JsonLoader::optionalString(dev, QStringLiteral("mount_point"));
 
-            lines << tr("<b>%1</b> · %2 · ratio %3 · disk %4 · %5 streams · mount %6")
+            lines << tr("<b>%1</b> · %2 · ratio %3 · disk %4 · peak %5 · mount %6")
                          .arg(name, algo, FormatUtils::compressionRatio(data, compr),
-                              FormatUtils::formatBytes(disk), QString::number(streams),
+                              FormatUtils::formatBytes(disk), FormatUtils::formatBytes(memUsedMax),
                               mount.isEmpty() ? QStringLiteral("—") : mount);
         }
         m_zramCard->setText(lines.join(QStringLiteral("<br>")));

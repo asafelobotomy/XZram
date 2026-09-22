@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] — 2026-09-23
+
 ### Changed
 - Privilege UX: `defaults apply` and `zram migrate --now` use one polkit challenge; swapfile create `--prepare` folds Btrfs prepare into the same stage/create call
 - D-Bus stage-only methods (`ConfigureZram`, etc.) authorize `io.github.xzram.stage` instead of mutate action IDs
@@ -60,6 +62,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Flatpak packaging path (`flatpak/` manifest and `docs/FLATPAK.md`); distribution is native packages only (PKGBUILD, debian/, RPM)
 
 ### Fixed
+- `status`/`doctor`/GUI no longer mislabel zram's `mm_stat` `mem_used_max` field as a compression-stream count (`streams`); reported as `peak <size>` instead — the concept doesn't exist on kernels without `max_comp_streams`
+- Doctor warns (`zram_near_full`) when a zram swap device is ≥90% full and disk-backed swap is already absorbing overflow
+- `xzramd` registers its D-Bus interface before requesting the bus name, removing a startup race (and its zbus warning) where early method calls could be lost
 - Desktop/AppStream theme icon: install `hicolor` sizes 32–512 as `io.github.XZram.png` in Makefile, PKGBUILD, Debian, RPM; set Qt `desktopFileName` and `StartupWMClass` for taskbar matching
 - Linked optimize: keep ZRAM Stage enabled after paint (no baseline reset); run optimize-linked via async `CliJob` with stdin instead of blocking the UI thread
 - Debian `prerm` no longer disables xzramd on upgrade; `postinst` defers enable/start to dh_installsystemd

@@ -133,12 +133,12 @@ void ZramWidget::updateLiveStats(const QJsonObject &status) {
         const QString name = JsonLoader::optionalString(dev, QStringLiteral("name"));
         const quint64 data = JsonLoader::optionalUInt64(dev, QStringLiteral("data_bytes"));
         const quint64 compr = JsonLoader::optionalUInt64(dev, QStringLiteral("compressed_bytes"));
-        const quint64 streams = JsonLoader::optionalUInt64(dev, QStringLiteral("streams"));
+        const quint64 memUsedMax = JsonLoader::optionalUInt64(dev, QStringLiteral("mem_used_max_bytes"));
         const QString mount = JsonLoader::optionalString(dev, QStringLiteral("mount_point"));
 
-        lines << tr("%1: active algorithm <b>%2</b>, compression %3, %4 streams, mount %5")
+        lines << tr("%1: active algorithm <b>%2</b>, compression %3, peak %4, mount %5")
                      .arg(name, m_activeAlgorithm, FormatUtils::compressionRatio(data, compr),
-                          QString::number(streams),
+                          FormatUtils::formatBytes(memUsedMax),
                           mount.isEmpty() ? QStringLiteral("—") : mount);
     }
     m_statsLabel->setText(lines.join(QStringLiteral("<br>")));

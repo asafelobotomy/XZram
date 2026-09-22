@@ -1,3 +1,11 @@
+xzram (0.3.1-1) unstable; urgency=medium
+
+  * Fix zram mm_stat field mislabeled as a compression-stream count (now `peak` bytes)
+  * Doctor warns (`zram_near_full`) when zram is near full and disk swap absorbs overflow
+  * Fix xzramd D-Bus startup registration race (interface now registered before name request)
+
+ -- XZram contributors <xzram@example.com>  Wed, 23 Sep 2026 00:39:14 +0100
+
 xzram (0.3.0-1) unstable; urgency=medium
 
   * Linked auto-optimize (CLI + GUI Settings toggle).

@@ -1,5 +1,5 @@
 Name:           xzram
-Version:        0.3.0
+Version:        0.3.1
 Release:        1%{?dist}
 Summary:        Cross-distro Linux swap management
 
@@ -78,6 +78,11 @@ done
 %systemd_postun xzramd.service
 
 %changelog
+* Wed Sep 23 2026 XZram contributors <xzram@example.com> - 0.3.1-1
+- Fix zram mm_stat field mislabeled as compression streams
+- Doctor warns when zram is near full and disk swap absorbs overflow
+- Fix xzramd D-Bus startup registration race
+
 * Tue Aug 11 2026 XZram contributors <xzram@example.com> - 0.3.0-1
 - Linked auto-optimize, recommend size scales, async GUI linked optimize
 
