@@ -12,3 +12,6 @@ debian/files
 debian/*.debhelper
 debian/*.substvars
 rpmbuild/
+
+# Stray listing file
+/xzram-0.3.0
