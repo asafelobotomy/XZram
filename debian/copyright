@@ -6,6 +6,10 @@ Files: *
 Copyright: 2026 XZram contributors
 License: GPL-3.0-or-later
 
+Files: data/io.github.XZram.metainfo.xml
+Copyright: 2026 XZram contributors
+License: CC0-1.0
+
 License: GPL-3.0-or-later
  This package is free software; you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
@@ -14,3 +18,11 @@ License: GPL-3.0-or-later
  .
  On Debian systems, the complete text of the GNU General Public License
  version 3 can be found in "/usr/share/common-licenses/GPL-3".
+
+License: CC0-1.0
+ To the extent possible under law, the author(s) have dedicated all copyright
+ and related and neighboring rights to this software to the public domain
+ worldwide. This software is distributed without any warranty.
+ .
+ On Debian systems, the complete text of the CC0 1.0 Universal license can be
+ found in "/usr/share/common-licenses/CC0-1.0".

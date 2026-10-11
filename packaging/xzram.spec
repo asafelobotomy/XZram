@@ -35,6 +35,9 @@ cargo build --release --locked
 cmake -S gui -B build-gui
 cmake --build build-gui
 
+%check
+cargo test --release --locked
+
 %install
 install -Dm755 target/release/xzram %{buildroot}%{_bindir}/xzram
 install -Dm755 target/release/xzram-helper %{buildroot}%{_libexecdir}/xzram-helper
