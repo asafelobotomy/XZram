@@ -5,6 +5,11 @@ use serde::{Deserialize, Serialize};
 use crate::apply;
 use crate::error::{Result, XzramError};
 
+mod alloc;
+pub use alloc::{
+    chmod_swapfile_nofollow, create_allocated_swapfile, path_is_active_swap, replace_swapfile,
+};
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct NodatacowStatus {
     pub swapfile_path: String,
@@ -194,72 +199,6 @@ fn btrfs_mkswapfile_available() -> bool {
         .output()
         .map(|o| o.status.success())
         .unwrap_or(false)
-}
-
-/// Allocate and format a swapfile, using btrfs-native creation when appropriate.
-pub fn create_allocated_swapfile(path: &Path, size_mb: u64) -> Result<()> {
-    if size_mb == 0 {
-        return Err(XzramError::Validation(
-            "swapfile size must be greater than 0 MiB".into(),
-        ));
-    }
-
-    // Parent must be nodatacow before allocation. An existing file that was written
-    // without +C cannot be converted in place on btrfs — remove it, then recreate.
-    prepare_nodatacow(path, true)?;
-    remove_stale_swapfile(path)?;
-    prepare_nodatacow(path, true)?;
-    ensure_ready_for_swapfile(path)?;
-
-    if is_btrfs_path(path) && btrfs_mkswapfile_available() {
-        let path_str = path.to_string_lossy();
-        let size = format!("{size_mb}M");
-        apply::run_command(
-            "btrfs",
-            &["filesystem", "mkswapfile", "--size", &size, &path_str],
-        )?;
-        return Ok(());
-    }
-
-    let size_bytes = size_mb * 1024 * 1024;
-    allocate_swapfile_bytes(path, size_bytes)?;
-    apply::run_command("mkswap", &[&path.to_string_lossy()])?;
-    Ok(())
-}
-
-fn remove_stale_swapfile(path: &Path) -> Result<()> {
-    if !path.exists() {
-        return Ok(());
-    }
-    let path_str = path.to_string_lossy();
-    apply::deactivate_swap_path(&path_str)?;
-    std::fs::remove_file(path)?;
-    Ok(())
-}
-
-fn allocate_swapfile_bytes(path: &Path, size_bytes: u64) -> Result<()> {
-    let output = std::process::Command::new("fallocate")
-        .args(["-l", &size_bytes.to_string(), &path.to_string_lossy()])
-        .output();
-
-    if let Ok(o) = output {
-        if o.status.success() {
-            return Ok(());
-        }
-    }
-
-    let count_mb = size_bytes / (1024 * 1024);
-    apply::run_command(
-        "dd",
-        &[
-            "if=/dev/zero",
-            &format!("of={}", path.display()),
-            "bs=1M",
-            &format!("count={count_mb}"),
-            "status=none",
-        ],
-    )?;
-    Ok(())
 }
 
 #[cfg(test)]
