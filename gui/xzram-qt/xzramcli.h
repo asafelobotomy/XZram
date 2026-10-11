@@ -1,12 +1,19 @@
 #ifndef XZRAMCLI_H
 #define XZRAMCLI_H
 
+#include <QDateTime>
+#include <QMetaType>
 #include <QString>
 #include <QStringList>
 #include <QtGlobal>
-#include <QMetaType>
 
 namespace XzramCli {
+
+/// CLI exit codes (see `xzram --help`).
+constexpr int kExitOk = 0;
+constexpr int kExitError = 1;
+constexpr int kExitUsage = 2;
+constexpr int kExitDoctorUnhealthy = 3;
 
 struct RunResult {
     bool ok = false;
@@ -16,78 +23,66 @@ struct RunResult {
     QString error;
 };
 
+/// Path to the xzram CLI. Release builds use only the install-time path; debug overrides
+/// (`XZRAM_CLI` + `XZRAM_ALLOW_DEV_CLI`) exist only when built with XZRAM_DEV_OVERRIDES=ON.
 QString findBinary();
 
 /// Build a RunResult from process output (shared by sync run and CliJob).
+/// `startedAt` gates use of /var/lib/xzram/last_error (only if written after the start).
+/// `extraOkExitCode` (>= 0) is an additional exit code treated as success.
 RunResult resultFromOutput(int exitCode, bool crashed, const QString &stdoutText,
-                           const QString &stderrText);
+                           const QString &stderrText, const QDateTime &startedAt,
+                           int extraOkExitCode = -1);
 
-/// Run xzram; on failure prefers process streams then /var/lib/xzram/last_error.
-RunResult run(const QStringList &args, int timeoutMs = 120000);
+/// Synchronous run for quick, unprivileged reads only (kills the CLI on timeout).
+/// Privileged operations must go through runPrivilegedCli (privilegedjob.h).
+RunResult run(const QStringList &args, int timeoutMs = 30000, int extraOkExitCode = -1);
 
 /// Convenience: stdout on success, or {"error":"..."} JSON string on failure.
-QString runJson(const QStringList &args, int timeoutMs = 30000);
+QString runJson(const QStringList &args, int timeoutMs = 30000, int extraOkExitCode = -1);
 
-bool runOk(const QStringList &args, QString *error = nullptr, int timeoutMs = 120000);
-
-// --- Argv builders for long-running async jobs ---
+// --- Argv builders (xzramcli_args.cpp) ---
 QStringList argsApply();
-QStringList argsDefaultsApply();
+QStringList argsClearPending();
 QStringList argsDefaultsApply(const QString &zramScale, const QString &swapScale);
 QStringList argsDefaultsStage(const QString &zramScale, const QString &swapScale);
 QStringList argsDefaultsRecommend(const QString &zramScale, const QString &swapScale);
 QStringList argsDefaultsOptimizeLinked(const QString &anchor);
-QStringList argsSwapfileCreate(const QString &path, quint64 sizeMb, int priority);
+QStringList argsZramSet(const QString &device, const QString &size, const QString &algorithm,
+                        int priority);
+QStringList argsZramDisable();
+QStringList argsZramMigrate();
 QStringList argsSwapfileCreate(const QString &path, quint64 sizeMb, int priority, bool prepare,
                                bool mkdirParents);
 QStringList argsSwapfileResize(const QString &path, quint64 sizeMb);
+QStringList argsSwapfileRemove(const QString &path);
+QStringList argsSwapfilePrepare(const QString &path, bool mkdirParents);
+QStringList argsSysctlSet(const QStringList &flagArgs);
+QStringList argsSwapOn(const QString &device);
+QStringList argsSwapOff(const QString &device);
+QStringList argsSnapshotCreate(const QString &label);
 QStringList argsSnapshotRestore(const QString &id);
+QStringList argsSnapshotDelete(const QString &id);
+QStringList argsSnapshotPrune(int keep);
 QStringList argsRollback();
 
-// --- JSON reads ---
-QString statusJson();
-QString detectionJson();
-QString doctorJson();
-QString zramConfigJson();
-QString swapfilesJson();
+// --- Read-only argv (used by the async refresher) ---
+QStringList argsStatusJson();
+QStringList argsDetectJson();
+QStringList argsDoctorJson();
+QStringList argsZramShowJson();
+QStringList argsSwapfileListJson();
+QStringList argsSwapListJson();
+QStringList argsSysctlShowJson();
+QStringList argsPendingShowJson();
+QStringList argsSnapshotListJson();
+
+// --- Synchronous JSON reads (unprivileged, quick) ---
 QString swapfileCheckJson(const QString &path);
-QString swapsJson();
-QString sysctlJson();
 QString pendingJson();
 QString recommendedDefaultsJson();
 QString recommendedDefaultsJson(const QString &zramScale, const QString &swapScale);
 QString snapshotsJson();
-
-// --- Mutations (no --now unless noted) ---
-bool apply(QString *error = nullptr);
-bool clearPending(QString *error = nullptr);
-bool daemonStart(QString *error = nullptr);
-bool daemonIsActive();
-bool defaultsStage(QString *error = nullptr);
-bool defaultsStage(const QString &zramScale, const QString &swapScale, QString *error = nullptr);
-bool defaultsApply(QString *error = nullptr);
-bool defaultsApply(const QString &zramScale, const QString &swapScale, QString *error = nullptr);
-
-bool zramSet(const QString &device, const QString &size, const QString &algorithm, int priority,
-             QString *error = nullptr);
-bool zramDisable(QString *error = nullptr);
-bool zramMigrate(QString *error = nullptr);
-
-bool swapfileCreate(const QString &path, quint64 sizeMb, int priority, QString *error = nullptr);
-bool swapfileResize(const QString &path, quint64 sizeMb, QString *error = nullptr);
-bool swapfileRemove(const QString &path, QString *error = nullptr);
-bool swapfilePrepare(const QString &path, bool mkdirParents, QString *error = nullptr);
-
-bool sysctlSet(const QStringList &flagArgs, QString *error = nullptr);
-
-bool swapOn(const QString &device, QString *error = nullptr);
-bool swapOff(const QString &device, QString *error = nullptr);
-
-bool snapshotCreate(const QString &label, QString *error = nullptr);
-bool snapshotRestore(const QString &id, QString *error = nullptr);
-bool snapshotDelete(const QString &id, QString *error = nullptr);
-bool snapshotPrune(int keep, QString *error = nullptr);
-bool rollback(QString *error = nullptr);
 
 } // namespace XzramCli
 

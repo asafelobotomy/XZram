@@ -9,11 +9,12 @@ mod zram;
 
 use crate::args::{Cli, Commands, DaemonCommands, PendingCommands};
 
-pub(crate) fn run(cli: Cli) -> anyhow::Result<()> {
+/// Run a parsed command; returns the process exit code (see `crate::exit_codes`).
+pub(crate) fn run(cli: Cli) -> anyhow::Result<u8> {
     match cli.command {
         Commands::Status => read::status(cli.json)?,
         Commands::Detect => read::detect(cli.json)?,
-        Commands::Doctor => read::doctor(cli.json)?,
+        Commands::Doctor => return read::doctor(cli.json),
         Commands::Zram { command } => zram::run(command, cli.json, cli.dbus)?,
         Commands::Swapfile { command } => swapfile::run(command, cli.json, cli.dbus)?,
         Commands::Swap { command } => swap::run(command, cli.json, cli.dbus)?,
@@ -30,5 +31,5 @@ pub(crate) fn run(cli: Cli) -> anyhow::Result<()> {
         Commands::Rollback => apply_rollback::rollback(cli.dbus)?,
         Commands::Snapshot { command } => snapshot::run(command, cli.json, cli.dbus)?,
     }
-    Ok(())
+    Ok(crate::exit_codes::OK)
 }

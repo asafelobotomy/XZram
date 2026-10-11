@@ -27,7 +27,8 @@ pub(crate) fn detect(json: bool) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub(crate) fn doctor(json: bool) -> anyhow::Result<()> {
+/// Returns the exit code: `OK` when healthy, `UNHEALTHY` (3) when checks report problems.
+pub(crate) fn doctor(json: bool) -> anyhow::Result<u8> {
     debug!("running doctor checks");
     let report = doctor::doctor()?;
     if json {
@@ -35,10 +36,11 @@ pub(crate) fn doctor(json: bool) -> anyhow::Result<()> {
     } else {
         print_doctor(&report);
     }
-    if !report.healthy {
-        std::process::exit(1);
-    }
-    Ok(())
+    Ok(if report.healthy {
+        crate::exit_codes::OK
+    } else {
+        crate::exit_codes::UNHEALTHY
+    })
 }
 
 pub(crate) fn pending_show(json: bool) -> anyhow::Result<()> {

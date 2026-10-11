@@ -2,6 +2,7 @@
 
 #include "formatutils.h"
 #include "jsonloader.h"
+#include "privilegedjob.h"
 #include "xzramcli.h"
 
 #include <QClipboard>
@@ -132,14 +133,18 @@ QWidget *DoctorWidget::makeIssueCard(const QJsonObject &issue) {
         prepareButton->setToolTip(
             tr("Mark this folder so a swap file can be created safely on btrfs."));
         connect(prepareButton, &QPushButton::clicked, this, [this, path]() {
-            QString error;
-            if (!XzramCli::swapfilePrepare(path, true, &error)) {
-                QMessageBox::warning(this, tr("Prepare failed"), error);
-                return;
-            }
-            QMessageBox::information(this, tr("Prepare complete"),
-                                     tr("This path is ready for a swap file: %1").arg(path));
-            emit btrfsPrepared();
+            runPrivilegedCli(
+                this, tr("Preparing directory…"), XzramCli::argsSwapfilePrepare(path, true),
+                [this, path](const XzramCli::RunResult &result) {
+                    if (!result.ok) {
+                        QMessageBox::warning(this, tr("Prepare failed"), result.error);
+                        return;
+                    }
+                    QMessageBox::information(
+                        this, tr("Prepare complete"),
+                        tr("This path is ready for a swap file: %1").arg(path));
+                    emit btrfsPrepared();
+                });
         });
         layout->addWidget(prepareButton);
     }

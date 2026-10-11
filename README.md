@@ -173,6 +173,19 @@ xzram rollback            # alias: restore last pre-apply snapshot
 Global flags: --json, --dbus, --now (on write commands)
 ```
 
+### Exit codes
+
+| Code | Meaning |
+|------|---------|
+| `0` | Success |
+| `1` | Error (operation failed, authorization cancelled/denied, D-Bus failure, ...) |
+| `2` | Usage error (invalid arguments) |
+| `3` | `xzram doctor` completed but reported the system as **unhealthy** (the report is still printed; with `--json` it is valid JSON) |
+
+With `--dbus`, a privileged command falls back to pkexec only when xzramd cannot be
+reached *before* the request is sent. If xzramd stops responding mid-call, the command
+fails (exit `1`) and asks you to check `xzram status` instead of re-running the operation.
+
 See [docs/SNAPSHOTS.md](docs/SNAPSHOTS.md) for snapshot semantics and retention.
 See [docs/RECOMMENDATIONS.md](docs/RECOMMENDATIONS.md) for recommended defaults.
 

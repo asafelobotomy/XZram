@@ -2,6 +2,7 @@
 
 #include "formatutils.h"
 #include "jsonloader.h"
+#include "privilegedjob.h"
 #include "xzramcli.h"
 
 #include <QComboBox>
@@ -249,15 +250,18 @@ void ZramWidget::stageChanges() {
     if (!formDirty()) {
         return;
     }
-    QString error;
-    if (!XzramCli::zramSet(m_deviceEdit->text(), m_sizeEdit->text(), m_algoCombo->currentText(),
-                           m_prioritySpin->value(), &error)) {
-        QMessageBox::warning(this, tr("Stage failed"), error);
-        return;
-    }
-    captureBaseline();
-    updateActionEnabled();
-    emit stagingChanged();
+    runPrivilegedCli(this, tr("Staging ZRAM changes…"),
+                     XzramCli::argsZramSet(m_deviceEdit->text(), m_sizeEdit->text(),
+                                           m_algoCombo->currentText(), m_prioritySpin->value()),
+                     [this](const XzramCli::RunResult &result) {
+                         if (!result.ok) {
+                             QMessageBox::warning(this, tr("Stage failed"), result.error);
+                             return;
+                         }
+                         captureBaseline();
+                         updateActionEnabled();
+                         emit stagingChanged();
+                     });
 }
 
 void ZramWidget::disableZram() {
@@ -272,23 +276,28 @@ void ZramWidget::disableZram() {
         return;
     }
 
-    QString error;
-    if (!XzramCli::zramDisable(&error)) {
-        QMessageBox::warning(this, tr("Disable failed"), error);
-        return;
-    }
-    emit stagingChanged();
+    runPrivilegedCli(this, tr("Staging ZRAM disable…"), XzramCli::argsZramDisable(),
+                     [this](const XzramCli::RunResult &result) {
+                         if (!result.ok) {
+                             QMessageBox::warning(this, tr("Disable failed"), result.error);
+                             return;
+                         }
+                         emit stagingChanged();
+                     });
 }
 
 void ZramWidget::migrateZram() {
-    QString error;
-    if (!XzramCli::zramMigrate(&error)) {
-        QMessageBox::warning(this, tr("Migrate failed"), error);
-        return;
-    }
-    QMessageBox::information(this, tr("Migrate"),
+    runPrivilegedCli(this, tr("Staging zram-tools migration…"), XzramCli::argsZramMigrate(),
+                     [this](const XzramCli::RunResult &result) {
+                         if (!result.ok) {
+                             QMessageBox::warning(this, tr("Migrate failed"), result.error);
+                             return;
+                         }
+                         QMessageBox::information(
+                             this, tr("Migrate"),
                              tr("Migration from zram-tools staged. Use Apply to activate."));
-    emit stagingChanged();
+                         emit stagingChanged();
+                     });
 }
 
 void ZramWidget::onSizeEdited() {

@@ -1,7 +1,17 @@
 use clap::{Parser, Subcommand};
 
+/// Default for `snapshot prune --keep` (mirrors `xzram::snapshot::DEFAULT_KEEP`).
+pub const DEFAULT_PRUNE_KEEP: u32 = 50;
+/// Upper bound for `snapshot prune --keep` (well within the D-Bus `u32` argument).
+pub const MAX_PRUNE_KEEP: i64 = 100_000;
+
 #[derive(Parser)]
-#[command(name = "xzram", about = "Cross-distro Linux swap management", version)]
+#[command(
+    name = "xzram",
+    about = "Cross-distro Linux swap management",
+    version,
+    after_help = crate::exit_codes::HELP
+)]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Commands,
@@ -94,8 +104,12 @@ pub enum SnapshotCommands {
     },
     /// Prune old snapshots, keeping the newest N
     Prune {
-        #[arg(long, default_value_t = xzram::snapshot::DEFAULT_KEEP)]
-        keep: usize,
+        #[arg(
+            long,
+            default_value_t = DEFAULT_PRUNE_KEEP,
+            value_parser = clap::value_parser!(u32).range(1..=MAX_PRUNE_KEEP)
+        )]
+        keep: u32,
         #[arg(long)]
         yes: bool,
     },
@@ -269,4 +283,15 @@ pub enum SysctlCommands {
         #[arg(long)]
         now: bool,
     },
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn default_prune_keep_matches_library() {
+        assert_eq!(
+            super::DEFAULT_PRUNE_KEEP as usize,
+            xzram::snapshot::DEFAULT_KEEP
+        );
+    }
 }

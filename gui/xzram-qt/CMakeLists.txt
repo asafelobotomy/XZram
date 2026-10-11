@@ -1,8 +1,13 @@
 set(SOURCES
     main.cpp
     mainwindow.cpp
+    mainwindow_actions.cpp
+    mainwindow_refresh.cpp
     xzramcli.cpp
+    xzramcli_args.cpp
     clijob.cpp
+    privilegedjob.cpp
+    refreshrunner.cpp
     formatutils.cpp
     jsonloader.cpp
     linkedoptimize.cpp
@@ -27,6 +32,8 @@ set(HEADERS
     mainwindow.h
     xzramcli.h
     clijob.h
+    privilegedjob.h
+    refreshrunner.h
     formatutils.h
     jsonloader.h
     linkedoptimize.h
@@ -48,7 +55,12 @@ target_link_libraries(xzram-qt PRIVATE Qt6::Widgets)
 target_include_directories(xzram-qt PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_definitions(xzram-qt PRIVATE
     XZRAM_QT_VERSION="${PROJECT_VERSION}"
+    XZRAM_CLI_INSTALL_PATH="${XZRAM_CLI_PATH}"
 )
+if(XZRAM_DEV_OVERRIDES)
+    # Development only: honour XZRAM_CLI when XZRAM_ALLOW_DEV_CLI is set.
+    target_compile_definitions(xzram-qt PRIVATE XZRAM_DEV_OVERRIDES)
+endif()
 install(TARGETS xzram-qt RUNTIME DESTINATION bin)
 # Theme icon for desktop/taskbar (matches Icon=io.github.XZram in the .desktop file).
 install(FILES icons/xzram-icon.png

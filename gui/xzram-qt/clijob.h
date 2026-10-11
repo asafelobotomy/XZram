@@ -4,15 +4,13 @@
 #include "xzramcli.h"
 
 #include <QByteArray>
+#include <QDateTime>
 #include <QObject>
 #include <QProcess>
 #include <QString>
 #include <QStringList>
-#include <functional>
 
-class QProgressDialog;
 class QTimer;
-class QWidget;
 
 /// Async xzram CLI invocation via QProcess signals (does not block the UI thread).
 class CliJob : public QObject {
@@ -23,9 +21,13 @@ public:
     ~CliJob() override;
 
     bool isRunning() const;
-    void start(const QStringList &args, int timeoutMs = 120000,
+    /// timeoutMs <= 0 disables the timeout (required for privileged operations, which
+    /// must never be killed mid-flight).
+    void start(const QStringList &args, int timeoutMs = 30000,
                const QByteArray &stdinData = QByteArray());
     void cancel();
+    /// Additional exit code treated as success (e.g. kExitDoctorUnhealthy for doctor).
+    void setExtraOkExitCode(int code);
 
 signals:
     void finished(const XzramCli::RunResult &result);
@@ -42,13 +44,11 @@ private:
     QProcess *m_process = nullptr;
     QTimer *m_timeout = nullptr;
     QByteArray m_stdinData;
+    QDateTime m_startedAt;
+    int m_extraOkExitCode = -1;
     bool m_emitted = false;
     bool m_timedOut = false;
     bool m_canceled = false;
 };
-
-/// Show a modal indeterminate progress dialog, run args async, invoke onDone on finish.
-void runCliWithProgress(QWidget *parent, const QString &label, const QStringList &args,
-                        int timeoutMs, const std::function<void(const XzramCli::RunResult &)> &onDone);
 
 #endif
