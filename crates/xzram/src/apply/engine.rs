@@ -1,4 +1,4 @@
-use tracing::info;
+use tracing::{error, info, warn};
 
 use super::pending::{clear_pending, load_pending, pending_is_empty};
 use super::types::{ApplyRequest, ApplyResult, PendingConfig};
@@ -19,15 +19,47 @@ pub fn apply_pending() -> Result<ApplyResult> {
         ));
     }
 
-    snapshot::create_snapshot(
+    let pre_apply = snapshot::create_snapshot(
         SnapshotTrigger::PreApply,
         Some(&snapshot::label_from_pending(&pending)),
         Some(&pending),
     )?;
-    let result = apply_from_pending(&pending)?;
+    let result = match apply_from_pending(&pending) {
+        Ok(result) => result,
+        Err(err) => return Err(rollback_after_failure(err, &pre_apply.id)),
+    };
     clear_pending()?;
     info!("applied pending configuration");
     Ok(result)
+}
+
+/// Best-effort restore of the pre-apply snapshot after a partial apply.
+///
+/// Returns `err` (same variant, so callers' error classification still works) extended with
+/// the rollback outcome. pending.json is left in place so the user can fix and retry.
+fn rollback_after_failure(err: XzramError, snapshot_id: &str) -> XzramError {
+    warn!(error = %err, snapshot = snapshot_id, "apply failed; rolling back");
+    let outcome = match snapshot::restore_snapshot(snapshot_id) {
+        Ok(_) => format!("rolled back to pre-apply snapshot {snapshot_id}"),
+        Err(rollback_err) => {
+            error!(error = %rollback_err, "automatic rollback failed");
+            format!(
+                "automatic rollback to snapshot {snapshot_id} FAILED: {rollback_err}; \
+                 restore it manually with 'xzram snapshot restore {snapshot_id}'"
+            )
+        }
+    };
+    let note = format!("{outcome}; pending configuration kept for retry");
+    match err {
+        XzramError::Io(e) => XzramError::Io(std::io::Error::new(e.kind(), format!("{e} ({note})"))),
+        XzramError::Parse(m) => XzramError::Parse(format!("{m} ({note})")),
+        XzramError::Config(m) => XzramError::Config(format!("{m} ({note})")),
+        XzramError::Backend(m) => XzramError::Backend(format!("{m} ({note})")),
+        XzramError::NotFound(m) => XzramError::NotFound(format!("{m} ({note})")),
+        XzramError::Permission(m) => XzramError::Permission(format!("{m} ({note})")),
+        XzramError::Validation(m) => XzramError::Validation(format!("{m} ({note})")),
+        XzramError::Command(m) => XzramError::Command(format!("{m} ({note})")),
+    }
 }
 
 /// Stage `pending` then apply it in one privileged session (single polkit challenge).
@@ -150,6 +182,52 @@ mod tests {
         let err = apply_pending().unwrap_err().to_string();
         assert!(err.contains("empty"));
         std::env::remove_var("XZRAM_DATA_DIR");
+    }
+
+    #[test]
+    fn failed_apply_rolls_back_and_keeps_pending() {
+        let _guard = test_lock();
+        let data = tempfile::tempdir().unwrap();
+        let etc = tempfile::tempdir().unwrap();
+        std::env::set_var("XZRAM_DATA_DIR", data.path());
+        std::env::set_var("XZRAM_ETC_ROOT", etc.path());
+        fs::create_dir_all(etc.path().join("sysctl.d")).unwrap();
+        let drop_in = etc.path().join("sysctl.d/99-xzram.conf");
+        fs::write(&drop_in, "vm.swappiness = 60\n").unwrap();
+
+        // zram step writes the generator config; the out-of-range sysctl step then fails.
+        let pending = PendingConfig {
+            zram: Some(crate::apply::types::ZramConfig {
+                device: "zram0".into(),
+                zram_size: Some("4096".into()),
+                zram_resident_limit: None,
+                compression_algorithm: Some("zstd".into()),
+                swap_priority: Some(100),
+                fs_type: None,
+                mount_point: None,
+            }),
+            sysctl: Some(SysctlValues {
+                swappiness: Some(999),
+                watermark_boost_factor: None,
+                watermark_scale_factor: None,
+                page_cluster: None,
+            }),
+            ..Default::default()
+        };
+        write_pending(&pending).unwrap();
+        let err = apply_pending().unwrap_err().to_string();
+
+        let zram_conf_exists = etc.path().join("systemd/zram-generator.conf").exists();
+        let drop_in_content = fs::read_to_string(&drop_in).unwrap();
+        let pending_kept = load_pending().unwrap().is_some();
+        std::env::remove_var("XZRAM_DATA_DIR");
+        std::env::remove_var("XZRAM_ETC_ROOT");
+
+        assert!(err.contains("rolled back to pre-apply snapshot"), "{err}");
+        assert!(err.contains("pending configuration kept"), "{err}");
+        assert!(!zram_conf_exists, "zram config should be rolled back");
+        assert_eq!(drop_in_content, "vm.swappiness = 60\n");
+        assert!(pending_kept);
     }
 
     #[test]

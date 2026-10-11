@@ -1,9 +1,9 @@
-use std::collections::HashSet;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use tracing::info;
 
+use super::fstab::{extra_swapfiles, merge_swap_entries, swapfile_entries};
 use super::index::{get_snapshot, latest_pre_apply_id};
 use super::paths::{etc_path, snapshots_root, FSTAB, SYSCTL_FILE, ZRAMSWAP_FILE, ZRAM_CONF};
 use super::types::SnapshotMeta;
@@ -12,7 +12,6 @@ use crate::apply::commands::{
     run_systemctl, stop_zram_setup_unit,
 };
 use crate::apply::types::ApplyResult;
-use crate::backend::available_swapfile_backend;
 use crate::error::{Result, XzramError};
 use crate::swapfile_btrfs;
 
@@ -33,8 +32,12 @@ pub fn restore_snapshot(id: &str) -> Result<ApplyResult> {
     let mut messages = Vec::new();
     let hermetic = hermetic_etc();
 
+    // Decide which swapfiles to remove *before* touching /etc: once fstab is restored it
+    // only lists the snapshot's swapfiles, hiding any created since.
+    let extra = extra_swapfiles(&meta, hermetic)?;
+
     if !hermetic {
-        swapoff_managed_swaps(&meta)?;
+        swapoff_managed_swaps(&meta, &extra)?;
     }
 
     restore_etc_file(
@@ -46,14 +49,7 @@ pub fn restore_snapshot(id: &str) -> Result<ApplyResult> {
         "zram-generator.conf",
     )?;
 
-    restore_etc_file(
-        &dir,
-        "fstab",
-        etc_path(FSTAB),
-        meta.artifacts.fstab.present,
-        &mut messages,
-        "/etc/fstab",
-    )?;
+    restore_fstab(&dir, meta.artifacts.fstab.present, &mut messages)?;
 
     restore_etc_file(
         &dir,
@@ -74,9 +70,13 @@ pub fn restore_snapshot(id: &str) -> Result<ApplyResult> {
     )?;
 
     if hermetic {
-        cleanup_extra_swapfiles_from_fstab(&meta, &mut messages)?;
+        for path in &extra {
+            messages.push(format!(
+                "Would remove swapfile {path} (not in snapshot; skipped in hermetic restore)"
+            ));
+        }
     } else {
-        cleanup_extra_swapfiles(&meta, &mut messages)?;
+        remove_extra_swapfiles(&extra, &mut messages)?;
         recreate_missing_swapfiles(&meta, &mut messages)?;
 
         run_systemctl(&["daemon-reload"])?;
@@ -115,9 +115,12 @@ pub fn rollback() -> Result<ApplyResult> {
     restore_snapshot(&id)
 }
 
-fn swapoff_managed_swaps(meta: &SnapshotMeta) -> Result<()> {
+fn swapoff_managed_swaps(meta: &SnapshotMeta, extra: &[String]) -> Result<()> {
     for swap in &meta.swapfiles {
         deactivate_swap_path(&swap.path)?;
+    }
+    for path in extra {
+        deactivate_swap_path(path)?;
     }
     for device in &meta.zram_devices {
         deactivate_zram_device(&device.name)?;
@@ -131,7 +134,7 @@ fn swapoff_managed_swaps(meta: &SnapshotMeta) -> Result<()> {
 fn restore_etc_file(
     snapshot_dir: &Path,
     filename: &str,
-    target: std::path::PathBuf,
+    target: PathBuf,
     was_present: bool,
     messages: &mut Vec<String>,
     label: &str,
@@ -139,10 +142,8 @@ fn restore_etc_file(
     let backup = snapshot_dir.join(filename);
     if was_present {
         if backup.exists() {
-            if let Some(parent) = target.parent() {
-                fs::create_dir_all(parent)?;
-            }
-            fs::copy(&backup, &target)?;
+            let bytes = fs::read(&backup)?;
+            crate::fsutil::atomic_write(&target, &bytes, 0o644)?;
             messages.push(format!("Restored {label}"));
         }
     } else if target.exists() {
@@ -152,49 +153,39 @@ fn restore_etc_file(
     Ok(())
 }
 
-fn cleanup_extra_swapfiles(meta: &SnapshotMeta, messages: &mut Vec<String>) -> Result<()> {
-    let snapshot_paths: HashSet<&str> = meta.swapfiles.iter().map(|s| s.path.as_str()).collect();
-    let backend = available_swapfile_backend();
-    let current = backend.list().unwrap_or_default();
-    for sf in current {
-        if !snapshot_paths.contains(sf.path.as_str()) {
-            deactivate_swap_path(&sf.path)?;
-            if Path::new(&sf.path).exists() {
-                fs::remove_file(&sf.path)?;
-                messages.push(format!("Removed swapfile {} (not in snapshot)", sf.path));
-            }
+/// Restore only the swap entries of fstab; mounts added since the snapshot are kept.
+fn restore_fstab(snapshot_dir: &Path, was_present: bool, messages: &mut Vec<String>) -> Result<()> {
+    let snapshot_content = if was_present {
+        match fs::read_to_string(snapshot_dir.join("fstab")) {
+            Ok(content) => content,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+            Err(e) => return Err(e.into()),
         }
+    } else {
+        String::new()
+    };
+
+    let target = etc_path(FSTAB);
+    let current = if target.try_exists()? {
+        fs::read_to_string(&target)?
+    } else {
+        String::new()
+    };
+    let merged = merge_swap_entries(&current, &snapshot_content);
+    if merged == current {
+        return Ok(());
     }
+    crate::fsutil::atomic_write(&target, merged.as_bytes(), 0o644)?;
+    messages.push("Restored swap entries in /etc/fstab".into());
     Ok(())
 }
 
-/// Hermetic cleanup: only consider swap paths listed in the etc-rooted fstab; never deactivate.
-fn cleanup_extra_swapfiles_from_fstab(
-    meta: &SnapshotMeta,
-    messages: &mut Vec<String>,
-) -> Result<()> {
-    let snapshot_paths: HashSet<&str> = meta.swapfiles.iter().map(|s| s.path.as_str()).collect();
-    let fstab = etc_path(FSTAB);
-    if !fstab.exists() {
-        return Ok(());
-    }
-    let content = fs::read_to_string(fstab)?;
-    for line in content.lines() {
-        let trimmed = line.trim();
-        if trimmed.is_empty() || trimmed.starts_with('#') {
-            continue;
-        }
-        let parts: Vec<&str> = trimmed.split_whitespace().collect();
-        if parts.len() >= 3 && parts[2] == "swap" {
-            let device = parts[0];
-            if device.starts_with('/')
-                && !device.starts_with("/dev/")
-                && !snapshot_paths.contains(device)
-            {
-                messages.push(format!(
-                    "Would remove swapfile {device} (not in snapshot; skipped in hermetic restore)"
-                ));
-            }
+fn remove_extra_swapfiles(extra: &[String], messages: &mut Vec<String>) -> Result<()> {
+    for path in extra {
+        deactivate_swap_path(path)?;
+        if Path::new(path).exists() {
+            fs::remove_file(path)?;
+            messages.push(format!("Removed swapfile {path} (not in snapshot)"));
         }
     }
     Ok(())
@@ -223,21 +214,9 @@ fn swapon_from_fstab(messages: &mut Vec<String>) -> Result<()> {
         return Ok(());
     }
     let content = fs::read_to_string(fstab)?;
-    for line in content.lines() {
-        let trimmed = line.trim();
-        if trimmed.is_empty() || trimmed.starts_with('#') {
-            continue;
-        }
-        let parts: Vec<&str> = trimmed.split_whitespace().collect();
-        if parts.len() >= 3 && parts[2] == "swap" {
-            let device = parts[0];
-            if device.starts_with('/') && !device.starts_with("/dev/") {
-                let priority = crate::backend::swapfile::parse_fstab_priority(
-                    parts.get(3).copied().unwrap_or("defaults"),
-                );
-                let _ = run_command("swapon", &["-p", &priority.to_string(), "--", device]);
-            }
-        }
+    for (device, options) in swapfile_entries(&content) {
+        let priority = crate::backend::swapfile::parse_fstab_priority(&options);
+        let _ = run_command("swapon", &["-p", &priority.to_string(), "--", &device]);
     }
     messages.push("Activated swapfiles from fstab".into());
     Ok(())
@@ -320,11 +299,58 @@ mod tests {
             fs::read_to_string(etc.join("systemd/zram-generator.conf")).unwrap(),
             zram_orig
         );
-        assert_eq!(fs::read_to_string(etc.join("fstab")).unwrap(), fstab_orig);
+        // Non-swap lines added since the snapshot are kept; swap entries come back.
+        assert_eq!(
+            fs::read_to_string(etc.join("fstab")).unwrap(),
+            format!("# mutated\n{fstab_orig}")
+        );
         assert_eq!(
             fs::read_to_string(etc.join("sysctl.d/99-xzram.conf")).unwrap(),
             sysctl_orig
         );
+
+        cleanup_test_env();
+    }
+
+    #[test]
+    fn hermetic_restore_detects_new_swapfile_and_keeps_new_mounts() {
+        let _guard = test_lock();
+        let env = test_env();
+        let etc = env._etc.path();
+
+        let root = "UUID=root / ext4 defaults 0 1\n";
+        fs::write(
+            etc.join("fstab"),
+            format!("{root}/swapfile none swap sw,pri=10 0 0\n"),
+        )
+        .unwrap();
+        let meta = create_snapshot(SnapshotTrigger::PreApply, Some("pre"), None).unwrap();
+
+        // Simulate an apply that added a swapfile, plus an unrelated mount added later.
+        fs::write(
+            etc.join("fstab"),
+            format!(
+                "{root}/swapfile none swap sw,pri=10 0 0\n/swap/new none swap sw,pri=5 0 0\n\
+                 UUID=data /data ext4 defaults 0 2\n"
+            ),
+        )
+        .unwrap();
+
+        let result = restore_snapshot(&meta.id).unwrap();
+        assert!(
+            result
+                .messages
+                .iter()
+                .any(|m| m.contains("Would remove swapfile /swap/new")),
+            "messages: {:?}",
+            result.messages
+        );
+        assert!(!result.messages.iter().any(|m| m.contains("/swapfile ")));
+
+        let fstab = fs::read_to_string(etc.join("fstab")).unwrap();
+        assert!(fstab.contains("UUID=data /data ext4"));
+        assert!(fstab.contains("/swapfile none swap"));
+        assert!(!fstab.contains("/swap/new"));
 
         cleanup_test_env();
     }

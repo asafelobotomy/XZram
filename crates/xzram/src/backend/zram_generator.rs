@@ -5,7 +5,7 @@ use crate::apply::ZramConfig;
 use crate::backend::ZramBackendTrait;
 use crate::config::{parse_zram_generator_conf, write_zram_generator_conf, ZramGeneratorConf};
 use crate::detect::find_zram_generator_config;
-use crate::error::Result;
+use crate::error::{Result, XzramError};
 use crate::snapshot::paths::{etc_path, ZRAM_CONF};
 
 const FALLBACK_CONFIG_PATH: &str = "/etc/systemd/zram-generator.conf";
@@ -91,24 +91,41 @@ impl ZramBackendTrait for ZramGeneratorBackend {
     }
 
     fn disable(&self) -> Result<()> {
-        // Tear down live devices first so we never claim "disabled" while swap is active.
-        if std::env::var_os("XZRAM_ETC_ROOT").is_none() {
+        let hermetic = std::env::var_os("XZRAM_ETC_ROOT").is_some();
+        let mut errors: Vec<String> = Vec::new();
+
+        // Tear down every live device; one busy device must not stop the others (or the
+        // override below) from being handled.
+        if !hermetic {
             for i in 0..8 {
-                crate::apply::stop_zram_setup_unit(&format!("zram{i}"))?;
+                let name = format!("zram{i}");
+                if let Err(e) = crate::apply::stop_zram_setup_unit(&name) {
+                    errors.push(format!("{name}: {e}"));
+                }
             }
         }
 
-        // Empty /etc override disables zram-generator even when vendor config exists.
+        // Empty /etc override disables zram-generator even when vendor config exists,
+        // so devices that failed to stop now stay off after the next reboot.
         let path = self.write_path();
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)?;
+        if let Err(e) = crate::fsutil::atomic_write(&path, b"", 0o644) {
+            errors.push(format!("write {}: {e}", path.display()));
         }
-        fs::write(&path, "")?;
 
-        if std::env::var_os("XZRAM_ETC_ROOT").is_none() {
-            crate::apply::run_systemctl(&["daemon-reload"])?;
+        if !hermetic {
+            if let Err(e) = crate::apply::run_systemctl(&["daemon-reload"]) {
+                errors.push(e.to_string());
+            }
         }
-        Ok(())
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(XzramError::Command(format!(
+                "zram disable incomplete: {}",
+                errors.join("; ")
+            )))
+        }
     }
 
     fn apply(&self) -> Result<()> {
@@ -163,5 +180,20 @@ mod tests {
         assert!(path.starts_with(etc.path()));
         assert!(path.ends_with(std::path::Path::new("systemd/zram-generator.conf")));
         std::env::remove_var("XZRAM_ETC_ROOT");
+    }
+
+    #[test]
+    fn disable_writes_empty_override_under_etc_root() {
+        let _guard = crate::test_env_lock();
+        let etc = tempfile::tempdir().unwrap();
+        std::env::set_var("XZRAM_ETC_ROOT", etc.path());
+        let conf = etc.path().join("systemd/zram-generator.conf");
+        fs::create_dir_all(conf.parent().unwrap()).unwrap();
+        fs::write(&conf, "[zram0]\nzram-size = ram / 2\n").unwrap();
+        let result = ZramGeneratorBackend.disable();
+        let content = fs::read_to_string(&conf).unwrap();
+        std::env::remove_var("XZRAM_ETC_ROOT");
+        result.unwrap();
+        assert!(content.is_empty());
     }
 }

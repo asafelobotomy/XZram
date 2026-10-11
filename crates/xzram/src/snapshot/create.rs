@@ -5,7 +5,10 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use sha2::{Digest, Sha256};
 use tracing::info;
 
-use super::index::{ensure_snapshots_initialized_unlocked, load_index, write_index_unlocked};
+use super::index::{
+    create_private_dir, ensure_snapshots_initialized_unlocked, load_index, write_index_unlocked,
+    write_manifest,
+};
 use super::paths::{
     etc_path, managed_etc_files, snapshots_root, FSTAB, SYSCTL_FILE, ZRAMSWAP_FILE, ZRAM_CONF,
 };
@@ -15,7 +18,7 @@ use super::types::{
 use crate::apply::store_lock::with_store_lock;
 use crate::apply::types::PendingConfig;
 use crate::backend::available_swapfile_backend;
-use crate::error::{Result, XzramError};
+use crate::error::Result;
 use crate::status::{self, ZramDevice};
 
 pub fn create_snapshot(
@@ -57,17 +60,14 @@ pub fn create_snapshot(
         };
 
         let dir = snapshots_root().join(&id);
-        fs::create_dir_all(&dir)?;
+        create_private_dir(&dir)?;
         for (relative, filename) in managed_etc_files() {
             let src = etc_path(relative);
             if src.exists() {
                 fs::copy(&src, dir.join(filename))?;
             }
         }
-        fs::write(
-            dir.join("manifest.json"),
-            serde_json::to_string_pretty(&meta).map_err(|e| XzramError::Parse(e.to_string()))?,
-        )?;
+        write_manifest(&dir, &meta)?;
 
         let mut index = load_index()?;
         index.insert(0, meta.clone());
@@ -245,19 +245,37 @@ pub(crate) fn rfc3339_now() -> String {
 }
 
 fn human_date() -> String {
-    let duration = SystemTime::now()
+    let secs = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .unwrap_or_default();
-    let secs = duration.as_secs();
-    // Simple UTC formatting without chrono dependency
-    let days = secs / 86400;
-    let day = days % 31 + 1;
-    let month = (days / 31) % 12 + 1;
-    let year = 1970 + days / 365;
-    let time_secs = secs % 86400;
+        .unwrap_or_default()
+        .as_secs();
+    format_utc(secs)
+}
+
+/// Format seconds since the Unix epoch as `DD MM YYYY, HH:MM UTC`.
+fn format_utc(secs: u64) -> String {
+    let days = (secs / 86_400) as i64;
+    let (year, month, day) = civil_from_days(days);
+    let time_secs = secs % 86_400;
     let hour = time_secs / 3600;
     let minute = (time_secs % 3600) / 60;
     format!("{day:02} {month:02} {year}, {hour:02}:{minute:02} UTC")
+}
+
+/// Convert days since 1970-01-01 to a proleptic Gregorian (year, month, day).
+///
+/// Howard Hinnant's `civil_from_days` algorithm.
+fn civil_from_days(z: i64) -> (i64, u32, u32) {
+    let z = z + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z.rem_euclid(146_097); // [0, 146096]
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365; // [0, 399]
+    let y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100); // [0, 365]
+    let mp = (5 * doy + 2) / 153; // [0, 11]
+    let d = (doy - (153 * mp + 2) / 5 + 1) as u32; // [1, 31]
+    let m = if mp < 10 { mp + 3 } else { mp - 9 } as u32; // [1, 12]
+    (if m <= 2 { y + 1 } else { y }, m, d)
 }
 
 #[cfg(test)]
@@ -285,6 +303,30 @@ mod tests {
     fn cleanup_test_env() {
         std::env::remove_var("XZRAM_DATA_DIR");
         std::env::remove_var("XZRAM_ETC_ROOT");
+    }
+
+    #[test]
+    fn civil_from_days_known_dates() {
+        assert_eq!(civil_from_days(0), (1970, 1, 1));
+        assert_eq!(civil_from_days(31), (1970, 2, 1));
+        assert_eq!(civil_from_days(365), (1971, 1, 1));
+        // 2000 is a leap year (divisible by 400).
+        assert_eq!(civil_from_days(11_016), (2000, 2, 29));
+        assert_eq!(civil_from_days(11_017), (2000, 3, 1));
+        // 2024 leap day; 2023-12-31.
+        assert_eq!(civil_from_days(19_782), (2024, 2, 29));
+        assert_eq!(civil_from_days(19_722), (2023, 12, 31));
+        // 2100 is not a leap year.
+        assert_eq!(civil_from_days(47_540), (2100, 2, 28));
+        assert_eq!(civil_from_days(47_541), (2100, 3, 1));
+        assert_eq!(civil_from_days(-1), (1969, 12, 31));
+    }
+
+    #[test]
+    fn format_utc_formats_timestamp() {
+        // 2024-02-29T13:45:00Z
+        assert_eq!(format_utc(1_709_214_300), "29 02 2024, 13:45 UTC");
+        assert_eq!(format_utc(0), "01 01 1970, 00:00 UTC");
     }
 
     #[test]

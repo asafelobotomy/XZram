@@ -17,7 +17,8 @@ pub fn data_dir() -> PathBuf {
 fn ensure_data_dir() -> PathBuf {
     let dir = data_dir();
     let _ = std::fs::create_dir_all(&dir);
-    // Metadata (pending/index) is world-readable; snapshot payloads stay private.
+    // Metadata is world-readable: pending.json (0644) here, and snapshots/index.json (0644)
+    // inside the traverse-only snapshots/ root (0711). Per-snapshot payload dirs stay 0700.
     set_mode(&dir, 0o755);
     dir
 }
@@ -50,8 +51,9 @@ pub fn last_error_path() -> PathBuf {
 pub fn write_last_error(message: &str) {
     let _dir = ensure_data_dir();
     let path = last_error_path();
-    let _ = std::fs::write(&path, message);
-    set_mode_600(&path);
+    if crate::fsutil::atomic_write(&path, message.as_bytes(), 0o600).is_ok() {
+        set_mode_600(&path);
+    }
 }
 
 pub fn clear_last_error() {
@@ -71,7 +73,8 @@ fn pending_path() -> PathBuf {
 
 pub fn load_pending() -> Result<Option<PendingConfig>> {
     let path = pending_path();
-    if !path.exists() {
+    // try_exists surfaces EACCES (root-only data dir) so callers can fall back to D-Bus.
+    if !path.try_exists()? {
         return Ok(None);
     }
     let content = std::fs::read_to_string(&path)?;
@@ -156,7 +159,7 @@ fn write_pending_unlocked(config: &PendingConfig) -> Result<()> {
     ensure_data_dir();
     let content =
         serde_json::to_string_pretty(config).map_err(|e| XzramError::Parse(e.to_string()))?;
-    std::fs::write(&path, content)?;
+    crate::fsutil::atomic_write(&path, content.as_bytes(), 0o644)?;
     set_mode_644(&path);
     Ok(())
 }
