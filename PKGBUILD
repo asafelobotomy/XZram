@@ -27,10 +27,11 @@ build() {
 package_xzram() {
   depends=('polkit' 'systemd' 'util-linux')
   optdepends=(
-    'systemd-zram-generator: zram swap via systemd-zram-generator'
+    'zram-generator: zram swap via zram-generator'
     'xzram-gui: Qt6 desktop GUI'
   )
   pkgdesc="CLI, helper, and D-Bus daemon for Linux swap management"
+  install=xzram.install
 
   cd "$pkgbase-$pkgver"
   install -Dm755 target/release/xzram "$pkgdir/usr/bin/xzram"

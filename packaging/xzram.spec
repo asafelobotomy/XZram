@@ -5,7 +5,8 @@ Summary:        Cross-distro Linux swap management
 
 License:        GPL-3.0-or-later
 URL:            https://github.com/asafelobotomy/XZram
-Source0:        %{name}-%{version}.tar.gz
+# GitHub tag archives extract to XZram-%{version}/ (leading v stripped).
+Source0:        %{url}/archive/refs/tags/v%{version}.tar.gz#/%{name}-%{version}.tar.gz
 
 BuildRequires:  rust cargo cmake qt6-qtbase-devel
 Requires:       polkit systemd util-linux
@@ -27,7 +28,7 @@ Desktop GUI for XZram that shells out to the xzram CLI for status, staging,
 and polkit-gated apply.
 
 %prep
-%autosetup
+%autosetup -n XZram-%{version}
 
 %build
 cargo build --release --locked
@@ -53,6 +54,7 @@ done
 
 %files
 %license LICENSE
+%doc docs/SCOPE.md docs/SNAPSHOTS.md
 %{_bindir}/xzram
 %{_libexecdir}/xzram-helper
 %{_libexecdir}/xzramd
@@ -63,6 +65,7 @@ done
 %{_datadir}/dbus-1/system-services/io.github.XZram1.service
 
 %files gui
+%doc docs/GUI-PHASE2.md
 %{_bindir}/xzram-qt
 %{_datadir}/applications/io.github.XZram.desktop
 %{_datadir}/metainfo/io.github.XZram.metainfo.xml
@@ -85,12 +88,10 @@ done
 
 * Tue Aug 11 2026 XZram contributors <xzram@example.com> - 0.3.0-1
 - Linked auto-optimize, recommend size scales, async GUI linked optimize
-
-* Tue Aug 11 2026 XZram contributors <xzram@example.com> - 0.2.0-1
 - Split GUI subpackage; store.read polkit; audit follow-ups
 
 * Wed Jul 22 2026 XZram contributors <xzram@example.com> - 0.2.0-1
 - GUI CLI-first runner, settings/snapshot tabs, recommend hardening, versioning
 
-* Mon Jul 13 2026 XZram contributors <xzram@example.com> - 0.1.0-1
+* Fri Jul 10 2026 XZram contributors <xzram@example.com> - 0.1.0-1
 - Bundle xzram-qt GUI and snapshot subsystem

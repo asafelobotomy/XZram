@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Packaging (AUR): `.SRCINFO` regenerated for `pkgver=0.3.1` (was still 0.3.0); the stale 0.3.0 checksum in `packaging/aur/PKGBUILD` is replaced by an explicit all-zero placeholder until tag `v0.3.1` is published and release CI pins the real sum
+- Packaging (Arch): optdepend renamed `systemd-zram-generator` → `zram-generator` (the Arch package name) in both PKGBUILDs and `.SRCINFO`
+- Packaging (Arch): `xzram.install` no longer runs `systemctl enable` on install/upgrade; it only prints a hint (xzramd is D-Bus activated, enabling is optional) and is now wired via `install=` in both PKGBUILDs (copy shipped in `packaging/aur/`)
+- Packaging (RPM): `Source0` points at the GitHub tag archive and `%autosetup -n XZram-%{version}` matches its top-level directory; `%changelog` de-duplicated (Aug 11 entry is 0.3.0-1, 0.1.0 dated Jul 10); `%doc` ships `SCOPE.md`/`SNAPSHOTS.md` (and `GUI-PHASE2.md` for the GUI) like the PKGBUILD
+- Packaging (Debian): `debhelper-compat (= 13)` replaces `debian/compat`; docs installed via `debian/*.docs`
+
+### Changed
+- `make version-check` moved to `scripts/version-check.sh`: also checks AUR `.SRCINFO` pkgver, PKGBUILD/`.SRCINFO` `pkgver` and `sha256sums` agreement, rejects `SKIP`, rejects reusing an earlier version's pinned checksum after a bump, checks the RPM `%changelog` top entry, and warns on the placeholder sum; now run in CI
+
 ## [0.3.1] — 2026-09-23
 
 ### Changed

@@ -146,3 +146,6 @@ jobs:
           fi
           test -f packaging/aur/.SRCINFO
           test -x scripts/ci-aur-package.sh
+
+      - name: Check VERSION across packaging (incl. AUR .SRCINFO)
+        run: make version-check

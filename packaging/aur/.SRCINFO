@@ -1,6 +1,6 @@
 pkgbase = xzram
 	pkgdesc = Cross-distro Linux swap management (zram, swap files, sysctl tuning)
-	pkgver = 0.3.0
+	pkgver = 0.3.1
 	pkgrel = 1
 	url = https://github.com/asafelobotomy/XZram
 	arch = x86_64
@@ -10,15 +10,16 @@ pkgbase = xzram
 	makedepends = cargo
 	makedepends = cmake
 	makedepends = qt6-base
-	source = XZram-0.3.0.tar.gz::https://github.com/asafelobotomy/XZram/archive/refs/tags/v0.3.0.tar.gz
-	sha256sums = 86883f5aad55f397df24a01e46622f10fb0b895e23a25386fa832de215cbea76
+	source = XZram-0.3.1.tar.gz::https://github.com/asafelobotomy/XZram/archive/refs/tags/v0.3.1.tar.gz
+	sha256sums = 0000000000000000000000000000000000000000000000000000000000000000
 
 pkgname = xzram
 	pkgdesc = CLI, helper, and D-Bus daemon for Linux swap management
+	install = xzram.install
 	depends = polkit
 	depends = systemd
 	depends = util-linux
-	optdepends = systemd-zram-generator: zram swap via systemd-zram-generator
+	optdepends = zram-generator: zram swap via zram-generator
 	optdepends = xzram-gui: Qt6 desktop GUI
 
 pkgname = xzram-gui

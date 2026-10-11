@@ -82,14 +82,8 @@ clean:
 	cargo clean
 	rm -rf build-gui
 
-# Ensure VERSION matches Cargo workspace, CMake project, and packaging metadata.
+# Ensure VERSION matches Cargo workspace, CMake project, and packaging metadata
+# (PKGBUILDs, AUR .SRCINFO, RPM spec + %changelog, debian/changelog, metainfo),
+# and that the AUR PKGBUILD and .SRCINFO agree on pkgver/sha256sums.
 version-check:
-	@test -n "$(XZRAM_VERSION)"
-	@grep -q 'version = "$(XZRAM_VERSION)"' Cargo.toml
-	@grep -q 'project(xzram-qt VERSION $(XZRAM_VERSION)' gui/CMakeLists.txt
-	@grep -q '^pkgver=$(XZRAM_VERSION)$$' PKGBUILD
-	@grep -q '^pkgver=$(XZRAM_VERSION)$$' packaging/aur/PKGBUILD
-	@grep -q '^Version:[[:space:]]*$(XZRAM_VERSION)$$' packaging/xzram.spec
-	@grep -q 'version="$(XZRAM_VERSION)"' data/io.github.XZram.metainfo.xml
-	@head -1 debian/changelog | grep -q "$(XZRAM_VERSION)-"
-	@echo "version $(XZRAM_VERSION) OK"
+	@./scripts/version-check.sh

@@ -126,6 +126,7 @@ jobs:
           path: |
             aur-out/PKGBUILD
             aur-out/.SRCINFO
+            aur-out/xzram.install
             aur-out/*.pkg.tar.zst
             aur-out/*.pkg.tar.xz
           if-no-files-found: error
@@ -145,7 +146,7 @@ jobs:
             [[ "$f" == *-debug-* ]] && continue
             upload+=("$f")
           done
-          upload+=(aur-out/PKGBUILD)
+          upload+=(aur-out/PKGBUILD aur-out/xzram.install)
           if [[ -f aur-out/.SRCINFO ]]; then
             cp aur-out/.SRCINFO aur-out/SRCINFO
             upload+=(aur-out/SRCINFO)

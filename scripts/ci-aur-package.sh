@@ -119,7 +119,7 @@ if command -v namcap >/dev/null 2>&1; then
 fi
 
 mkdir -p "$AUR_OUT"
-cp -a PKGBUILD .SRCINFO "$AUR_OUT/"
+cp -a PKGBUILD .SRCINFO xzram.install "$AUR_OUT/"
 shopt -s nullglob
 built=(./*.pkg.tar.zst ./*.pkg.tar.xz)
 if ((${#built[@]} == 0)); then
