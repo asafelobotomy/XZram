@@ -48,13 +48,22 @@ trap cleanup EXIT
 cp -a "$AUR_DIR/." "$workdir/"
 cd "$workdir"
 
+# Install build tools first: the source step below needs git (local) or curl (release).
+if [[ "$(id -u)" -eq 0 ]]; then
+  pacman -Syu --noconfirm --needed \
+    base-devel git namcap sudo curl shadow util-linux \
+    rust cargo cmake qt6-base \
+    polkit systemd
+fi
+
 case "$AUR_MODE" in
   local)
     if ! command -v git >/dev/null 2>&1; then
       echo "git required for AUR_MODE=local" >&2
       exit 1
     fi
-    git -C "$SRC_ROOT" archive \
+    # The bind-mounted checkout is owned by another uid inside the container.
+    git -c safe.directory="$SRC_ROOT" -C "$SRC_ROOT" archive \
       --format=tar.gz \
       --prefix="${extract_prefix}/" \
       -o "$workdir/$tarball" \
@@ -89,12 +98,8 @@ case "$AUR_MODE" in
     ;;
 esac
 
-# Ensure build tools and a non-root makepkg user (container root path).
+# Ensure a non-root makepkg user (container root path); tools were installed above.
 if [[ "$(id -u)" -eq 0 ]]; then
-  pacman -Syu --noconfirm --needed \
-    base-devel git namcap sudo curl shadow util-linux \
-    rust cargo cmake qt6-base \
-    polkit systemd
   if ! id builder >/dev/null 2>&1; then
     useradd --create-home --shell /bin/bash builder
   fi
