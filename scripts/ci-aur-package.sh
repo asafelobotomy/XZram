@@ -77,6 +77,7 @@ case "$AUR_MODE" in
     fi
     sum="$(sha256sum "$tarball" | awk '{print $1}')"
     # AUR-publishable source line + pinned checksum (makepkg reuses local $tarball).
+    # shellcheck disable=SC2016  # $_srcname/$pkgver are PKGBUILD variables, kept literal
     sed -i \
       -e 's|^source=.*|source=("$_srcname-$pkgver.tar.gz::https://github.com/asafelobotomy/XZram/archive/refs/tags/v$pkgver.tar.gz")|' \
       -e "s|^sha256sums=.*|sha256sums=('$sum')|" \

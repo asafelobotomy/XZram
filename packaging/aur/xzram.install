@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # xzram install hooks (Arch). Hint-only: never enable or start units here
 # (Arch packaging policy). xzramd is D-Bus activated and starts on demand.
 

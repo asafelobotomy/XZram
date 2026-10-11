@@ -11,7 +11,7 @@ pkgdesc="Cross-distro Linux swap management (zram, swap files, sysctl tuning)"
 arch=('x86_64' 'aarch64')
 url="https://github.com/asafelobotomy/XZram"
 license=('GPL-3.0-or-later')
-makedepends=('rust' 'cargo' 'cmake' 'qt6-base')
+makedepends=('rust' 'cargo' 'cmake' 'qt6-base' 'polkit' 'systemd' 'util-linux')
 _srcname=XZram
 # GitHub source archives for tag v$pkgver extract to XZram-$pkgver (leading v stripped).
 source=("$_srcname-$pkgver.tar.gz::https://github.com/asafelobotomy/XZram/archive/refs/tags/v$pkgver.tar.gz")

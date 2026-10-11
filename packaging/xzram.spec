@@ -5,7 +5,7 @@ Summary:        Cross-distro Linux swap management
 
 License:        GPL-3.0-or-later
 URL:            https://github.com/asafelobotomy/XZram
-# GitHub tag archives extract to XZram-%{version}/ (leading v stripped).
+# GitHub tag archives extract to XZram-%%{version}/ (leading v stripped).
 Source0:        %{url}/archive/refs/tags/v%{version}.tar.gz#/%{name}-%{version}.tar.gz
 
 BuildRequires:  rust cargo cmake qt6-qtbase-devel
