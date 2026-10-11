@@ -37,6 +37,11 @@ pub fn validate_swapfile_path(path: &str) -> Result<PathBuf> {
             "swapfile path must not contain whitespace or control characters".into(),
         ));
     }
+    if path.contains('\\') {
+        return Err(XzramError::Validation(
+            "swapfile path must not contain backslashes (fstab treats them as escapes)".into(),
+        ));
+    }
     if !path.starts_with('/') {
         return Err(XzramError::Validation(
             "swapfile path must be absolute".into(),
@@ -128,28 +133,16 @@ fn fstab_lists_swap_file(path: &str) -> bool {
     let Ok(content) = fs::read_to_string(etc_path("fstab")) else {
         return false;
     };
-    content.lines().any(|line| {
-        let trimmed = line.trim();
-        if trimmed.is_empty() || trimmed.starts_with('#') {
-            return false;
-        }
-        let parts: Vec<&str> = trimmed.split_whitespace().collect();
-        parts.len() >= 3 && parts[0] == path && parts[2] == "swap"
-    })
+    super::fstab::parse_swap_entries(&content)
+        .iter()
+        .any(|e| e.spec == path)
 }
 
 fn proc_swaps_lists_file(path: &str) -> bool {
     let Ok(content) = fs::read_to_string("/proc/swaps") else {
         return false;
     };
-    content.lines().skip(1).any(|line| {
-        let mut parts = line.split_whitespace();
-        let Some(name) = parts.next() else {
-            return false;
-        };
-        let typ = parts.next().unwrap_or("");
-        name == path && typ.eq_ignore_ascii_case("file")
-    })
+    super::fstab::proc_swaps_lists_file(&content, path)
 }
 
 pub fn ensure_removable_swapfile(path: &str) -> Result<()> {
@@ -166,6 +159,7 @@ pub fn validate_swapfile_config(config: &SwapfileConfig) -> Result<SwapfileConfi
     validate_swapfile_path(&config.path)?;
     ensure_swapfile_under_allowlist(&config.path)?;
     ensure_no_symlink_components(Path::new(&config.path))?;
+    super::ensure_secure_swap_location(Path::new(&config.path))?;
     if config.size_mb == 0 {
         return Err(XzramError::Validation(
             "swapfile size must be greater than 0 MiB".into(),
@@ -183,12 +177,14 @@ pub fn validate_swapfile_prepare_path(path: &str) -> Result<PathBuf> {
     let pb = validate_swapfile_path(path)?;
     ensure_swapfile_under_allowlist(path)?;
     ensure_no_symlink_components(Path::new(path))?;
+    super::ensure_secure_swap_location(Path::new(path))?;
     Ok(pb)
 }
 
 pub fn validate_swapfile_remove_path(path: &str) -> Result<PathBuf> {
     let pb = validate_swapfile_path(path)?;
     ensure_no_symlink_components(Path::new(path))?;
+    super::ensure_secure_swap_location(Path::new(path))?;
     ensure_removable_swapfile(path)?;
     Ok(pb)
 }
@@ -201,6 +197,7 @@ pub fn validate_swapfile_resize_path(path: &str, size_mb: u64) -> Result<()> {
         )));
     }
     ensure_no_symlink_components(Path::new(path))?;
+    super::ensure_secure_swap_location(Path::new(path))?;
     if size_mb == 0 {
         return Err(XzramError::Validation(
             "swapfile size must be greater than 0 MiB".into(),
@@ -267,6 +264,8 @@ mod tests {
     fn rejects_newline_path() {
         assert!(validate_swapfile_path("/swap/swap\nfile").is_err());
         assert!(validate_swapfile_path("/swap/swap file").is_err());
+        assert!(validate_swapfile_path("/swap/swap\tfile").is_err());
+        assert!(validate_swapfile_path("/swap/swap\\040file").is_err());
     }
 
     #[test]
@@ -308,6 +307,19 @@ mod tests {
         .unwrap();
 
         assert!(ensure_removable_swapfile("/swap/swapfile").is_ok());
+        // Substring / comment mentions do not count as listed.
+        fs::write(
+            etc.path().join("fstab"),
+            "# /swap/other\n/var/swap/other none swap sw 0 0\n/swap/sp\\040ace none swap sw 0 0\n",
+        )
+        .unwrap();
+        assert!(!fstab_lists_swap_file("/swap/other"));
+        assert!(fstab_lists_swap_file("/swap/sp ace"));
+        fs::write(
+            etc.path().join("fstab"),
+            "/swap/swapfile none swap sw,pri=10 0 0\n",
+        )
+        .unwrap();
         assert!(ensure_removable_swapfile("/swap/other").is_err());
         // Exact /swapfile stays allowlisted for create even when not removable yet.
         assert!(ensure_swapfile_under_allowlist("/swapfile").is_ok());

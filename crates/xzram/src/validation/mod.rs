@@ -1,7 +1,10 @@
+pub mod fstab;
 mod path;
+mod secure;
 mod zram;
 
 pub use path::*;
+pub use secure::*;
 pub use zram::*;
 
 use crate::apply::PendingConfig;

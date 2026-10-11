@@ -1,5 +1,4 @@
 use std::fs;
-use std::io::{BufRead, BufReader};
 use std::path::Path;
 
 use crate::apply::SwapfileConfig;
@@ -7,6 +6,7 @@ use crate::backend::SwapfileBackendTrait;
 use crate::error::Result;
 use crate::snapshot::paths::etc_path;
 use crate::swapfile_btrfs;
+use crate::validation::fstab;
 
 fn fstab_path() -> std::path::PathBuf {
     etc_path("fstab")
@@ -16,34 +16,18 @@ pub struct SwapfileBackend;
 
 impl SwapfileBackend {
     fn parse_fstab_swapfiles(&self) -> Result<Vec<SwapfileConfig>> {
-        let file = fs::File::open(fstab_path())?;
-        let reader = BufReader::new(file);
-        let mut swapfiles = Vec::new();
-
-        for line in reader.lines() {
-            let line = line?;
-            let trimmed = line.trim();
-            if trimmed.is_empty() || trimmed.starts_with('#') {
-                continue;
-            }
-            let parts: Vec<&str> = trimmed.split_whitespace().collect();
-            if parts.len() >= 3 && parts[2] == "swap" {
-                let path = parts[0].to_string();
-                if path.starts_with('/') && !path.starts_with("/dev/") {
-                    let priority =
-                        parse_fstab_priority(parts.get(3).copied().unwrap_or("defaults"));
-                    let size_mb = fs::metadata(&path)
-                        .map(|m| m.len() / (1024 * 1024))
-                        .unwrap_or(0);
-                    swapfiles.push(SwapfileConfig {
-                        path,
-                        size_mb,
-                        priority,
-                    });
-                }
-            }
-        }
-        Ok(swapfiles)
+        let content = fs::read_to_string(fstab_path())?;
+        Ok(fstab::parse_swap_entries(&content)
+            .into_iter()
+            .filter(|e| e.spec.starts_with('/') && !e.spec.starts_with("/dev/"))
+            .map(|e| SwapfileConfig {
+                size_mb: fs::metadata(&e.spec)
+                    .map(|m| m.len() / (1024 * 1024))
+                    .unwrap_or(0),
+                priority: parse_fstab_priority(&e.options),
+                path: e.spec,
+            })
+            .collect())
     }
 
     fn priority_for_path(&self, path: &str) -> Result<i32> {
@@ -83,12 +67,10 @@ impl SwapfileBackendTrait for SwapfileBackend {
     fn create(&self, config: &SwapfileConfig) -> Result<()> {
         let config = crate::validation::validate_swapfile_config(config)?;
 
+        // Validation includes the root-owned-ancestor check (ensure_secure_swap_location).
         let path = Path::new(&config.path);
-
+        // Builds at a staging sibling and renames into place; refuses active swap.
         swapfile_btrfs::create_allocated_swapfile(path, config.size_mb)?;
-
-        fs::set_permissions(path, std::os::unix::fs::PermissionsExt::from_mode(0o600))?;
-        restorecon_if_present(path);
 
         crate::apply::run_command(
             "swapon",
@@ -104,23 +86,19 @@ impl SwapfileBackendTrait for SwapfileBackend {
 
         crate::apply::deactivate_swap_path(path)?;
         remove_fstab_entry(path)?;
-        fs::remove_file(path)?;
+        match fs::remove_file(path) {
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            other => other?,
+        }
         Ok(())
     }
 
     fn resize(&self, path: &str, size_mb: u64) -> Result<()> {
         crate::validation::validate_swapfile_resize_path(path, size_mb)?;
-        let priority = self.priority_for_path(path)?;
-        crate::apply::deactivate_swap_path(path)?;
         let path_obj = Path::new(path);
-        swapfile_btrfs::create_allocated_swapfile(path_obj, size_mb)?;
-        fs::set_permissions(
-            path_obj,
-            std::os::unix::fs::PermissionsExt::from_mode(0o600),
-        )?;
-        restorecon_if_present(path_obj);
-        crate::apply::run_command("swapon", &["-p", &priority.to_string(), "--", path])?;
-        Ok(())
+        let priority = self.priority_for_path(path)?;
+        // Allocates + formats the new file first; old swap stays active on failure.
+        swapfile_btrfs::replace_swapfile(path_obj, size_mb, priority)
     }
 }
 
@@ -137,43 +115,30 @@ pub(crate) fn restorecon_if_present(path: &Path) {
 
 fn add_fstab_entry(path: &str, priority: i32) -> Result<()> {
     let fstab = fstab_path();
-    let mut content = if fstab.exists() {
-        fs::read_to_string(&fstab)?
-    } else {
-        String::new()
+    let content = match fs::read_to_string(&fstab) {
+        Ok(c) => c,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
+        Err(e) => return Err(e.into()),
     };
-    let entry = format!("\n{path} none swap sw,pri={priority} 0 0\n");
-    if !content.contains(path) {
-        content.push_str(&entry);
-        if let Some(parent) = fstab.parent() {
-            fs::create_dir_all(parent)?;
-        }
-        fs::write(&fstab, content)?;
+    let updated = fstab::upsert_swap_entry(&content, path, priority);
+    if updated != content {
+        crate::fsutil::atomic_write(&fstab, updated.as_bytes(), 0o644)?;
     }
     Ok(())
 }
 
 fn remove_fstab_entry(path: &str) -> Result<()> {
     let fstab = fstab_path();
-    let content = fs::read_to_string(&fstab)?;
-    let filtered: String = content
-        .lines()
-        .filter(|line| !fstab_line_matches_swapfile(line, path))
-        .collect::<Vec<_>>()
-        .join("\n");
-    fs::write(&fstab, format!("{filtered}\n"))?;
-    Ok(())
-}
-
-fn fstab_line_matches_swapfile(line: &str, path: &str) -> bool {
-    let trimmed = line.trim();
-    if trimmed.is_empty() || trimmed.starts_with('#') {
-        return false;
-    }
-    let Some(first) = trimmed.split_whitespace().next() else {
-        return false;
+    let content = match fs::read_to_string(&fstab) {
+        Ok(c) => c,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(e) => return Err(e.into()),
     };
-    first == path
+    let updated = fstab::remove_swap_entry(&content, path);
+    if updated != content {
+        crate::fsutil::atomic_write(&fstab, updated.as_bytes(), 0o644)?;
+    }
+    Ok(())
 }
 
 fn which_exists(cmd: &str) -> bool {
@@ -195,18 +160,32 @@ mod tests {
     }
 
     #[test]
-    fn fstab_line_match_is_exact() {
-        assert!(fstab_line_matches_swapfile(
-            "/swap/swapfile none swap sw,pri=10 0 0",
-            "/swap/swapfile"
-        ));
-        assert!(!fstab_line_matches_swapfile(
-            "/swap/swapfile2 none swap sw,pri=10 0 0",
-            "/swap/swapfile"
-        ));
-        assert!(!fstab_line_matches_swapfile(
-            "# /swap/swapfile none swap sw,pri=10 0 0",
-            "/swap/swapfile"
-        ));
+    fn fstab_entries_upsert_and_remove_atomically() {
+        let _guard = crate::test_env_lock();
+        let etc = tempfile::tempdir().unwrap();
+        std::env::set_var("XZRAM_ETC_ROOT", etc.path());
+        let fstab = etc.path().join("fstab");
+        fs::write(
+            &fstab,
+            "# /swapfile was here\n/var/swapfile none swap sw,pri=5 0 0\n",
+        )
+        .unwrap();
+
+        add_fstab_entry("/swapfile", 10).unwrap();
+        add_fstab_entry("/swapfile", 40).unwrap();
+        let listed = SwapfileBackend.parse_fstab_swapfiles().unwrap();
+        let mine: Vec<_> = listed.iter().filter(|c| c.path == "/swapfile").collect();
+        assert_eq!(mine.len(), 1);
+        assert_eq!(mine[0].priority, 40);
+        assert!(listed.iter().any(|c| c.path == "/var/swapfile"));
+
+        remove_fstab_entry("/swapfile").unwrap();
+        assert_eq!(
+            fs::read_to_string(&fstab).unwrap(),
+            "# /swapfile was here\n/var/swapfile none swap sw,pri=5 0 0\n"
+        );
+        assert_eq!(fs::read_dir(etc.path()).unwrap().count(), 1);
+
+        std::env::remove_var("XZRAM_ETC_ROOT");
     }
 }
