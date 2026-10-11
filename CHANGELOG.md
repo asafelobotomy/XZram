@@ -7,15 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- Swapfile create/resize/remove/prepare require every existing ancestor directory to be root-owned and not group/other-writable (when running as root), reject symlinked ancestors and non-regular leaves, and allocate/chmod via `O_NOFOLLOW` file descriptors (closes a symlink race against root writes)
+- Release builds ignore `XZRAM_DEV_HELPER` (CLI) and the GUI no longer honours `XZRAM_CLI` or searches `PATH` unless built with `-DXZRAM_DEV_OVERRIDES=ON`
+- xzramd: read-only methods run on the blocking pool behind a 4-slot semaphore (no unauthenticated worker starvation); `ApplyNow*` forward re-serialized validated payloads; sysctl values validated in the daemon; `MigrateZram` validates staged pending; `PrepareSwapfileBtrfs` takes the mutation gate
+- xzramd unit hardened (ProtectKernelLogs/Clock/Hostname, LockPersonality, RestrictSUIDSGID/Realtime, `IPAddressDeny=any`, `AF_UNIX` only, capability deny-list); `PrivateDevices` replaced by `DevicePolicy=closed` + read-only block devices
+- Callers can no longer create `pre_apply` snapshots directly
+
 ### Fixed
+- `/etc/fstab`, `pending.json`, snapshot index/manifests, sysctl drop-in, zram override and `last_error` are written atomically (temp + fsync + rename)
+- fstab swap entries are matched by exact decoded path (not substring); re-creating a swapfile updates its `pri=`; `\NNN` escapes decoded; backslashes rejected in new swap paths
+- Swapfile resize builds the new file beside the old one and only swaps it in once ready; failures leave the old swap active
+- Swapfile create refuses to replace an active swap (use resize)
+- Snapshot restore merges only fstab swap entries and removes swapfiles created after the snapshot (previously a no-op)
+- Failed `apply` automatically restores the pre-apply snapshot and keeps pending for retry
+- Snapshot list works for non-root users (snapshots root `0711`, index `0644`; permission errors surface instead of returning empty)
+- Snapshot dates use a correct calendar conversion; `zram disable` attempts all devices and always writes the override
+- xzramd no longer times out a running helper at 300 s nor releases its gate while the helper runs; per-call error files prevent misattributed errors
+- `--dbus` falls back to pkexec only when the service is unavailable before the call (no double execution on `NoReply`); `snapshot prune --keep` bounded and no longer truncates over D-Bus
+- Cancelled/denied polkit prompts report that instead of a stale `last_error`
+- GUI: privileged operations run asynchronously with a busy dialog and no kill-on-timeout; live refresh is non-blocking; doctor results are shown when the system is unhealthy
+
+### Changed
+- CLI exit codes: 0 ok, 1 error, 2 usage, 3 `doctor` unhealthy (was 1)
+- Helper direct actions take a `pre_apply` snapshot first; polkit messages for `stage`/`apply`/`swapfile.create`/`zram.migrate` describe their full effect
+- D-Bus policy allows `Introspectable`, `Peer` and `Properties.Get/GetAll` for unprivileged callers
+- `make version-check` moved to `scripts/version-check.sh`: also checks AUR `.SRCINFO` pkgver, PKGBUILD/`.SRCINFO` `pkgver` and `sha256sums` agreement, rejects `SKIP`, rejects reusing an earlier version's pinned checksum after a bump, checks the RPM `%changelog` top entry, and warns on the placeholder sum; now run in CI
 - Packaging (AUR): `.SRCINFO` regenerated for `pkgver=0.3.1` (was still 0.3.0); the stale 0.3.0 checksum in `packaging/aur/PKGBUILD` is replaced by an explicit all-zero placeholder until tag `v0.3.1` is published and release CI pins the real sum
 - Packaging (Arch): optdepend renamed `systemd-zram-generator` → `zram-generator` (the Arch package name) in both PKGBUILDs and `.SRCINFO`
 - Packaging (Arch): `xzram.install` no longer runs `systemctl enable` on install/upgrade; it only prints a hint (xzramd is D-Bus activated, enabling is optional) and is now wired via `install=` in both PKGBUILDs (copy shipped in `packaging/aur/`)
 - Packaging (RPM): `Source0` points at the GitHub tag archive and `%autosetup -n XZram-%{version}` matches its top-level directory; `%changelog` de-duplicated (Aug 11 entry is 0.3.0-1, 0.1.0 dated Jul 10); `%doc` ships `SCOPE.md`/`SNAPSHOTS.md` (and `GUI-PHASE2.md` for the GUI) like the PKGBUILD
 - Packaging (Debian): `debhelper-compat (= 13)` replaces `debian/compat`; docs installed via `debian/*.docs`
 
-### Changed
-- `make version-check` moved to `scripts/version-check.sh`: also checks AUR `.SRCINFO` pkgver, PKGBUILD/`.SRCINFO` `pkgver` and `sha256sums` agreement, rejects `SKIP`, rejects reusing an earlier version's pinned checksum after a bump, checks the RPM `%changelog` top entry, and warns on the placeholder sum; now run in CI
 
 ## [0.3.1] — 2026-09-23
 

@@ -79,7 +79,7 @@ DeleteSnapshot(s id) / PruneSnapshots   # polkit: io.github.xzram.snapshot.delet
 
 - **Framework:** Qt6 Widgets (no Qt D-Bus dependency)
 - **Backend:** `XzramCli` runner — `xzram <cmd> --json` for reads; stage/apply/mutate via the same verbs as the CLI
-- **Binary resolution:** prefers `/usr/bin/xzram`, then `PATH`; `XZRAM_CLI` only when `XZRAM_ALLOW_DEV_CLI=1` (see [DEV-ENV.md](DEV-ENV.md))
+- **Binary resolution:** fixed install path baked in at build time (`XZRAM_CLI_PATH`, default `/usr/bin/xzram`); no `PATH` lookup. `XZRAM_CLI` + `XZRAM_ALLOW_DEV_CLI=1` only in builds configured with `-DXZRAM_DEV_OVERRIDES=ON` (see [DEV-ENV.md](DEV-ENV.md))
 - **Pages:**
   - Dashboard (status, memory, detection strip, recommend defaults; auto-refreshed)
   - ZRAM / Swap Files / Sysctl (stage changes; apply via pending banner)
