@@ -14,7 +14,7 @@ pkgbase = xzram
 	makedepends = systemd
 	makedepends = util-linux
 	source = XZram-0.3.2.tar.gz::https://github.com/asafelobotomy/XZram/archive/refs/tags/v0.3.2.tar.gz
-	sha256sums = 0000000000000000000000000000000000000000000000000000000000000000
+	sha256sums = f256e83717ab68dae3c891ddbcc97878389990401739af961297b0ac6746e99c
 
 pkgname = xzram
 	pkgdesc = CLI, helper, and D-Bus daemon for Linux swap management

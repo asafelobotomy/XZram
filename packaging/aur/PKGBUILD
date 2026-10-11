@@ -15,13 +15,9 @@ makedepends=('rust' 'cargo' 'cmake' 'qt6-base' 'polkit' 'systemd' 'util-linux')
 _srcname=XZram
 # GitHub source archives for tag v$pkgver extract to XZram-$pkgver (leading v stripped).
 source=("$_srcname-$pkgver.tar.gz::https://github.com/asafelobotomy/XZram/archive/refs/tags/v$pkgver.tar.gz")
-# PLACEHOLDER (all zeros): tag v$pkgver is not published on GitHub yet, so there is
-# no archive to hash. Do NOT push this PKGBUILD to the AUR as-is. The release
-# workflow (.github/workflows/aur-release.yml -> scripts/ci-aur-package.sh
-# AUR_MODE=release) downloads the tag archive and pins the real sum (updpkgsums
-# equivalent); commit that pinned value back here. `make version-check` warns
-# while this placeholder is present.
-sha256sums=('0000000000000000000000000000000000000000000000000000000000000000')
+# Pinned from the published v$pkgver tag archive (release CI: scripts/ci-aur-package.sh
+# AUR_MODE=release). Re-pin on every version bump.
+sha256sums=('f256e83717ab68dae3c891ddbcc97878389990401739af961297b0ac6746e99c')
 
 prepare() {
   cd "$_srcname-$pkgver"
