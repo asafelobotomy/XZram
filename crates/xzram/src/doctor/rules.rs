@@ -1,134 +1,9 @@
-use serde::{Deserialize, Serialize};
+//! Individual doctor checks; each appends zero or more issues.
 
+use super::{DoctorAction, DoctorIssue, IssueSeverity};
 use crate::checks;
-use crate::detect::{detect, ZramBackend};
-use crate::error::Result;
-use crate::status::status;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum IssueSeverity {
-    Info,
-    Warning,
-    Error,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DoctorIssue {
-    pub severity: IssueSeverity,
-    pub code: String,
-    pub message: String,
-    pub suggestion: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub action: Option<DoctorAction>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case", tag = "type")]
-pub enum DoctorAction {
-    PrepareBtrfsSwapfile { path: String },
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DoctorReport {
-    pub healthy: bool,
-    pub issues: Vec<DoctorIssue>,
-}
-
-pub fn doctor() -> Result<DoctorReport> {
-    let mut issues = Vec::new();
-    let detection = detect()?;
-    let status = status()?;
-
-    if detection.init_system != "systemd" {
-        issues.push(DoctorIssue {
-            severity: IssueSeverity::Warning,
-            code: "non_systemd".into(),
-            message: format!("Init system is '{}', not systemd", detection.init_system),
-            suggestion: Some("XZram v1 targets systemd-based distros".into()),
-            action: None,
-        });
-    }
-
-    if !detection.etc_writable || detection.immutable_os {
-        issues.push(DoctorIssue {
-            severity: IssueSeverity::Warning,
-            code: "immutable_etc".into(),
-            message: "/etc is read-only or this OS uses an immutable layout".into(),
-            suggestion: Some(
-                "On immutable distros, layer packages with rpm-ostree or use a writable overlay. Privileged apply still uses polkit/xzram-helper when /etc is writable for root."
-                    .into(),
-            ),
-            action: None,
-        });
-    }
-
-    if detection.zram_backend == ZramBackend::None && status.zram_devices.is_empty() {
-        issues.push(DoctorIssue {
-            severity: IssueSeverity::Info,
-            code: "no_zram".into(),
-            message: "No zram backend detected and no active zram devices".into(),
-            suggestion: Some("Install zram-generator and run 'xzram zram set'".into()),
-            action: None,
-        });
-    }
-
-    if !detection.zram_generator_installed
-        && detection.zram_backend == ZramBackend::SystemdZramGenerator
-    {
-        issues.push(DoctorIssue {
-            severity: IssueSeverity::Warning,
-            code: "zram_generator_missing".into(),
-            message: "zram-generator config exists but package may not be installed".into(),
-            suggestion: Some(format!(
-                "Install package: {}",
-                crate::detect::zram_generator_package_name(detection.package_manager)
-            )),
-            action: None,
-        });
-    }
-
-    if detection.zram_backend == ZramBackend::ZramTools {
-        issues.push(DoctorIssue {
-            severity: IssueSeverity::Warning,
-            code: "zram_tools_legacy".into(),
-            message: "Legacy zram-tools configuration detected".into(),
-            suggestion: Some(
-                "Run 'xzram zram migrate' to stage zram-generator config, then 'xzram apply'"
-                    .into(),
-            ),
-            action: None,
-        });
-    }
-
-    if crate::migrate::zramswap_service_active() {
-        issues.push(DoctorIssue {
-            severity: IssueSeverity::Info,
-            code: "zramswap_service_active".into(),
-            message: "Legacy zramswap.service is still active".into(),
-            suggestion: Some(
-                "Run 'xzram zram migrate' and apply to disable zram-tools in favor of zram-generator"
-                    .into(),
-            ),
-            action: None,
-        });
-    }
-
-    check_zswap(&mut issues);
-    check_hibernation(&mut issues, &status.swaps);
-    check_filesystem_swapfile(&mut issues, detection.root_filesystem.as_deref());
-    check_btrfs_swapfile_nodatacow(&mut issues);
-    check_swap_priorities(&mut issues, &status.swaps);
-    check_zram_zswap_conflict(&mut issues, &status.zram_devices);
-    check_zram_capacity(&mut issues, &status.swaps);
-    let _ = crate::swap_partition::check_missing_swap_partitions(&mut issues);
-
-    let healthy = !issues.iter().any(|i| i.severity == IssueSeverity::Error);
-
-    Ok(DoctorReport { healthy, issues })
-}
-
-fn check_zswap(issues: &mut Vec<DoctorIssue>) {
+pub(super) fn check_zswap(issues: &mut Vec<DoctorIssue>) {
     if checks::zswap_enabled() == Some(true) {
         issues.push(DoctorIssue {
             severity: IssueSeverity::Warning,
@@ -144,7 +19,7 @@ fn check_zswap(issues: &mut Vec<DoctorIssue>) {
     }
 }
 
-fn check_hibernation(issues: &mut Vec<DoctorIssue>, swaps: &[crate::status::SwapEntry]) {
+pub(super) fn check_hibernation(issues: &mut Vec<DoctorIssue>, swaps: &[crate::status::SwapEntry]) {
     if checks::hibernation_zram_conflict(swaps) {
         issues.push(DoctorIssue {
             severity: IssueSeverity::Error,
@@ -158,7 +33,7 @@ fn check_hibernation(issues: &mut Vec<DoctorIssue>, swaps: &[crate::status::Swap
     }
 }
 
-fn check_filesystem_swapfile(issues: &mut Vec<DoctorIssue>, fstype: Option<&str>) {
+pub(super) fn check_filesystem_swapfile(issues: &mut Vec<DoctorIssue>, fstype: Option<&str>) {
     if let Some("btrfs") = fstype {
         // Only advise prepare-before-create when no managed swapfile exists yet.
         // Existing files are covered by check_btrfs_swapfile_nodatacow (warning + prepare action).
@@ -190,7 +65,7 @@ fn check_filesystem_swapfile(issues: &mut Vec<DoctorIssue>, fstype: Option<&str>
     }
 }
 
-fn check_btrfs_swapfile_nodatacow(issues: &mut Vec<DoctorIssue>) {
+pub(super) fn check_btrfs_swapfile_nodatacow(issues: &mut Vec<DoctorIssue>) {
     let backend = crate::backend::available_swapfile_backend();
     let Ok(files) = backend.list() else {
         return;
@@ -219,7 +94,10 @@ fn check_btrfs_swapfile_nodatacow(issues: &mut Vec<DoctorIssue>) {
     }
 }
 
-fn check_swap_priorities(issues: &mut Vec<DoctorIssue>, swaps: &[crate::status::SwapEntry]) {
+pub(super) fn check_swap_priorities(
+    issues: &mut Vec<DoctorIssue>,
+    swaps: &[crate::status::SwapEntry],
+) {
     if !checks::priority_inverted(swaps) {
         return;
     }
@@ -248,7 +126,7 @@ fn check_swap_priorities(issues: &mut Vec<DoctorIssue>, swaps: &[crate::status::
     });
 }
 
-fn check_zram_zswap_conflict(
+pub(super) fn check_zram_zswap_conflict(
     issues: &mut Vec<DoctorIssue>,
     zram_devices: &[crate::status::ZramDevice],
 ) {
@@ -266,7 +144,10 @@ fn check_zram_zswap_conflict(
 
 /// Warns when a zram swap device is nearly full and disk-backed swap is already
 /// absorbing overflow — the point at which zram-only tuning stops helping.
-fn check_zram_capacity(issues: &mut Vec<DoctorIssue>, swaps: &[crate::status::SwapEntry]) {
+pub(super) fn check_zram_capacity(
+    issues: &mut Vec<DoctorIssue>,
+    swaps: &[crate::status::SwapEntry],
+) {
     const NEAR_FULL_RATIO: f64 = 0.9;
 
     for zram_swap in swaps.iter().filter(|s| s.name.contains("zram")) {
@@ -308,16 +189,6 @@ fn check_zram_capacity(issues: &mut Vec<DoctorIssue>, swaps: &[crate::status::Sw
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn doctor_report_serializes() {
-        let report = DoctorReport {
-            healthy: true,
-            issues: vec![],
-        };
-        let json = serde_json::to_string(&report).unwrap();
-        assert!(json.contains("healthy"));
-    }
 
     #[test]
     fn btrfs_root_tip_skipped_when_swapfiles_configured() {

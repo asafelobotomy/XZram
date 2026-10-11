@@ -1,6 +1,7 @@
 //! Configuration snapshots: create, list, restore, and prune.
 
 pub mod create;
+pub(crate) mod fstab;
 pub mod index;
 pub mod paths;
 pub mod restore;

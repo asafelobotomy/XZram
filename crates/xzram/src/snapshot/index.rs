@@ -15,7 +15,7 @@ pub fn ensure_snapshots_initialized() -> Result<()> {
 }
 
 pub(crate) fn ensure_snapshots_initialized_unlocked() -> Result<()> {
-    if !index_path().exists() {
+    if !index_path().try_exists()? {
         write_index_unlocked(&[])?;
     }
     migrate_legacy_backup_unlocked()?;
@@ -101,7 +101,7 @@ fn migrate_legacy_backup_unlocked() -> Result<Option<SnapshotMeta>> {
 
     let id = format!("{}-legacy_import", chrono_like_id());
     let dir = snapshots_root().join(&id);
-    fs::create_dir_all(&dir)?;
+    create_private_dir(&dir)?;
 
     for name in ["zram-generator.conf", "fstab", "99-xzram.conf"] {
         let src = legacy.join(name);
@@ -123,10 +123,7 @@ fn migrate_legacy_backup_unlocked() -> Result<Option<SnapshotMeta>> {
         swapfiles: captured.swapfiles,
         zram_devices: captured.zram_devices,
     };
-    fs::write(
-        dir.join("manifest.json"),
-        serde_json::to_string_pretty(&meta).map_err(|e| XzramError::Parse(e.to_string()))?,
-    )?;
+    write_manifest(&dir, &meta)?;
 
     let mut index = load_index()?;
     index.push(meta.clone());
@@ -138,7 +135,8 @@ fn migrate_legacy_backup_unlocked() -> Result<Option<SnapshotMeta>> {
 }
 
 pub(crate) fn load_index() -> Result<Vec<SnapshotMeta>> {
-    if !index_path().exists() {
+    // try_exists (not exists) so EACCES surfaces as PermissionDenied for the D-Bus fallback.
+    if !index_path().try_exists()? {
         return Ok(vec![]);
     }
     let content = fs::read_to_string(index_path())?;
@@ -148,23 +146,47 @@ pub(crate) fn load_index() -> Result<Vec<SnapshotMeta>> {
     serde_json::from_str(&content).map_err(|e| XzramError::Parse(format!("snapshot index: {e}")))
 }
 
+/// Mode of the snapshots root: traversable (so index.json can be read) but not listable.
+const SNAPSHOTS_ROOT_MODE: u32 = 0o711;
+/// Per-snapshot payload directories hold copies of /etc files and stay root-only.
+const SNAPSHOT_DIR_MODE: u32 = 0o700;
+
+fn set_mode(path: &std::path::Path, mode: u32) {
+    use std::os::unix::fs::PermissionsExt;
+    let _ = fs::set_permissions(path, fs::Permissions::from_mode(mode));
+}
+
+/// Create a per-snapshot payload directory with private permissions.
+pub(crate) fn create_private_dir(dir: &std::path::Path) -> Result<()> {
+    fs::create_dir_all(dir)?;
+    set_mode(dir, SNAPSHOT_DIR_MODE);
+    Ok(())
+}
+
+pub(crate) fn write_manifest(dir: &std::path::Path, meta: &SnapshotMeta) -> Result<()> {
+    let content =
+        serde_json::to_string_pretty(meta).map_err(|e| XzramError::Parse(e.to_string()))?;
+    crate::fsutil::atomic_write(&dir.join("manifest.json"), content.as_bytes(), 0o600)
+}
+
 pub(crate) fn write_index_unlocked(index: &[SnapshotMeta]) -> Result<()> {
-    fs::create_dir_all(snapshots_root())?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let _ = fs::set_permissions(snapshots_root(), fs::Permissions::from_mode(0o700));
-        let data = data_dir();
-        let _ = fs::set_permissions(&data, fs::Permissions::from_mode(0o755));
+    let root = snapshots_root();
+    fs::create_dir_all(&root)?;
+    set_mode(&root, SNAPSHOTS_ROOT_MODE);
+    set_mode(&data_dir(), 0o755);
+    // Root is no longer 0700, so make sure payload dirs (incl. ones created by older
+    // versions with the default umask) are private.
+    if let Ok(entries) = fs::read_dir(&root) {
+        for entry in entries.flatten() {
+            if entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+                set_mode(&entry.path(), SNAPSHOT_DIR_MODE);
+            }
+        }
     }
     let content =
         serde_json::to_string_pretty(index).map_err(|e| XzramError::Parse(e.to_string()))?;
-    fs::write(index_path(), content)?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let _ = fs::set_permissions(index_path(), fs::Permissions::from_mode(0o644));
-    }
+    crate::fsutil::atomic_write(&index_path(), content.as_bytes(), 0o644)?;
+    set_mode(&index_path(), 0o644);
     Ok(())
 }
 
@@ -222,5 +244,41 @@ mod tests {
         assert_eq!(list_snapshots().unwrap().len(), 1);
 
         cleanup_test_env();
+    }
+
+    #[test]
+    fn index_world_readable_payload_private() {
+        use std::os::unix::fs::PermissionsExt;
+        let _guard = test_lock();
+        let env = test_env();
+        fs::write(env._etc.path().join("fstab"), "a\n").unwrap();
+        let meta = create_snapshot(SnapshotTrigger::Manual, Some("m"), None).unwrap();
+        let mode = |p: &std::path::Path| fs::metadata(p).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode(&snapshots_root()), 0o711);
+        assert_eq!(mode(&index_path()), 0o644);
+        assert_eq!(mode(&snapshots_root().join(&meta.id)), 0o700);
+        cleanup_test_env();
+    }
+
+    #[test]
+    fn load_index_surfaces_permission_denied() {
+        use std::os::unix::fs::PermissionsExt;
+        let _guard = test_lock();
+        let data = tempfile::tempdir().unwrap();
+        std::env::set_var("XZRAM_DATA_DIR", data.path());
+        write_index_unlocked(&[]).unwrap();
+        fs::set_permissions(snapshots_root(), fs::Permissions::from_mode(0o000)).unwrap();
+        let result = load_index();
+        fs::set_permissions(snapshots_root(), fs::Permissions::from_mode(0o711)).unwrap();
+        std::env::remove_var("XZRAM_DATA_DIR");
+        // Root bypasses DAC, so only assert when running unprivileged.
+        if unsafe { libc::geteuid() } != 0 {
+            match result {
+                Err(XzramError::Io(e)) => {
+                    assert_eq!(e.kind(), std::io::ErrorKind::PermissionDenied)
+                }
+                other => panic!("expected PermissionDenied, got {other:?}"),
+            }
+        }
     }
 }

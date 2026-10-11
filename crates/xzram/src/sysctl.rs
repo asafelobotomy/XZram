@@ -135,11 +135,8 @@ pub fn set(values: &SysctlValues) -> Result<()> {
         return Err(XzramError::Validation("No sysctl values provided".into()));
     }
 
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
     let content = format!("{}\n", lines.join("\n"));
-    std::fs::write(&path, content)?;
+    crate::fsutil::atomic_write(&path, content.as_bytes(), 0o644)?;
 
     // Skip live reload under hermetic etc roots (unit tests / fixtures).
     if std::env::var_os("XZRAM_ETC_ROOT").is_none() {
