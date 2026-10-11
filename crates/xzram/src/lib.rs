@@ -5,6 +5,7 @@ pub mod config;
 pub mod detect;
 pub mod doctor;
 pub mod error;
+pub mod fsutil;
 pub mod migrate;
 pub mod recommend;
 pub mod snapshot;
