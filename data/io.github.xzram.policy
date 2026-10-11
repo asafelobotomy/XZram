@@ -45,7 +45,7 @@
 
   <action id="io.github.xzram.swapfile.create">
     <description>Create swap file</description>
-    <message>Authentication is required to create a swap file</message>
+    <message>Authentication is required to create a swap file (and, on btrfs, prepare its directory with nodatacow)</message>
     <icon_name>io.github.XZram</icon_name>
     <defaults>
       <allow_any>auth_admin</allow_any>
@@ -135,8 +135,8 @@
   </action>
 
   <action id="io.github.xzram.stage">
-    <description>Stage swap configuration changes</description>
-    <message>Authentication is required to stage swap configuration</message>
+    <description>Stage swap configuration changes (may prepare a swap file directory)</description>
+    <message>Authentication is required to stage swap configuration. This may also create a swap file directory and mark it nodatacow (chattr +C) on btrfs</message>
     <icon_name>io.github.XZram</icon_name>
     <defaults>
       <allow_any>auth_admin</allow_any>
@@ -161,8 +161,8 @@
   </action>
 
   <action id="io.github.xzram.apply">
-    <description>Apply swap configuration</description>
-    <message>Authentication is required to apply swap configuration</message>
+    <description>Stage and apply swap configuration</description>
+    <message>Authentication is required to stage and apply swap configuration (ZRAM, swap files, fstab and kernel memory parameters)</message>
     <icon_name>io.github.XZram</icon_name>
     <defaults>
       <allow_any>auth_admin</allow_any>
@@ -175,7 +175,7 @@
 
   <action id="io.github.xzram.zram.migrate">
     <description>Migrate from zram-tools to zram-generator</description>
-    <message>Authentication is required to migrate ZRAM configuration</message>
+    <message>Authentication is required to migrate ZRAM configuration (stage, and optionally apply, the migrated settings)</message>
     <icon_name>io.github.XZram</icon_name>
     <defaults>
       <allow_any>auth_admin</allow_any>
