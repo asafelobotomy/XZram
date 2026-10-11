@@ -69,6 +69,15 @@ pub fn restore_snapshot(id: &str) -> Result<ApplyResult> {
         "zram-tools configuration",
     )?;
 
+    restore_etc_file(
+        &dir,
+        "xzram-zswap.conf",
+        etc_path(crate::zswap::ZSWAP_TMPFILES),
+        meta.artifacts.zswap.present,
+        &mut messages,
+        "zswap drop-in",
+    )?;
+
     if hermetic {
         for path in &extra {
             messages.push(format!(
@@ -101,6 +110,7 @@ pub fn restore_snapshot(id: &str) -> Result<ApplyResult> {
         }
 
         swapon_from_fstab(&mut messages)?;
+        restore_zswap_runtime(&meta, &mut messages)?;
     }
 
     info!(id = %meta.id, hermetic, "restored snapshot");
@@ -113,6 +123,18 @@ pub fn restore_snapshot(id: &str) -> Result<ApplyResult> {
 pub fn rollback() -> Result<ApplyResult> {
     let id = latest_pre_apply_id()?;
     restore_snapshot(&id)
+}
+
+/// Re-enable zswap when the snapshot had it on and nothing persistent keeps it off now.
+fn restore_zswap_runtime(meta: &SnapshotMeta, messages: &mut Vec<String>) -> Result<()> {
+    if meta.zswap_enabled == Some(true)
+        && crate::checks::zswap_enabled() == Some(false)
+        && !crate::zswap::persistently_disabled()
+    {
+        crate::zswap::set_runtime(true)?;
+        messages.push("Re-enabled zswap (enabled in snapshot)".into());
+    }
+    Ok(())
 }
 
 fn swapoff_managed_swaps(meta: &SnapshotMeta, extra: &[String]) -> Result<()> {

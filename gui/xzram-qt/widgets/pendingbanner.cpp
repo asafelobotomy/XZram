@@ -1,6 +1,7 @@
 #include "pendingbanner.h"
 
 #include <QHBoxLayout>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QLabel>
@@ -32,6 +33,10 @@ int countPendingChanges(const QJsonValue &pending) {
     if (!obj.value(QStringLiteral("sysctl")).isNull()) {
         ++count;
     }
+    if (obj.value(QStringLiteral("disable_zswap")).toBool()) {
+        ++count;
+    }
+    count += static_cast<int>(obj.value(QStringLiteral("prepare_swapfiles")).toArray().size());
     return count;
 }
 

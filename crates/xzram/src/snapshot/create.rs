@@ -57,6 +57,7 @@ pub fn create_snapshot(
             artifacts: captured.artifacts,
             swapfiles: captured.swapfiles,
             zram_devices: captured.zram_devices,
+            zswap_enabled: crate::checks::zswap_enabled(),
         };
 
         let dir = snapshots_root().join(&id);
@@ -88,22 +89,11 @@ pub(crate) struct CapturedState {
 pub(crate) fn capture_system_state() -> Result<CapturedState> {
     let mut hash = Sha256::new();
     let mut artifacts = SnapshotArtifacts {
-        zram_generator_conf: SnapshotArtifact {
-            present: false,
-            filename: None,
-        },
-        fstab: SnapshotArtifact {
-            present: false,
-            filename: None,
-        },
-        sysctl: SnapshotArtifact {
-            present: false,
-            filename: None,
-        },
-        zramswap: SnapshotArtifact {
-            present: false,
-            filename: None,
-        },
+        zram_generator_conf: SnapshotArtifact::default(),
+        fstab: SnapshotArtifact::default(),
+        sysctl: SnapshotArtifact::default(),
+        zramswap: SnapshotArtifact::default(),
+        zswap: SnapshotArtifact::default(),
     };
 
     for (relative, filename) in managed_etc_files() {
@@ -127,6 +117,7 @@ pub(crate) fn capture_system_state() -> Result<CapturedState> {
             FSTAB => artifacts.fstab = artifact,
             SYSCTL_FILE => artifacts.sysctl = artifact,
             ZRAMSWAP_FILE => artifacts.zramswap = artifact,
+            crate::zswap::ZSWAP_TMPFILES => artifacts.zswap = artifact,
             _ => {}
         }
     }
@@ -223,6 +214,12 @@ pub fn pending_summary(pending: &PendingConfig) -> String {
     }
     if pending.sysctl.is_some() {
         parts.push("sysctl".into());
+    }
+    if !pending.prepare_swapfiles.is_empty() {
+        parts.push("btrfs nodatacow".into());
+    }
+    if pending.disable_zswap {
+        parts.push("disable zswap".into());
     }
     parts.join(", ")
 }

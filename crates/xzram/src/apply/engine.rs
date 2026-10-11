@@ -106,6 +106,18 @@ pub(crate) fn apply_from_pending(pending: &PendingConfig) -> Result<ApplyResult>
         result.messages.push("Applied sysctl values".into());
     }
 
+    for path in &pending.prepare_swapfiles {
+        crate::validation::validate_swapfile_prepare_path(path)?;
+        crate::swapfile_btrfs::prepare_nodatacow(std::path::Path::new(path), false)?;
+        result
+            .messages
+            .push(format!("Set btrfs nodatacow on the parent of {path}"));
+    }
+
+    if pending.disable_zswap {
+        result.messages.extend(crate::zswap::disable()?);
+    }
+
     if pending.finalize_zram_tools
         && std::env::var_os("XZRAM_ETC_ROOT").is_none()
         && migrate::zramswap_config_exists()
@@ -287,5 +299,30 @@ mod tests {
 
         std::env::remove_var("XZRAM_DATA_DIR");
         std::env::remove_var("XZRAM_ETC_ROOT");
+    }
+
+    #[test]
+    fn disable_zswap_persists_drop_in_and_rollback_removes_it() {
+        let _guard = test_lock();
+        let data = tempfile::tempdir().unwrap();
+        let etc = tempfile::tempdir().unwrap();
+        std::env::set_var("XZRAM_DATA_DIR", data.path());
+        std::env::set_var("XZRAM_ETC_ROOT", etc.path());
+
+        let pending = PendingConfig {
+            disable_zswap: true,
+            ..Default::default()
+        };
+        let result = stage_then_apply(&pending).unwrap();
+        let drop_in = etc.path().join(crate::zswap::ZSWAP_TMPFILES);
+        let written = drop_in.exists();
+        rollback().unwrap();
+        let after_rollback = drop_in.exists();
+        std::env::remove_var("XZRAM_DATA_DIR");
+        std::env::remove_var("XZRAM_ETC_ROOT");
+
+        assert!(result.messages.iter().any(|m| m.contains("zswap")));
+        assert!(written);
+        assert!(!after_rollback, "rollback should remove the zswap drop-in");
     }
 }

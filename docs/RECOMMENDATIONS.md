@@ -38,10 +38,10 @@ Anchor: `distro-overrides`.
 
 | Doctor code | Recommend behavior |
 |-------------|-------------------|
-| `zswap_enabled` / `zram_zswap_conflict` | Advisory only (Apply does not disable zswap) ([Arch Wiki Zswap](https://wiki.archlinux.org/title/Zswap)) |
+| `zswap_enabled` / `zram_zswap_conflict` | Staged when zram is in use: Apply writes `/etc/tmpfiles.d/xzram-zswap.conf` and turns zswap off at runtime; snapshot restore removes the drop-in and re-enables zswap ([Arch Wiki Zswap](https://wiki.archlinux.org/title/Zswap)) |
 | `hibernate_zram` | Advisory; zram staging skipped |
 | `priority_inverted` | Fixed by staged zram pri 100 + swapfile pri 10 when those changes are in scope |
-| `btrfs_swapfile_nodatacow` | Prepare runs before create via `ensure_ready_for_swapfile` |
+| `btrfs_swapfile_nodatacow` | Prepare runs before create via `ensure_ready_for_swapfile`; for existing allowlisted swapfiles whose parent lacks nodatacow, Apply stages `prepare_swapfiles` (chattr +C on the parent; not reverted by restore) |
 | `zram_tools_legacy` | Advisory: run `xzram zram migrate` first (Apply does not migrate) |
 | `no_zram` / `zram_generator_missing` | Informational; package name from package manager |
 | `zfs_root` | Advisory only |
@@ -52,7 +52,7 @@ Anchor: `doctor-mapping`.
 
 ## Known conflicts
 
-1. **zswap + zram** — disable zswap when using zram ([Arch Wiki Zram](https://wiki.archlinux.org/title/Zram), [archinstall #1493](https://github.com/archlinux/archinstall/issues/1493)). Apply defaults does not disable zswap.
+1. **zswap + zram** — disable zswap when using zram ([Arch Wiki Zram](https://wiki.archlinux.org/title/Zram), [archinstall #1493](https://github.com/archlinux/archinstall/issues/1493)). Apply defaults disables zswap (runtime + tmpfiles.d) when zram is in use.
 2. **Hibernation** — resume device cannot be zram ([Arch Wiki Zram](https://wiki.archlinux.org/title/Zram)).
 3. **Dual-tier swap** — zram pri 100 + disk pri 10 is a safety net; sustained heavy swap may suit zswap better ([LinuxBlog](https://linuxblog.io/zswap-better-than-zram), [Chris Down](https://chrisdown.name/2026/03/24/zswap-vs-zram-when-to-use-what.html)). Anchor: `dual-tier-tradeoff`.
 4. **Kernel lzo-rle override** — generator may say `zstd` while active algo differs; check Doctor / ZRAM tab.
@@ -77,7 +77,7 @@ Anchor: `known-conflicts`.
 
 - Prefer **zram** when swap demand stays within ~20–30% of RAM ([LinuxBlog](https://linuxblog.io/zswap-better-than-zram)).
 - Prefer **zswap** when swap is heavy, spiky, or NVMe-backed ([Chris Down](https://chrisdown.name/2026/03/24/zswap-vs-zram-when-to-use-what.html)).
-- XZram does not configure zswap; Doctor warns when zswap conflicts with zram.
+- XZram only turns zswap off when zram is in use; it never enables or tunes zswap.
 - Anchor: `zswap-alternative`.
 
 ### Writeback device {#writeback-device}
@@ -92,7 +92,7 @@ Anchor: `known-conflicts`.
 |-------|----------------|----------|--------|
 | `zram-resident-limit` | Staged on `performance` profile | § resident-limit | — |
 | Multiple zram devices | No | § multi-device | No |
-| zswap alternative | Advisory | § zswap-alternative | No zswap UI |
+| zswap alternative | Advisory (zswap disabled when zram is used) | § zswap-alternative | No zswap UI |
 | Writeback device | No (overflow swapfile) | § writeback-device | Expert mode |
 | Vendor size respect | Keep ≥ recommended size | § distro-overrides | — |
 | Overflow cap 8 GiB | Yes | § overflow gates | — |

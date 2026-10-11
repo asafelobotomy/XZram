@@ -26,5 +26,8 @@ pub fn validate_staged_pending(pending: &PendingConfig) -> Result<()> {
     if let Some(ref sysctl) = pending.sysctl {
         crate::sysctl::validate_sysctl_values(sysctl)?;
     }
+    for path in &pending.prepare_swapfiles {
+        validate_swapfile_prepare_path(path)?;
+    }
     Ok(())
 }

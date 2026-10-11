@@ -34,12 +34,13 @@ on major systemd-based Linux distributions.
 | Swap file | `/etc/fstab`, `mkswap`, `swapon` |
 | Swap partition | `/etc/fstab`, `blkid` |
 | zram-tools (legacy) | `/etc/default/zramswap` |
+| zswap off (when zram is used) | `/etc/tmpfiles.d/xzram-zswap.conf` |
 
 ## Edge cases
 
-- **zram vs zswap**: doctor warns when zswap is enabled
+- **zram vs zswap**: doctor warns when zswap is enabled; Apply defaults turns it off (runtime + `/etc/tmpfiles.d/xzram-zswap.conf`) when zram is in use
 - **Hibernation**: doctor warns if resume device is zram
-- **Btrfs swapfiles**: require nodatacow; doctor checks filesystem type
+- **Btrfs swapfiles**: require nodatacow; doctor checks filesystem type; Apply defaults prepares the parent of existing allowlisted swapfiles
 - **Priority tiers**: zram high (100), disk swap low (10) by default
 
 ## Permissions

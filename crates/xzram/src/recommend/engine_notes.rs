@@ -27,19 +27,6 @@ pub(super) fn advisory_items(
 ) -> Vec<RecommendationItem> {
     let mut items = Vec::new();
 
-    if checks::zswap_enabled() == Some(true) {
-        let detail = if checks::zram_zswap_conflict(&status.zram_devices) {
-            "Advisory only — Apply defaults does not disable zswap. Both zram and zswap are active; disable zswap before using zram (see Doctor tab)."
-        } else {
-            "Advisory only — Apply defaults does not disable zswap. Disable manually: echo 0 | sudo tee /sys/module/zswap/parameters/enabled, or add zswap.enabled=0 to the kernel cmdline."
-        };
-        items.push(note_item(
-            "Disable zswap when using zram",
-            detail,
-            Some("known-conflicts"),
-        ));
-    }
-
     items.push(note_item(
         "When zswap may fit better",
         "Advisory only — Apply defaults does not configure zswap. If sustained swap use exceeds ~30% of RAM or is unpredictable on fast NVMe, consider a zswap-based setup instead of zram-only tuning.",

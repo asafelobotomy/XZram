@@ -14,6 +14,7 @@ pub mod swap_partition;
 pub mod swapfile_btrfs;
 pub mod sysctl;
 pub mod validation;
+pub mod zswap;
 
 pub use error::{Result, XzramError};
 

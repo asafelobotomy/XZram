@@ -35,7 +35,7 @@ impl SnapshotTrigger {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct SnapshotArtifact {
     pub present: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -63,6 +63,9 @@ pub struct SnapshotMeta {
     pub artifacts: SnapshotArtifacts,
     pub swapfiles: Vec<SnapshotSwapfile>,
     pub zram_devices: Vec<ZramDevice>,
+    /// Runtime zswap state when captured; `None` for older snapshots or no zswap support.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub zswap_enabled: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -71,4 +74,6 @@ pub struct SnapshotArtifacts {
     pub fstab: SnapshotArtifact,
     pub sysctl: SnapshotArtifact,
     pub zramswap: SnapshotArtifact,
+    #[serde(default)]
+    pub zswap: SnapshotArtifact,
 }

@@ -10,6 +10,7 @@
 #include "widgets/sysctlwidget.h"
 #include "widgets/zramwidget.h"
 
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QMessageBox>
@@ -60,7 +61,11 @@ bool MainWindow::pendingHasChanges(const QJsonObject &pending) const {
     if (pending.value(QStringLiteral("zram")).isObject()) {
         return true;
     }
-    if (pending.value(QStringLiteral("disable_zram")).toBool()) {
+    if (pending.value(QStringLiteral("disable_zram")).toBool()
+        || pending.value(QStringLiteral("disable_zswap")).toBool()) {
+        return true;
+    }
+    if (!pending.value(QStringLiteral("prepare_swapfiles")).toArray().isEmpty()) {
         return true;
     }
     for (const auto *key : {"swapfile", "swapfile_resize", "remove_swapfile", "sysctl"}) {

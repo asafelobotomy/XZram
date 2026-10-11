@@ -26,11 +26,12 @@ pub(crate) fn etc_path(relative: &str) -> PathBuf {
     etc_root().join(relative)
 }
 
-pub(crate) fn managed_etc_files() -> [(&'static str, &'static str); 4] {
+pub(crate) fn managed_etc_files() -> [(&'static str, &'static str); 5] {
     [
         (ZRAM_CONF, "zram-generator.conf"),
         (FSTAB, "fstab"),
         (SYSCTL_FILE, "99-xzram.conf"),
         (ZRAMSWAP_FILE, "zramswap"),
+        (crate::zswap::ZSWAP_TMPFILES, "xzram-zswap.conf"),
     ]
 }

@@ -5,6 +5,7 @@ use crate::status;
 use crate::sysctl;
 
 use super::engine_build::recommend_from_context_scaled;
+use super::host_fixes::{probe_host, stage_host_fixes};
 use super::scales::RecommendScales;
 use super::types::RecommendedDefaults;
 
@@ -21,14 +22,16 @@ pub fn recommend_with_scales(scales: RecommendScales) -> Result<RecommendedDefau
         .and_then(|b| b.show().ok())
         .flatten();
 
-    Ok(recommend_from_context_scaled(
+    let mut report = recommend_from_context_scaled(
         &detection,
         &status,
         current_sysctl,
         current_zram,
         None,
         scales,
-    ))
+    );
+    stage_host_fixes(&mut report, &status, &probe_host());
+    Ok(report)
 }
 
 pub fn stage_recommended() -> Result<RecommendedDefaults> {
@@ -37,13 +40,7 @@ pub fn stage_recommended() -> Result<RecommendedDefaults> {
 
 pub fn stage_recommended_with_scales(scales: RecommendScales) -> Result<RecommendedDefaults> {
     let report = recommend_with_scales(scales)?;
-    if !report.pending.zram.is_none()
-        || report.pending.sysctl.is_some()
-        || report.pending.disable_zram
-        || report.pending.swapfile.is_some()
-        || report.pending.swapfile_resize.is_some()
-        || report.pending.remove_swapfile.is_some()
-    {
+    if !crate::apply::pending_is_empty(&report.pending) {
         crate::apply::stage(&report.pending)?;
     }
     Ok(report)

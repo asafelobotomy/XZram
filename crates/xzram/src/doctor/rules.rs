@@ -10,8 +10,8 @@ pub(super) fn check_zswap(issues: &mut Vec<DoctorIssue>) {
             code: "zswap_enabled".into(),
             message: "zswap is enabled and may interfere with zram effectiveness".into(),
             suggestion: Some(
-                "Disable zswap: echo 0 | sudo tee /sys/module/zswap/parameters/enabled, \
-                 or add zswap.enabled=0 to kernel cmdline"
+                "Run 'xzram defaults apply' to turn zswap off now and at boot (tmpfiles.d), \
+                 or add zswap.enabled=0 to the kernel cmdline"
                     .into(),
             ),
             action: None,
@@ -86,7 +86,10 @@ pub(super) fn check_btrfs_swapfile_nodatacow(issues: &mut Vec<DoctorIssue>) {
                 "Swapfile {} is on btrfs without nodatacow: {}",
                 file.path, status.message
             ),
-            suggestion: Some(format!("xzram swapfile prepare {}", file.path)),
+            suggestion: Some(format!(
+                "xzram swapfile prepare {} (also staged by 'xzram defaults apply')",
+                file.path
+            )),
             action: Some(DoctorAction::PrepareBtrfsSwapfile {
                 path: file.path.clone(),
             }),
@@ -137,7 +140,7 @@ pub(super) fn check_zram_zswap_conflict(
         severity: IssueSeverity::Error,
         code: "zram_zswap_conflict".into(),
         message: "Both zram and zswap are active; zram compression is largely bypassed".into(),
-        suggestion: Some("Disable zswap before using zram".into()),
+        suggestion: Some("Disable zswap: run 'xzram defaults apply'".into()),
         action: None,
     });
 }

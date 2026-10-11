@@ -49,6 +49,12 @@ pub struct PendingConfig {
     /// When true, apply archives zram-tools config and disables zramswap.service.
     #[serde(default)]
     pub finalize_zram_tools: bool,
+    /// When true, apply turns zswap off now and persists it via tmpfiles.d.
+    #[serde(default)]
+    pub disable_zswap: bool,
+    /// Existing swapfiles whose btrfs parent directory gets nodatacow (chattr +C).
+    #[serde(default)]
+    pub prepare_swapfiles: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

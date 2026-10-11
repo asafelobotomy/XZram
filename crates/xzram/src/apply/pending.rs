@@ -126,6 +126,14 @@ fn merge_pending(current: &mut PendingConfig, partial: &PendingConfig) {
     if partial.finalize_zram_tools {
         current.finalize_zram_tools = true;
     }
+    if partial.disable_zswap {
+        current.disable_zswap = true;
+    }
+    for path in &partial.prepare_swapfiles {
+        if !current.prepare_swapfiles.contains(path) {
+            current.prepare_swapfiles.push(path.clone());
+        }
+    }
 }
 
 fn merge_sysctl(existing: Option<&SysctlValues>, incoming: &SysctlValues) -> SysctlValues {
@@ -182,6 +190,8 @@ pub fn pending_is_empty(config: &PendingConfig) -> bool {
         && config.remove_swapfile.is_none()
         && config.sysctl.is_none()
         && !config.finalize_zram_tools
+        && !config.disable_zswap
+        && config.prepare_swapfiles.is_empty()
 }
 
 #[cfg(test)]

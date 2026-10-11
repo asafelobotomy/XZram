@@ -1,6 +1,7 @@
 mod engine;
 mod engine_build;
 mod engine_notes;
+mod host_fixes;
 mod link;
 mod link_sanitize;
 mod link_types;

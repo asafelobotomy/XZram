@@ -122,6 +122,7 @@ fn migrate_legacy_backup_unlocked() -> Result<Option<SnapshotMeta>> {
         artifacts: captured.artifacts,
         swapfiles: captured.swapfiles,
         zram_devices: captured.zram_devices,
+        zswap_enabled: None,
     };
     write_manifest(&dir, &meta)?;
 

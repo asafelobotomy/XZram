@@ -147,8 +147,9 @@ active or fstab-configured disk swap exists and free space allows. Read-only `/e
 and immutable OS detection skip all staging. Vendor zram sizes that already evaluate
 ≥ the recommended formula are not shrunk.
 
-**Apply defaults** applies immediately; **Configure** stages for review. Advisory items
-(zswap, hibernation, dual-tier tradeoffs) are informational only and link to
+**Apply defaults** applies immediately; **Configure** stages for review. Staged host fixes
+(disable zswap, btrfs nodatacow on existing swapfile parents) apply with the rest; advisory
+items (hibernation, dual-tier tradeoffs) are informational only and link to
 `docs/RECOMMENDATIONS.md` anchors via the `reference` field.
 
 ## Dependencies
