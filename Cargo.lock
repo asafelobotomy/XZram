@@ -1318,6 +1318,7 @@ dependencies = [
  "assert_cmd",
  "clap",
  "predicates",
+ "serde",
  "serde_json",
  "tracing",
  "tracing-subscriber",

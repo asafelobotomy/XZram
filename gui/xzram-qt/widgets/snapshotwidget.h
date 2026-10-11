@@ -15,6 +15,7 @@ class SnapshotWidget : public QWidget {
 public:
     explicit SnapshotWidget(QWidget *parent = nullptr);
     void refresh();
+    void setSnapshotsJson(const QString &json);
     void setPruneKeepDefault(int keep);
 
 signals:

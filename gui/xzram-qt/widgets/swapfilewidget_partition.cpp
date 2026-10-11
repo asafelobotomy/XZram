@@ -1,5 +1,6 @@
 #include "swapfilewidget.h"
 
+#include "privilegedjob.h"
 #include "xzramcli.h"
 
 #include <QMessageBox>
@@ -17,12 +18,14 @@ void SwapfileWidget::swapOnSelected() {
     if (reply != QMessageBox::Yes) {
         return;
     }
-    QString error;
-    if (!XzramCli::swapOn(device, &error)) {
-        QMessageBox::warning(this, tr("Enable swap failed"), error);
-        return;
-    }
-    emit refreshRequested();
+    runPrivilegedCli(this, tr("Enabling swap on %1…").arg(device), XzramCli::argsSwapOn(device),
+                     [this](const XzramCli::RunResult &result) {
+                         if (!result.ok) {
+                             QMessageBox::warning(this, tr("Enable swap failed"), result.error);
+                             return;
+                         }
+                         emit refreshRequested();
+                     });
 }
 
 void SwapfileWidget::swapOffSelected() {
@@ -40,10 +43,13 @@ void SwapfileWidget::swapOffSelected() {
     if (reply != QMessageBox::Yes) {
         return;
     }
-    QString error;
-    if (!XzramCli::swapOff(device, &error)) {
-        QMessageBox::warning(this, tr("Disable swap failed"), error);
-        return;
-    }
-    emit refreshRequested();
+    runPrivilegedCli(this, tr("Disabling swap on %1…").arg(device),
+                     XzramCli::argsSwapOff(device), [this](const XzramCli::RunResult &result) {
+                         if (!result.ok) {
+                             QMessageBox::warning(this, tr("Disable swap failed"),
+                                                  result.error);
+                             return;
+                         }
+                         emit refreshRequested();
+                     });
 }

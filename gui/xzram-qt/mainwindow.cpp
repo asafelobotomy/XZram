@@ -1,24 +1,20 @@
 #include "mainwindow.h"
 
-#include "clijob.h"
-#include "jsonloader.h"
 #include "linkedoptimize.h"
+#include "privilegedjob.h"
 #include "xzramcli.h"
 #include "widgets/dashboardwidget.h"
 #include "widgets/doctorwidget.h"
 #include "widgets/pendingbanner.h"
-#include "widgets/recommendeddefaultsdialog.h"
 #include "widgets/settingswidget.h"
 #include "widgets/snapshotwidget.h"
 #include "widgets/swapfilewidget.h"
 #include "widgets/sysctlwidget.h"
 #include "widgets/zramwidget.h"
 
+#include <QCloseEvent>
 #include <QHBoxLayout>
 #include <QIcon>
-#include <QJsonArray>
-#include <QJsonDocument>
-#include <QJsonObject>
 #include <QLabel>
 #include <QMessageBox>
 #include <QMetaType>
@@ -36,6 +32,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     m_linkedOptimizeTimer->setInterval(200);
     connect(m_linkedOptimizeTimer, &QTimer::timeout, this, &MainWindow::runLinkedOptimize);
     m_linkedOptimizeRunner = new LinkedOptimize::Runner(this);
+    m_refresher = new RefreshRunner(this);
+    connect(m_refresher, &RefreshRunner::finished, this, &MainWindow::onRefreshFinished);
     setupUi();
     m_linkedOptimizeEnabled = m_settingsPage->linkedOptimize();
     configureRefreshTimer(m_settingsPage->refreshIntervalMs());
@@ -167,222 +165,14 @@ void MainWindow::runLinkedOptimize() {
         });
 }
 
-void MainWindow::updateStatusLabel() {
-    const QString daemon =
-        XzramCli::daemonIsActive() ? tr("xzramd up") : tr("xzramd down");
-    m_statusLabel->setText(
-        tr("Using xzram CLI (%1) · %2").arg(XzramCli::findBinary(), daemon));
-}
-
-void MainWindow::populateFromCli() {
-    const QString status = XzramCli::statusJson();
-    const QString detection = XzramCli::detectionJson();
-    const QString doctor = XzramCli::doctorJson();
-    const QString swaps = XzramCli::swapsJson();
-    const QString zramConfig = XzramCli::zramConfigJson();
-    const QString swapfiles = XzramCli::swapfilesJson();
-    const QString sysctl = XzramCli::sysctlJson();
-    const QString pending = XzramCli::pendingJson();
-
-    m_dashboard->setStatusJson(status);
-    m_dashboard->setSwapsJson(swaps);
-    m_dashboard->setDoctorJson(doctor);
-    m_dashboard->setDetectionJson(detection);
-    m_zramPage->setStatusJson(status);
-    m_zramPage->setZramConfigJson(zramConfig);
-    m_zramPage->setDetectionJson(detection);
-    m_swapfilePage->setSwapfilesJson(swapfiles);
-    m_swapfilePage->setDetectionJson(detection);
-    m_swapfilePage->setSwapsJson(swaps);
-    m_sysctlPage->setSysctlJson(sysctl);
-    m_doctorPage->setDetectionJson(detection);
-    m_doctorPage->setDoctorJson(doctor);
-    m_pendingBanner->setPendingJson(pending);
-    m_settingsPage->refreshStatus();
-}
-
-void MainWindow::updatePendingBanner() {
-    m_pendingBanner->setPendingJson(XzramCli::pendingJson());
-}
-
-void MainWindow::refreshAll() {
-    updateStatusLabel();
-    populateFromCli();
-    m_snapshotPage->refresh();
-}
-
-void MainWindow::refreshLive() {
-    updateStatusLabel();
-
-    const QString status = XzramCli::statusJson();
-    const QString doctor = XzramCli::doctorJson();
-    const QString swaps = XzramCli::swapsJson();
-    const QString pending = XzramCli::pendingJson();
-
-    m_dashboard->setStatusJson(status);
-    m_dashboard->setSwapsJson(swaps);
-    m_dashboard->setDoctorJson(doctor);
-    m_zramPage->setStatusJson(status);
-    m_swapfilePage->setSwapsJson(swaps);
-    m_doctorPage->setDoctorJson(doctor);
-    m_pendingBanner->setPendingJson(pending);
-    m_settingsPage->refreshStatus();
-
-    if (m_tabs->currentWidget() == m_snapshotPage) {
-        m_snapshotPage->refresh();
-    }
-}
-
-void MainWindow::onStagingChanged() {
-    updatePendingBanner();
-}
-
-void MainWindow::applyPending() {
-    if (m_settingsPage->confirmBeforeApply()) {
-        const auto answer = QMessageBox::question(
-            this, tr("Apply pending"),
-            tr("Apply staged configuration changes now?"),
-            QMessageBox::Yes | QMessageBox::No, QMessageBox::Yes);
-        if (answer != QMessageBox::Yes) {
-            return;
-        }
-    }
-
-    runCliWithProgress(this, tr("Applying configuration…"), XzramCli::argsApply(), 300000,
-                       [this](const XzramCli::RunResult &result) {
-                           if (result.error == QLatin1String("cancelled")) {
-                               return;
-                           }
-                           if (!result.ok) {
-                               QMessageBox::warning(this, tr("Apply failed"), result.error);
-                               return;
-                           }
-                           QMessageBox::information(this, tr("Apply"),
-                                                    tr("Pending configuration applied."));
-                           refreshAll();
-                       });
-}
-
-void MainWindow::clearPending() {
-    QString error;
-    if (!XzramCli::clearPending(&error)) {
-        QMessageBox::warning(this, tr("Clear failed"), error);
+void MainWindow::closeEvent(QCloseEvent *event) {
+    if (privilegedJobsRunning() > 0) {
+        // Closing would kill the CLI mid-operation and orphan pkexec/xzram-helper.
+        QMessageBox::information(this, tr("Operation in progress"),
+                                 tr("Wait for the current privileged operation to finish before "
+                                    "closing XZram."));
+        event->ignore();
         return;
     }
-    updatePendingBanner();
-}
-
-QString MainWindow::fetchRecommendedDefaultsJson() const {
-    return XzramCli::recommendedDefaultsJson();
-}
-
-bool MainWindow::pendingHasChanges(const QJsonObject &pending) const {
-    if (pending.isEmpty()) {
-        return false;
-    }
-    if (pending.contains(QStringLiteral("error"))) {
-        return false;
-    }
-    if (!pending.value(QStringLiteral("zram")).isNull()
-        && pending.value(QStringLiteral("zram")).isObject()) {
-        return true;
-    }
-    if (pending.value(QStringLiteral("disable_zram")).toBool()) {
-        return true;
-    }
-    if (!pending.value(QStringLiteral("swapfile")).isNull()) {
-        return true;
-    }
-    if (!pending.value(QStringLiteral("swapfile_resize")).isNull()) {
-        return true;
-    }
-    if (!pending.value(QStringLiteral("remove_swapfile")).isNull()) {
-        return true;
-    }
-    if (!pending.value(QStringLiteral("sysctl")).isNull()) {
-        return true;
-    }
-    return false;
-}
-
-void MainWindow::previewPendingInTabs(const QJsonObject &pending) {
-    if (pending.contains(QStringLiteral("zram"))) {
-        const QJsonObject zram = pending.value(QStringLiteral("zram")).toObject();
-        m_zramPage->setZramConfigJson(
-            QString::fromUtf8(QJsonDocument(zram).toJson(QJsonDocument::Compact)));
-    }
-    if (pending.contains(QStringLiteral("sysctl"))) {
-        const QJsonObject sysctl = pending.value(QStringLiteral("sysctl")).toObject();
-        m_sysctlPage->setSysctlJson(
-            QString::fromUtf8(QJsonDocument(sysctl).toJson(QJsonDocument::Compact)));
-    }
-}
-
-void MainWindow::recommendDefaults() {
-    const QString json = fetchRecommendedDefaultsJson();
-    QString parseError;
-    const QJsonObject report = JsonLoader::parseObject(json, &parseError);
-    if (report.contains(QStringLiteral("error"))) {
-        QMessageBox::warning(this, tr("Recommend failed"),
-                             report.value(QStringLiteral("error")).toString());
-        return;
-    }
-
-    const auto result = RecommendedDefaultsDialog::showDialog(this, report);
-    if (result.choice == RecommendedDefaultsDialog::Choice::Cancel) {
-        return;
-    }
-
-    // Re-fetch with chosen scales so pending preview matches Apply/Stage.
-    const QString scaledJson =
-        XzramCli::recommendedDefaultsJson(result.zramScale, result.swapScale);
-    QString scaledParseError;
-    const QJsonObject scaledReport = JsonLoader::parseObject(scaledJson, &scaledParseError);
-    if (scaledReport.contains(QStringLiteral("error"))) {
-        QMessageBox::warning(this, tr("Recommend failed"),
-                             scaledReport.value(QStringLiteral("error")).toString());
-        return;
-    }
-
-    const QJsonObject pending = scaledReport.value(QStringLiteral("pending")).toObject();
-    if (!pendingHasChanges(pending)) {
-        QMessageBox::information(this, tr("Recommended defaults"),
-                                 tr("Your system already matches the recommended defaults."));
-        return;
-    }
-
-    if (result.choice == RecommendedDefaultsDialog::Choice::ApplyDefaults) {
-        runCliWithProgress(
-            this, tr("Applying recommended defaults…"),
-            XzramCli::argsDefaultsApply(result.zramScale, result.swapScale), 300000,
-            [this](const XzramCli::RunResult &runResult) {
-                if (runResult.error == QLatin1String("cancelled")) {
-                    return;
-                }
-                if (!runResult.ok) {
-                    QMessageBox::warning(this, tr("Apply failed"), runResult.error);
-                    return;
-                }
-                QMessageBox::information(this, tr("Apply complete"),
-                                         tr("Recommended defaults have been applied."));
-                refreshAll();
-            });
-        return;
-    }
-
-    if (result.choice == RecommendedDefaultsDialog::Choice::Configure) {
-        QString error;
-        if (!XzramCli::defaultsStage(result.zramScale, result.swapScale, &error)) {
-            QMessageBox::warning(this, tr("Stage failed"), error);
-            return;
-        }
-        previewPendingInTabs(pending);
-        updatePendingBanner();
-        m_tabs->setCurrentWidget(m_zramPage);
-        QMessageBox::information(
-            this, tr("Defaults staged"),
-            tr("Recommended defaults are staged. Review each tab, adjust if needed, then use "
-               "Apply in the pending banner."));
-        // Do not refreshAll() here — it reloads live config and wipes staged tab preview.
-    }
+    QMainWindow::closeEvent(event);
 }

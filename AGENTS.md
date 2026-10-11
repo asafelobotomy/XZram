@@ -25,7 +25,7 @@ cargo run -p xzram-cli -- status
 | CLI | `cargo run -p xzram-cli -- …` or `./target/release/xzram` | Primary |
 | Helper | `xzram-helper` via pkexec | Root only |
 | Daemon | `xzramd` / `systemctl enable --now xzramd` | Privileged next step |
-| GUI | `make build-gui` → `build-gui/xzram-qt/xzram-qt` | Optional; Qt6; CLI-backed; auto-refresh; `XZRAM_ALLOW_DEV_CLI=1` + `XZRAM_CLI` override |
+| GUI | `make build-gui` → `build-gui/xzram-qt/xzram-qt` | Optional; Qt6; CLI-backed; auto-refresh; `XZRAM_ALLOW_DEV_CLI=1` + `XZRAM_CLI` override only with `-DXZRAM_DEV_OVERRIDES=ON` (see docs/DEV-ENV.md) |
 
 Prefer `make install-cli` over `make install` when Qt is not needed.
 
@@ -43,7 +43,7 @@ CLI/helper smoke: `cargo test -p xzram-cli` and `cargo test -p xzram-helper`.
 GUI gate: `make gui-smoke` (not QTest).
 Optional: `pre-commit install` runs fmt-check, clippy, and `cargo test -p xzram --lib` on commit.
 Debug logs: `RUST_LOG=debug cargo run -p xzram-cli -- status` (see [docs/DEV-ENV.md](docs/DEV-ENV.md)).
-Operator health surface: `xzram doctor` / `xzram status` (no root).
+Operator health surface: `xzram doctor` / `xzram status` (no root). CLI exit codes: 0 ok, 1 error, 2 usage, 3 doctor unhealthy.
 See README **Verify** and [docs/DEV-ENV.md](docs/DEV-ENV.md) for `XZRAM_*` overrides.
 
 ## Docs map

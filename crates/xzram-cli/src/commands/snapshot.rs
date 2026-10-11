@@ -1,7 +1,7 @@
 use xzram::snapshot::SnapshotTrigger;
 
 use crate::args::SnapshotCommands;
-use crate::dbus_client;
+use crate::dbus_client::{self, ServiceUnavailable};
 use crate::print::confirm;
 use crate::privileged::run_privileged;
 use crate::snapshot_ops::{
@@ -25,10 +25,19 @@ pub(crate) fn run(command: SnapshotCommands, json: bool, dbus: bool) -> anyhow::
         }
         SnapshotCommands::Create { label, trigger } => {
             let trigger = SnapshotTrigger::parse(&trigger)?;
-            let meta = if dbus && dbus_client::is_available() {
-                run_snapshot_create_dbus(label.as_deref(), trigger)?
+            let via_dbus = if dbus && dbus_client::is_available() {
+                match run_snapshot_create_dbus(label.as_deref(), trigger) {
+                    Ok(meta) => Some(meta),
+                    // Request never reached xzramd: safe to retry via pkexec.
+                    Err(e) if e.downcast_ref::<ServiceUnavailable>().is_some() => None,
+                    Err(e) => return Err(e),
+                }
             } else {
-                run_snapshot_create_pkexec(label.as_deref(), trigger)?
+                None
+            };
+            let meta = match via_dbus {
+                Some(meta) => meta,
+                None => run_snapshot_create_pkexec(label.as_deref(), trigger)?,
             };
             if json {
                 println!("{}", serde_json::to_string_pretty(&meta)?);

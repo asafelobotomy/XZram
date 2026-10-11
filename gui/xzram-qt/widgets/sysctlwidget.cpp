@@ -1,6 +1,7 @@
 #include "sysctlwidget.h"
 
 #include "jsonloader.h"
+#include "privilegedjob.h"
 #include "xzramcli.h"
 
 #include <QFormLayout>
@@ -165,14 +166,16 @@ void SysctlWidget::stageChanges() {
         return;
     }
 
-    QString error;
-    if (!XzramCli::sysctlSet(flags, &error)) {
-        QMessageBox::warning(this, tr("Stage failed"), error);
-        return;
-    }
-    captureBaseline();
-    updateActionEnabled();
-    emit stagingChanged();
+    runPrivilegedCli(this, tr("Staging sysctl changes…"), XzramCli::argsSysctlSet(flags),
+                     [this](const XzramCli::RunResult &result) {
+                         if (!result.ok) {
+                             QMessageBox::warning(this, tr("Stage failed"), result.error);
+                             return;
+                         }
+                         captureBaseline();
+                         updateActionEnabled();
+                         emit stagingChanged();
+                     });
 }
 
 void SysctlWidget::onSysctlEdited() {

@@ -1,6 +1,7 @@
 #include "swapfilewidget.h"
 
 #include "jsonloader.h"
+#include "privilegedjob.h"
 #include "xzramcli.h"
 
 #include <QCheckBox>
@@ -119,15 +120,18 @@ void SwapfileWidget::prepareBtrfs() {
         return;
     }
 
-    QString error;
-    if (!XzramCli::swapfilePrepare(path, m_mkdirCheck->isChecked(), &error)) {
-        QMessageBox::warning(this, tr("Prepare failed"), error);
-        return;
-    }
-
-    updateBtrfsStatus(XzramCli::swapfileCheckJson(path));
-    QMessageBox::information(
-        this, tr("Prepare complete"),
-        tr("This path is ready for a swap file. Review the status message before staging create."));
-    updateBtrfsBanner();
+    runPrivilegedCli(
+        this, tr("Preparing directory…"),
+        XzramCli::argsSwapfilePrepare(path, m_mkdirCheck->isChecked()),
+        [this, path](const XzramCli::RunResult &result) {
+            if (!result.ok) {
+                QMessageBox::warning(this, tr("Prepare failed"), result.error);
+                return;
+            }
+            updateBtrfsStatus(XzramCli::swapfileCheckJson(path));
+            QMessageBox::information(this, tr("Prepare complete"),
+                                     tr("This path is ready for a swap file. Review the status "
+                                        "message before staging create."));
+            updateBtrfsBanner();
+        });
 }

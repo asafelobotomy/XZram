@@ -1,18 +1,32 @@
 #include "xzramcli.h"
 
 #include <QFile>
+#include <QFileInfo>
 #include <QIODevice>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QObject>
 #include <QProcess>
-#include <QStandardPaths>
+
+#ifndef XZRAM_CLI_INSTALL_PATH
+#define XZRAM_CLI_INSTALL_PATH "/usr/bin/xzram"
+#endif
 
 namespace {
 
 constexpr auto kLastErrorPath = "/var/lib/xzram/last_error";
 
-QString readLastErrorFile() {
-    QFile file(QString::fromUtf8(kLastErrorPath));
+/// pkexec: authentication dialog dismissed / not authorized.
+constexpr int kPkexecDismissed = 126;
+constexpr int kPkexecNotAuthorized = 127;
+
+/// last_error contents, only when the file was written at/after `since` (else stale).
+QString readFreshLastError(const QDateTime &since) {
+    const QFileInfo info(QString::fromUtf8(kLastErrorPath));
+    if (!since.isValid() || !info.exists() || info.lastModified() < since) {
+        return {};
+    }
+    QFile file(info.filePath());
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
         return {};
     }
@@ -26,7 +40,15 @@ bool isSystemdRunNoise(const QString &text) {
         || text.contains(QStringLiteral("Service runtime:"));
 }
 
-QString bestError(const QString &stderrText, const QString &stdoutText) {
+QString bestError(int exitCode, const QString &stderrText, const QString &stdoutText,
+                  const QDateTime &startedAt) {
+    // Authorization failures: the helper never ran, so last_error can only be stale.
+    if (exitCode == kPkexecDismissed) {
+        return QObject::tr("Authorization cancelled");
+    }
+    if (exitCode == kPkexecNotAuthorized) {
+        return QObject::tr("Authorization denied");
+    }
     // Prefer this-process streams over shared last_error (avoids stale/cross-process TOCTOU).
     if ((stderrText.contains(QStringLiteral("xzram-helper:"))
          || stderrText.contains(QStringLiteral("xzram:")))
@@ -43,12 +65,12 @@ QString bestError(const QString &stderrText, const QString &stdoutText) {
     if (!stdoutText.isEmpty() && !isSystemdRunNoise(stdoutText)) {
         return stdoutText;
     }
-    const QString last = readLastErrorFile();
+    const QString last = readFreshLastError(startedAt);
     if (!last.isEmpty()) {
         return last;
     }
-    return QStringLiteral(
-        "xzram apply failed (see /var/lib/xzram/last_error or journalctl -t xzram-helper)");
+    return QObject::tr(
+        "xzram operation failed (exit %1; see journalctl -t xzram-helper)").arg(exitCode);
 }
 
 } // namespace
@@ -56,120 +78,59 @@ QString bestError(const QString &stderrText, const QString &stdoutText) {
 namespace XzramCli {
 
 QString findBinary() {
+#ifdef XZRAM_DEV_OVERRIDES
     const QByteArray overridePath = qgetenv("XZRAM_CLI");
     if (!overridePath.isEmpty() && qEnvironmentVariableIsSet("XZRAM_ALLOW_DEV_CLI")) {
         const QString path = QString::fromLocal8Bit(overridePath);
-        if (QFile::exists(path)) {
+        if (QFileInfo(path).isAbsolute() && QFile::exists(path)) {
             return path;
         }
     }
-    const QString packaged = QStringLiteral("/usr/bin/xzram");
-    if (QFile::exists(packaged)) {
-        return packaged;
-    }
-    const QString path = QStandardPaths::findExecutable(QStringLiteral("xzram"));
-    if (!path.isEmpty()) {
-        return path;
-    }
-    return QStringLiteral("xzram");
+#endif
+    // Never resolved via $PATH: the GUI drives privileged operations through this binary.
+    return QStringLiteral(XZRAM_CLI_INSTALL_PATH);
 }
 
 RunResult resultFromOutput(int exitCode, bool crashed, const QString &stdoutText,
-                           const QString &stderrText) {
+                           const QString &stderrText, const QDateTime &startedAt,
+                           int extraOkExitCode) {
     RunResult result;
     result.exitCode = exitCode;
     result.stdoutText = stdoutText;
     result.stderrText = stderrText;
-    result.ok = !crashed && exitCode == 0;
+    result.ok = !crashed
+        && (exitCode == kExitOk || (extraOkExitCode >= 0 && exitCode == extraOkExitCode));
     if (!result.ok) {
-        result.error = bestError(stderrText, stdoutText);
+        result.error = bestError(exitCode, stderrText, stdoutText, startedAt);
     }
     return result;
 }
 
-QStringList argsApply() {
-    return {QStringLiteral("apply")};
-}
-
-QStringList argsDefaultsApply() {
-    return argsDefaultsApply(QStringLiteral("default"), QStringLiteral("default"));
-}
-
-QStringList argsDefaultsApply(const QString &zramScale, const QString &swapScale) {
-    return {QStringLiteral("defaults"), QStringLiteral("apply"), QStringLiteral("--yes"),
-            QStringLiteral("--zram-scale"), zramScale, QStringLiteral("--swap-scale"), swapScale};
-}
-
-QStringList argsDefaultsStage(const QString &zramScale, const QString &swapScale) {
-    return {QStringLiteral("defaults"), QStringLiteral("stage"), QStringLiteral("--zram-scale"),
-            zramScale, QStringLiteral("--swap-scale"), swapScale};
-}
-
-QStringList argsDefaultsRecommend(const QString &zramScale, const QString &swapScale) {
-    return {QStringLiteral("defaults"), QStringLiteral("recommend"), QStringLiteral("--json"),
-            QStringLiteral("--zram-scale"), zramScale, QStringLiteral("--swap-scale"), swapScale};
-}
-
-QStringList argsDefaultsOptimizeLinked(const QString &anchor) {
-    return {QStringLiteral("defaults"), QStringLiteral("optimize-linked"), QStringLiteral("--json"),
-            QStringLiteral("--anchor"), anchor};
-}
-
-QStringList argsSwapfileCreate(const QString &path, quint64 sizeMb, int priority) {
-    return argsSwapfileCreate(path, sizeMb, priority, false, false);
-}
-
-QStringList argsSwapfileCreate(const QString &path, quint64 sizeMb, int priority, bool prepare,
-                               bool mkdirParents) {
-    QStringList args = {QStringLiteral("swapfile"), QStringLiteral("create"), path,
-                        QStringLiteral("--size-mb"), QString::number(sizeMb),
-                        QStringLiteral("--priority"), QString::number(priority)};
-    if (prepare) {
-        args.append(QStringLiteral("--prepare"));
-        if (mkdirParents) {
-            args.append(QStringLiteral("--mkdir"));
-        }
-    }
-    return args;
-}
-
-QStringList argsSwapfileResize(const QString &path, quint64 sizeMb) {
-    return {QStringLiteral("swapfile"), QStringLiteral("resize"), path,
-            QStringLiteral("--size-mb"), QString::number(sizeMb)};
-}
-
-QStringList argsSnapshotRestore(const QString &id) {
-    return {QStringLiteral("snapshot"), QStringLiteral("restore"), id};
-}
-
-QStringList argsRollback() {
-    return {QStringLiteral("rollback")};
-}
-
-RunResult run(const QStringList &args, int timeoutMs) {
+RunResult run(const QStringList &args, int timeoutMs, int extraOkExitCode) {
     RunResult result;
     QProcess process;
     process.setProgram(findBinary());
     process.setArguments(args);
+    const QDateTime startedAt = QDateTime::currentDateTimeUtc();
     process.start();
     if (!process.waitForStarted(3000)) {
-        result.error = QStringLiteral("failed to start xzram CLI");
+        result.error = QObject::tr("failed to start xzram CLI (%1)").arg(findBinary());
         return result;
     }
     if (!process.waitForFinished(timeoutMs)) {
         process.kill();
         process.waitForFinished(3000);
-        result.error = QStringLiteral("xzram CLI timed out");
+        result.error = QObject::tr("xzram CLI timed out");
         return result;
     }
     return resultFromOutput(
         process.exitCode(), process.exitStatus() == QProcess::CrashExit,
         QString::fromUtf8(process.readAllStandardOutput()).trimmed(),
-        QString::fromUtf8(process.readAllStandardError()).trimmed());
+        QString::fromUtf8(process.readAllStandardError()).trimmed(), startedAt, extraOkExitCode);
 }
 
-QString runJson(const QStringList &args, int timeoutMs) {
-    const RunResult result = run(args, timeoutMs);
+QString runJson(const QStringList &args, int timeoutMs, int extraOkExitCode) {
+    const RunResult result = run(args, timeoutMs, extraOkExitCode);
     if (!result.ok) {
         QJsonObject obj;
         obj.insert(QStringLiteral("error"), result.error);
@@ -178,53 +139,13 @@ QString runJson(const QStringList &args, int timeoutMs) {
     return result.stdoutText;
 }
 
-bool runOk(const QStringList &args, QString *error, int timeoutMs) {
-    const RunResult result = run(args, timeoutMs);
-    if (!result.ok && error) {
-        *error = result.error;
-    }
-    return result.ok;
-}
-
-QString statusJson() {
-    return runJson({QStringLiteral("status"), QStringLiteral("--json")});
-}
-
-QString detectionJson() {
-    return runJson({QStringLiteral("detect"), QStringLiteral("--json")});
-}
-
-QString doctorJson() {
-    return runJson({QStringLiteral("doctor"), QStringLiteral("--json")});
-}
-
-QString zramConfigJson() {
-    return runJson(
-        {QStringLiteral("zram"), QStringLiteral("show"), QStringLiteral("--json")});
-}
-
-QString swapfilesJson() {
-    return runJson(
-        {QStringLiteral("swapfile"), QStringLiteral("list"), QStringLiteral("--json")});
-}
-
 QString swapfileCheckJson(const QString &path) {
     return runJson({QStringLiteral("swapfile"), QStringLiteral("check"), path,
                     QStringLiteral("--json")});
 }
 
-QString swapsJson() {
-    return runJson({QStringLiteral("swap"), QStringLiteral("list"), QStringLiteral("--json")});
-}
-
-QString sysctlJson() {
-    return runJson(
-        {QStringLiteral("sysctl"), QStringLiteral("show"), QStringLiteral("--json")});
-}
-
 QString pendingJson() {
-    return runJson(
-        {QStringLiteral("pending"), QStringLiteral("show"), QStringLiteral("--json")});
+    return runJson(argsPendingShowJson());
 }
 
 QString recommendedDefaultsJson() {
@@ -236,134 +157,7 @@ QString recommendedDefaultsJson(const QString &zramScale, const QString &swapSca
 }
 
 QString snapshotsJson() {
-    return runJson(
-        {QStringLiteral("snapshot"), QStringLiteral("list"), QStringLiteral("--json")});
-}
-
-bool apply(QString *error) {
-    return runOk(argsApply(), error, 300000);
-}
-
-bool clearPending(QString *error) {
-    return runOk({QStringLiteral("pending"), QStringLiteral("clear")}, error);
-}
-
-bool daemonStart(QString *error) {
-    return runOk({QStringLiteral("daemon"), QStringLiteral("start")}, error);
-}
-
-bool daemonIsActive() {
-    QProcess process;
-    process.start(QStringLiteral("systemctl"),
-                  {QStringLiteral("is-active"), QStringLiteral("--quiet"),
-                   QStringLiteral("xzramd.service")});
-    if (!process.waitForFinished(3000)) {
-        process.kill();
-        process.waitForFinished(1000);
-        return false;
-    }
-    return process.exitStatus() == QProcess::NormalExit && process.exitCode() == 0;
-}
-
-bool defaultsStage(QString *error) {
-    return defaultsStage(QStringLiteral("default"), QStringLiteral("default"), error);
-}
-
-bool defaultsStage(const QString &zramScale, const QString &swapScale, QString *error) {
-    return runOk(argsDefaultsStage(zramScale, swapScale), error);
-}
-
-bool defaultsApply(QString *error) {
-    return defaultsApply(QStringLiteral("default"), QStringLiteral("default"), error);
-}
-
-bool defaultsApply(const QString &zramScale, const QString &swapScale, QString *error) {
-    return runOk(argsDefaultsApply(zramScale, swapScale), error, 300000);
-}
-
-bool zramSet(const QString &device, const QString &size, const QString &algorithm, int priority,
-             QString *error) {
-    QStringList args = {QStringLiteral("zram"), QStringLiteral("set")};
-    if (!device.isEmpty()) {
-        args << QStringLiteral("--device") << device;
-    }
-    if (!size.isEmpty()) {
-        args << QStringLiteral("--size") << size;
-    }
-    if (!algorithm.isEmpty()) {
-        args << QStringLiteral("--algorithm") << algorithm;
-    }
-    args << QStringLiteral("--priority") << QString::number(priority);
-    return runOk(args, error);
-}
-
-bool zramDisable(QString *error) {
-    return runOk({QStringLiteral("zram"), QStringLiteral("disable")}, error);
-}
-
-bool zramMigrate(QString *error) {
-    return runOk({QStringLiteral("zram"), QStringLiteral("migrate")}, error);
-}
-
-bool swapfileCreate(const QString &path, quint64 sizeMb, int priority, QString *error) {
-    return runOk(argsSwapfileCreate(path, sizeMb, priority), error, 300000);
-}
-
-bool swapfileResize(const QString &path, quint64 sizeMb, QString *error) {
-    return runOk(argsSwapfileResize(path, sizeMb), error, 300000);
-}
-
-bool swapfileRemove(const QString &path, QString *error) {
-    return runOk({QStringLiteral("swapfile"), QStringLiteral("remove"), path}, error);
-}
-
-bool swapfilePrepare(const QString &path, bool mkdirParents, QString *error) {
-    QStringList args = {QStringLiteral("swapfile"), QStringLiteral("prepare"), path};
-    if (mkdirParents) {
-        args << QStringLiteral("--mkdir");
-    }
-    return runOk(args, error);
-}
-
-bool sysctlSet(const QStringList &flagArgs, QString *error) {
-    QStringList args = {QStringLiteral("sysctl"), QStringLiteral("set")};
-    args.append(flagArgs);
-    return runOk(args, error);
-}
-
-bool swapOn(const QString &device, QString *error) {
-    return runOk({QStringLiteral("swap"), QStringLiteral("on"), device}, error);
-}
-
-bool swapOff(const QString &device, QString *error) {
-    return runOk({QStringLiteral("swap"), QStringLiteral("off"), device}, error);
-}
-
-bool snapshotCreate(const QString &label, QString *error) {
-    QStringList args = {QStringLiteral("snapshot"), QStringLiteral("create")};
-    if (!label.isEmpty()) {
-        args << QStringLiteral("--label") << label;
-    }
-    return runOk(args, error);
-}
-
-bool snapshotRestore(const QString &id, QString *error) {
-    return runOk(argsSnapshotRestore(id), error, 300000);
-}
-
-bool snapshotDelete(const QString &id, QString *error) {
-    return runOk({QStringLiteral("snapshot"), QStringLiteral("delete"), id, QStringLiteral("--yes")},
-                 error);
-}
-
-bool snapshotPrune(int keep, QString *error) {
-    return runOk({QStringLiteral("snapshot"), QStringLiteral("prune"), QStringLiteral("--keep"),
-                  QString::number(keep), QStringLiteral("--yes")},
-                 error);
-}
-
-bool rollback(QString *error) {
-    return runOk(argsRollback(), error, 300000);
+    return runJson(argsSnapshotListJson());
 }
 
 } // namespace XzramCli

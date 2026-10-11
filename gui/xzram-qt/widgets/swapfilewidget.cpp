@@ -1,7 +1,7 @@
 #include "swapfilewidget.h"
 
-#include "clijob.h"
 #include "jsonloader.h"
+#include "privilegedjob.h"
 #include "xzramcli.h"
 
 #include <QCheckBox>
@@ -319,12 +319,9 @@ void SwapfileWidget::stageCreate() {
     QStringList args = XzramCli::argsSwapfileCreate(
         m_pathEdit->text(), static_cast<quint64>(m_sizeSpin->value()), m_prioritySpin->value(),
         prepare, m_mkdirCheck->isChecked());
-    runCliWithProgress(this, prepare ? tr("Preparing and staging swap file…")
-                                     : tr("Staging swap file create…"),
-                       args, 300000, [this](const XzramCli::RunResult &result) {
-                           if (result.error == QLatin1String("cancelled")) {
-                               return;
-                           }
+    runPrivilegedCli(this, prepare ? tr("Preparing and staging swap file…")
+                                   : tr("Staging swap file create…"),
+                       args, [this](const XzramCli::RunResult &result) {
                            if (!result.ok) {
                                QMessageBox::warning(this, tr("Stage failed"), result.error);
                                return;
@@ -344,12 +341,9 @@ void SwapfileWidget::stageResize() {
         QMessageBox::information(this, tr("Resize"), tr("Select a swap file row first."));
         return;
     }
-    runCliWithProgress(this, tr("Staging swap file resize…"),
+    runPrivilegedCli(this, tr("Staging swap file resize…"),
                        XzramCli::argsSwapfileResize(path, static_cast<quint64>(m_sizeSpin->value())),
-                       300000, [this](const XzramCli::RunResult &result) {
-                           if (result.error == QLatin1String("cancelled")) {
-                               return;
-                           }
+                       [this](const XzramCli::RunResult &result) {
                            if (!result.ok) {
                                QMessageBox::warning(this, tr("Stage failed"), result.error);
                                return;
@@ -369,10 +363,12 @@ void SwapfileWidget::stageRemove() {
     if (answer != QMessageBox::Yes) {
         return;
     }
-    QString error;
-    if (!XzramCli::swapfileRemove(path, &error)) {
-        QMessageBox::warning(this, tr("Stage failed"), error);
-        return;
-    }
-    emit stagingChanged();
+    runPrivilegedCli(this, tr("Staging swap file removal…"), XzramCli::argsSwapfileRemove(path),
+                     [this](const XzramCli::RunResult &result) {
+                         if (!result.ok) {
+                             QMessageBox::warning(this, tr("Stage failed"), result.error);
+                             return;
+                         }
+                         emit stagingChanged();
+                     });
 }

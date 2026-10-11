@@ -1,8 +1,10 @@
 use std::process::Command;
+use std::time::SystemTime;
 
 use xzram::snapshot::{self, SnapshotTrigger};
 
-use crate::privileged::find_helper_for_pkexec;
+use crate::dbus_client::{call_classified, manager_proxy};
+use crate::privileged::{find_helper_for_pkexec, pkexec_failure};
 
 pub(crate) fn resolve_snapshot_id(id: &str) -> anyhow::Result<String> {
     match id {
@@ -25,23 +27,20 @@ pub(crate) fn run_snapshot_create_pkexec(
         "label": label,
     });
     let helper = find_helper_for_pkexec()?;
+    let spawned_at = SystemTime::now();
     let output = Command::new("pkexec")
         .arg(&helper)
         .arg("snapshot.create")
         .arg(payload.to_string())
         .output()?;
     if !output.status.success() {
-        if let Some(err) = xzram::apply::read_last_error() {
-            anyhow::bail!("{err}");
-        }
-        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        if !stderr.is_empty() {
-            anyhow::bail!("{stderr}");
-        }
-        anyhow::bail!(
-            "snapshot create failed (pkexec exit {:?})",
-            output.status.code()
-        );
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(pkexec_failure(
+            output.status,
+            spawned_at,
+            Some(&stderr),
+            "snapshot create",
+        ));
     }
     let meta: snapshot::SnapshotMeta = serde_json::from_slice(&output.stdout)?;
     Ok(meta)
@@ -51,14 +50,12 @@ pub(crate) fn run_snapshot_create_dbus(
     label: Option<&str>,
     trigger: SnapshotTrigger,
 ) -> anyhow::Result<snapshot::SnapshotMeta> {
-    let conn = zbus::blocking::Connection::system()?;
-    let proxy = zbus::blocking::Proxy::new(
-        &conn,
-        "io.github.XZram1",
-        "/io/github/XZram",
-        "io.github.XZram.Manager",
+    let (_conn, proxy) = manager_proxy()?;
+    let reply = call_classified(
+        &proxy,
+        "CreateSnapshot",
+        &(trigger.as_str(), label.unwrap_or("")),
     )?;
-    let reply = proxy.call_method("CreateSnapshot", &(trigger.as_str(), label.unwrap_or("")))?;
     let map: std::collections::HashMap<String, zbus::zvariant::OwnedValue> =
         reply.body().deserialize()?;
     let json = map

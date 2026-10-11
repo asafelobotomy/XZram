@@ -1,6 +1,6 @@
 #include "snapshotwidget.h"
 
-#include "clijob.h"
+#include "privilegedjob.h"
 #include "jsonloader.h"
 #include "xzramcli.h"
 
@@ -112,9 +112,12 @@ QString SnapshotWidget::selectedSnapshotId() const {
 }
 
 void SnapshotWidget::refresh() {
+    setSnapshotsJson(XzramCli::snapshotsJson());
+}
+
+void SnapshotWidget::setSnapshotsJson(const QString &json) {
     QString parseError;
-    const QJsonArray snapshots =
-        JsonLoader::parseArray(XzramCli::snapshotsJson(), &parseError);
+    const QJsonArray snapshots = JsonLoader::parseArray(json, &parseError);
 
     m_table->setRowCount(0);
     m_restoreButton->setEnabled(false);
@@ -143,13 +146,16 @@ void SnapshotWidget::refresh() {
 }
 
 void SnapshotWidget::createSnapshot() {
-    QString error;
-    if (!XzramCli::snapshotCreate(m_labelEdit->text().trimmed(), &error)) {
-        QMessageBox::warning(this, tr("Create failed"), error);
-        return;
-    }
-    m_labelEdit->clear();
-    refresh();
+    runPrivilegedCli(this, tr("Creating snapshot…"),
+                     XzramCli::argsSnapshotCreate(m_labelEdit->text().trimmed()),
+                     [this](const XzramCli::RunResult &result) {
+                         if (!result.ok) {
+                             QMessageBox::warning(this, tr("Create failed"), result.error);
+                             return;
+                         }
+                         m_labelEdit->clear();
+                         refresh();
+                     });
 }
 
 void SnapshotWidget::restoreSelected() {
@@ -168,11 +174,8 @@ void SnapshotWidget::restoreSelected() {
         return;
     }
 
-    runCliWithProgress(this, tr("Restoring snapshot…"), XzramCli::argsSnapshotRestore(id), 300000,
+    runPrivilegedCli(this, tr("Restoring snapshot…"), XzramCli::argsSnapshotRestore(id),
                        [this](const XzramCli::RunResult &result) {
-                           if (result.error == QLatin1String("cancelled")) {
-                               return;
-                           }
                            if (!result.ok) {
                                QMessageBox::warning(this, tr("Restore failed"), result.error);
                                return;
@@ -200,12 +203,14 @@ void SnapshotWidget::deleteSelected() {
         return;
     }
 
-    QString error;
-    if (!XzramCli::snapshotDelete(id, &error)) {
-        QMessageBox::warning(this, tr("Delete failed"), error);
-        return;
-    }
-    refresh();
+    runPrivilegedCli(this, tr("Deleting snapshot…"), XzramCli::argsSnapshotDelete(id),
+                     [this](const XzramCli::RunResult &result) {
+                         if (!result.ok) {
+                             QMessageBox::warning(this, tr("Delete failed"), result.error);
+                             return;
+                         }
+                         refresh();
+                     });
 }
 
 void SnapshotWidget::pruneSnapshots() {
@@ -218,12 +223,14 @@ void SnapshotWidget::pruneSnapshots() {
         return;
     }
 
-    QString error;
-    if (!XzramCli::snapshotPrune(keep, &error)) {
-        QMessageBox::warning(this, tr("Prune failed"), error);
-        return;
-    }
-    refresh();
+    runPrivilegedCli(this, tr("Pruning snapshots…"), XzramCli::argsSnapshotPrune(keep),
+                     [this](const XzramCli::RunResult &result) {
+                         if (!result.ok) {
+                             QMessageBox::warning(this, tr("Prune failed"), result.error);
+                             return;
+                         }
+                         refresh();
+                     });
 }
 
 void SnapshotWidget::rollback() {
@@ -235,11 +242,8 @@ void SnapshotWidget::rollback() {
         return;
     }
 
-    runCliWithProgress(this, tr("Rolling back configuration…"), XzramCli::argsRollback(), 300000,
+    runPrivilegedCli(this, tr("Rolling back configuration…"), XzramCli::argsRollback(),
                        [this](const XzramCli::RunResult &result) {
-                           if (result.error == QLatin1String("cancelled")) {
-                               return;
-                           }
                            if (!result.ok) {
                                QMessageBox::warning(this, tr("Rollback failed"), result.error);
                                return;

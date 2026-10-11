@@ -67,7 +67,7 @@ SettingsWidget::SettingsWidget(QWidget *parent) : QWidget(parent) {
     m_cliPathLabel->setWordWrap(true);
     statusForm->addRow(tr("xzram CLI"), m_cliPathLabel);
 
-    m_daemonStatusLabel = new QLabel(status);
+    m_daemonStatusLabel = new QLabel(tr("checking…"), status);
     statusForm->addRow(tr("xzramd"), m_daemonStatusLabel);
 
     m_versionLabel = new QLabel(status);
@@ -129,12 +129,15 @@ int SettingsWidget::pruneKeepDefault() const {
 
 void SettingsWidget::refreshStatus() {
     m_cliPathLabel->setText(XzramCli::findBinary());
-    m_daemonStatusLabel->setText(XzramCli::daemonIsActive() ? tr("running (optional)")
-                                                            : tr("not running (optional)"));
     const QString guiVersion = QApplication::applicationVersion();
     m_versionLabel->setText(guiVersion.isEmpty() ? tr("unknown") : guiVersion);
     m_versionLabel->setToolTip(
         tr("xzram-qt application version (should match the xzram CLI package version)."));
+}
+
+void SettingsWidget::setDaemonActive(bool active) {
+    m_daemonStatusLabel->setText(active ? tr("running (optional)")
+                                        : tr("not running (optional)"));
 }
 
 void SettingsWidget::onIntervalChanged(int) {

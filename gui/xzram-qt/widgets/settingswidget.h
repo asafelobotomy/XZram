@@ -20,6 +20,7 @@ public:
     int pruneKeepDefault() const;
 
     void refreshStatus();
+    void setDaemonActive(bool active);
 
 signals:
     void refreshIntervalChanged(int intervalMs);

@@ -1,9 +1,7 @@
 #include "clijob.h"
 
-#include <QProgressDialog>
 #include <QProcess>
 #include <QTimer>
-#include <QWidget>
 
 CliJob::CliJob(QObject *parent) : QObject(parent) {
     m_process = new QProcess(this);
@@ -36,12 +34,17 @@ void CliJob::start(const QStringList &args, int timeoutMs, const QByteArray &std
     m_timedOut = false;
     m_canceled = false;
     m_stdinData = stdinData;
+    m_startedAt = QDateTime::currentDateTimeUtc();
     m_process->setProgram(XzramCli::findBinary());
     m_process->setArguments(args);
     m_process->start();
     if (timeoutMs > 0) {
         m_timeout->start(timeoutMs);
     }
+}
+
+void CliJob::setExtraOkExitCode(int code) {
+    m_extraOkExitCode = code;
 }
 
 void CliJob::cancel() {
@@ -80,14 +83,14 @@ void CliJob::onFinished(int exitCode, QProcess::ExitStatus status) {
     const QString stderrText =
         QString::fromUtf8(m_process->readAllStandardError()).trimmed();
     emitFinished(XzramCli::resultFromOutput(exitCode, status == QProcess::CrashExit, stdoutText,
-                                            stderrText));
+                                            stderrText, m_startedAt, m_extraOkExitCode));
 }
 
 void CliJob::onErrorOccurred(QProcess::ProcessError error) {
     if (error == QProcess::FailedToStart) {
         m_timeout->stop();
         XzramCli::RunResult result;
-        result.error = QStringLiteral("failed to start xzram CLI");
+        result.error = tr("failed to start xzram CLI (%1)").arg(XzramCli::findBinary());
         emitFinished(result);
     }
 }
@@ -106,25 +109,4 @@ void CliJob::emitFinished(const XzramCli::RunResult &result) {
     }
     m_emitted = true;
     emit finished(result);
-}
-
-void runCliWithProgress(QWidget *parent, const QString &label, const QStringList &args,
-                        int timeoutMs,
-                        const std::function<void(const XzramCli::RunResult &)> &onDone) {
-    auto *dialog = new QProgressDialog(label, QObject::tr("Cancel"), 0, 0, parent);
-    dialog->setWindowModality(Qt::WindowModal);
-    dialog->setMinimumDuration(0);
-    dialog->setAutoClose(false);
-    dialog->setAutoReset(false);
-    dialog->setValue(0);
-
-    auto *job = new CliJob(dialog);
-    QObject::connect(dialog, &QProgressDialog::canceled, job, &CliJob::cancel);
-    QObject::connect(job, &CliJob::finished, dialog,
-                     [dialog, onDone](const XzramCli::RunResult &result) {
-                         dialog->hide();
-                         dialog->deleteLater();
-                         onDone(result);
-                     });
-    job->start(args, timeoutMs);
 }
