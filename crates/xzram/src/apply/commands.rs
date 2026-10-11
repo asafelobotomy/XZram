@@ -46,6 +46,7 @@ pub fn device_is_active_swap(device: &str) -> bool {
     content.lines().skip(1).any(|line| {
         line.split_whitespace()
             .next()
+            .map(crate::validation::fstab::decode_fstab_escapes)
             .is_some_and(|name| name == needle || name == device)
     })
 }

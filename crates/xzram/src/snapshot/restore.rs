@@ -198,7 +198,7 @@ fn recreate_missing_swapfiles(meta: &SnapshotMeta, messages: &mut Vec<String>) -
             continue;
         }
         swapfile_btrfs::create_allocated_swapfile(path, sf.size_mb)?;
-        fs::set_permissions(path, std::os::unix::fs::PermissionsExt::from_mode(0o600))?;
+        swapfile_btrfs::chmod_swapfile_nofollow(path)?;
         crate::backend::swapfile::restorecon_if_present(path);
         messages.push(format!(
             "Recreated swapfile {} ({} MiB)",
