@@ -1,3 +1,6 @@
+mod direct;
+mod error_sink;
+
 use std::process;
 
 use clap::Parser;
@@ -6,12 +9,12 @@ use tracing::info;
 use tracing_subscriber::EnvFilter;
 use xzram::apply::{
     self, apply, apply_pending, clear_pending, stage, stage_then_apply,
-    stage_with_optional_prepare, ApplyRequest, PendingConfig, SwapfileConfig, ZramConfig,
+    stage_with_optional_prepare, ApplyRequest, PendingConfig,
 };
-use xzram::backend::{available_swapfile_backend, ensure_zram_backend};
 use xzram::migrate::migrate_from_zram_tools;
 use xzram::snapshot::{self, SnapshotTrigger};
-use xzram::sysctl::{self, SysctlValues};
+
+use error_sink::ErrorSink;
 
 /// Privileged helper for xzram — invoked via pkexec with polkit authorization.
 #[derive(Parser)]
@@ -32,18 +35,38 @@ fn main() {
 
     let args = Args::parse();
 
-    apply::clear_last_error();
+    // Always start from a clean slate so a stale message can't be blamed on this run.
+    let errors = ErrorSink::from_env();
+    errors.clear();
     if let Err(e) = run(&args.action, &args.payload) {
         let msg = format!("xzram-helper: {e}");
-        apply::write_last_error(&msg);
+        errors.write(&msg);
         eprintln!("{msg}");
         process::exit(1);
     }
 }
 
+/// Snapshot triggers a caller may request. `pre_apply` is reserved for the automatic
+/// snapshots taken before apply / direct actions, because `rollback` restores the newest
+/// `pre_apply` snapshot and a forged one would redirect it.
+fn caller_snapshot_trigger(raw: &str) -> xzram::Result<SnapshotTrigger> {
+    match SnapshotTrigger::parse(raw)? {
+        SnapshotTrigger::PreApply => Err(xzram::XzramError::Validation(
+            "snapshot trigger 'pre_apply' is reserved for automatic snapshots".into(),
+        )),
+        t => Ok(t),
+    }
+}
+
 fn run(action: &str, payload: &str) -> xzram::Result<()> {
     info!(action, "helper action");
+    if direct::run(action, payload)? {
+        return Ok(());
+    }
     match action {
+        // Note: `stage` may also prepare the swapfile's parent directory (mkdir + chattr +C)
+        // when the payload carries `prepare_swapfile`; the CLI relies on this to get a
+        // single polkit prompt, and the `stage` polkit message says so.
         "stage" => {
             #[derive(Deserialize)]
             struct PrepareSpec {
@@ -74,133 +97,6 @@ fn run(action: &str, payload: &str) -> xzram::Result<()> {
         "pending.clear" => {
             clear_pending()?;
             println!("Pending configuration cleared");
-        }
-        "zram.configure" => {
-            let config: ZramConfig = serde_json::from_str(payload)
-                .map_err(|e| xzram::XzramError::Parse(e.to_string()))?;
-            xzram::validation::validate_zram_config(&config)?;
-            let backend = ensure_zram_backend()?;
-            backend.configure(&config)?;
-            backend.apply()?;
-            println!("ZRAM configured");
-        }
-        "zram.disable" => {
-            let backend = ensure_zram_backend()?;
-            backend.disable()?;
-            println!("ZRAM disabled");
-        }
-        "swapfile.create" => {
-            let value: serde_json::Value = serde_json::from_str(payload)
-                .map_err(|e| xzram::XzramError::Parse(e.to_string()))?;
-            let config: SwapfileConfig = serde_json::from_value(value.clone())
-                .map_err(|e| xzram::XzramError::Parse(e.to_string()))?;
-            let config = xzram::validation::validate_swapfile_config(&config)?;
-            if value
-                .get("prepare")
-                .and_then(|v| v.as_bool())
-                .unwrap_or(false)
-            {
-                let mkdir = value
-                    .get("mkdir_parents")
-                    .and_then(|v| v.as_bool())
-                    .unwrap_or(false);
-                xzram::validation::validate_swapfile_prepare_path(&config.path)?;
-                xzram::swapfile_btrfs::prepare_nodatacow(
-                    std::path::Path::new(&config.path),
-                    mkdir,
-                )?;
-            }
-            let backend = available_swapfile_backend();
-            if !backend.is_available() {
-                return Err(xzram::XzramError::Backend(
-                    "swapfile backend is not available".into(),
-                ));
-            }
-            backend.create(&config)?;
-            println!("Swapfile created: {}", config.path);
-        }
-        "swapfile.resize" => {
-            #[derive(Deserialize)]
-            struct ResizePayload {
-                path: String,
-                size_mb: u64,
-            }
-            let p: ResizePayload = serde_json::from_str(payload)
-                .map_err(|e| xzram::XzramError::Parse(e.to_string()))?;
-            xzram::validation::validate_swapfile_resize_path(&p.path, p.size_mb)?;
-            let backend = available_swapfile_backend();
-            if !backend.is_available() {
-                return Err(xzram::XzramError::Backend(
-                    "swapfile backend is not available".into(),
-                ));
-            }
-            backend.resize(&p.path, p.size_mb)?;
-            println!("Swapfile resized: {}", p.path);
-        }
-        "swapfile.remove" => {
-            #[derive(Deserialize)]
-            struct RemovePayload {
-                path: String,
-            }
-            let p: RemovePayload = serde_json::from_str(payload)
-                .map_err(|e| xzram::XzramError::Parse(e.to_string()))?;
-            xzram::validation::validate_swapfile_remove_path(&p.path)?;
-            let backend = available_swapfile_backend();
-            if !backend.is_available() {
-                return Err(xzram::XzramError::Backend(
-                    "swapfile backend is not available".into(),
-                ));
-            }
-            backend.remove(&p.path)?;
-            println!("Swapfile removed: {}", p.path);
-        }
-        "swapfile.prepare" => {
-            #[derive(Deserialize)]
-            struct PreparePayload {
-                path: String,
-                #[serde(default)]
-                mkdir_parents: bool,
-            }
-            let p: PreparePayload = serde_json::from_str(payload)
-                .map_err(|e| xzram::XzramError::Parse(e.to_string()))?;
-            xzram::validation::validate_swapfile_prepare_path(&p.path)?;
-            let status = xzram::swapfile_btrfs::prepare_nodatacow(
-                std::path::Path::new(&p.path),
-                p.mkdir_parents,
-            )?;
-            println!(
-                "{}",
-                serde_json::to_string(&status)
-                    .map_err(|e| xzram::XzramError::Parse(e.to_string()))?
-            );
-        }
-        "swap.activate" => {
-            #[derive(Deserialize)]
-            struct SwapPayload {
-                action: String,
-                device: String,
-            }
-            let p: SwapPayload = serde_json::from_str(payload)
-                .map_err(|e| xzram::XzramError::Parse(e.to_string()))?;
-            xzram::validation::validate_swap_device(&p.device)?;
-            match p.action.as_str() {
-                "on" => {
-                    apply::run_command("swapon", &["--", &p.device])?;
-                }
-                "off" => {
-                    apply::run_command("swapoff", &["--", &p.device])?;
-                }
-                _ => {
-                    return Err(xzram::XzramError::Validation("unknown swap action".into()));
-                }
-            }
-            println!("Swap {}: {}", p.action, p.device);
-        }
-        "sysctl.set" => {
-            let values: SysctlValues = serde_json::from_str(payload)
-                .map_err(|e| xzram::XzramError::Parse(e.to_string()))?;
-            sysctl::set(&values)?;
-            println!("Sysctl values applied");
         }
         "zram.migrate" => {
             #[derive(Deserialize, Default)]
@@ -261,7 +157,7 @@ fn run(action: &str, payload: &str) -> xzram::Result<()> {
             }
             let p: CreatePayload = serde_json::from_str(payload)
                 .map_err(|e| xzram::XzramError::Parse(e.to_string()))?;
-            let trigger = SnapshotTrigger::parse(&p.trigger)?;
+            let trigger = caller_snapshot_trigger(&p.trigger)?;
             let meta = snapshot::create_snapshot(trigger, p.label.as_deref(), None)?;
             println!(
                 "{}",
@@ -313,4 +209,23 @@ fn run(action: &str, payload: &str) -> xzram::Result<()> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn snapshot_create_rejects_pre_apply_trigger() {
+        assert!(caller_snapshot_trigger("pre_apply").is_err());
+        assert!(caller_snapshot_trigger("nope").is_err());
+        assert_eq!(
+            caller_snapshot_trigger("manual").unwrap(),
+            SnapshotTrigger::Manual
+        );
+        assert_eq!(
+            caller_snapshot_trigger("app_open").unwrap(),
+            SnapshotTrigger::AppOpen
+        );
+    }
 }

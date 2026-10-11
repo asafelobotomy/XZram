@@ -1,25 +1,22 @@
 mod apply_now;
 mod auth;
+mod reads;
 mod serve;
 mod store_reads;
 mod util;
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
+use tokio::sync::{Mutex, OwnedMutexGuard, Semaphore};
 use xzram::apply::{
     clear_pending, pending_is_empty, stage, PendingConfig, SwapfileConfig, SwapfileResizeConfig,
     ZramConfig,
 };
-use xzram::backend::{available_swapfile_backend, ensure_zram_backend};
-use xzram::detect;
-use xzram::doctor;
 use xzram::migrate::migrate_from_zram_tools;
 use xzram::recommend;
-use xzram::snapshot::{self, SnapshotTrigger};
-use xzram::status;
-use xzram::swap_partition;
-use xzram::swapfile_btrfs;
-use xzram::sysctl::{self, SysctlValues};
+use xzram::snapshot;
+use xzram::sysctl::SysctlValues;
 use xzram::validation;
 use zbus::interface;
 use zbus::message::Header;
@@ -35,60 +32,54 @@ type JsonReply = HashMap<String, OwnedValue>;
 pub struct Manager {
     connection: zbus::Connection,
     /// Serializes stage/clear/apply/snapshot mutations against pending.json / snapshot store.
-    gate: tokio::sync::Mutex<()>,
+    /// Held (owned) for the full lifetime of every privileged helper run.
+    gate: Arc<Mutex<()>>,
+    /// Bounds concurrent unauthenticated read methods (see `reads`).
+    read_slots: Arc<Semaphore>,
 }
 
 impl Manager {
     pub fn new(connection: zbus::Connection) -> Self {
         Self {
             connection,
-            gate: tokio::sync::Mutex::new(()),
+            gate: Arc::new(Mutex::new(())),
+            read_slots: reads::read_slots(),
         }
+    }
+
+    async fn lock_gate(&self) -> OwnedMutexGuard<()> {
+        self.gate.clone().lock_owned().await
     }
 }
 
 #[interface(name = "io.github.XZram.Manager")]
 impl Manager {
     async fn get_status(&self) -> zbus::fdo::Result<JsonReply> {
-        let report = status::status().map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
-        Ok(json_map(&report))
+        reads::get_status(self).await
     }
 
     async fn get_detection(&self) -> zbus::fdo::Result<JsonReply> {
-        let report = detect::detect().map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
-        Ok(json_map(&report))
+        reads::get_detection(self).await
     }
 
     async fn run_doctor(&self) -> zbus::fdo::Result<JsonReply> {
-        let report = doctor::doctor().map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
-        Ok(json_map(&report))
+        reads::run_doctor(self).await
     }
 
     async fn get_zram_config(&self) -> zbus::fdo::Result<JsonReply> {
-        let backend = ensure_zram_backend().map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
-        let config = backend
-            .show()
-            .map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
-        Ok(json_map(&config))
+        reads::get_zram_config(self).await
     }
 
     async fn list_swapfiles(&self) -> zbus::fdo::Result<JsonReply> {
-        let backend = available_swapfile_backend();
-        let files = backend
-            .list()
-            .map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
-        Ok(json_map(&files))
+        reads::list_swapfiles(self).await
     }
 
     async fn list_swaps(&self) -> zbus::fdo::Result<JsonReply> {
-        let swaps = swap_partition::list_swaps_merged()
-            .map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
-        Ok(json_map(&swaps))
+        reads::list_swaps(self).await
     }
 
     async fn get_sysctl(&self) -> zbus::fdo::Result<JsonReply> {
-        let values = sysctl::show().map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
-        Ok(json_map(&values))
+        reads::get_sysctl(self).await
     }
 
     async fn get_pending(&self, #[zbus(header)] hdr: Header<'_>) -> zbus::fdo::Result<JsonReply> {
@@ -96,11 +87,7 @@ impl Manager {
     }
 
     async fn check_swapfile_btrfs(&self, path: &str) -> zbus::fdo::Result<JsonReply> {
-        validation::validate_swapfile_prepare_path(path)
-            .map_err(|e| zbus::fdo::Error::InvalidArgs(e.to_string()))?;
-        let status = swapfile_btrfs::check_nodatacow(std::path::Path::new(path))
-            .map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
-        Ok(json_map(&status))
+        reads::check_swapfile_btrfs(self, path).await
     }
 
     async fn prepare_swapfile_btrfs(
@@ -110,19 +97,18 @@ impl Manager {
         mkdir_parents: bool,
     ) -> zbus::fdo::Result<JsonReply> {
         authorize(&self.connection, &hdr, "io.github.xzram.swapfile.prepare").await?;
-        util::prepare_swapfile_btrfs(path, mkdir_parents).await
+        util::prepare_swapfile_btrfs(self.lock_gate().await, path, mkdir_parents).await
     }
 
     async fn get_recommended_defaults(&self) -> zbus::fdo::Result<JsonReply> {
-        let report = recommend::recommend().map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
-        Ok(json_map(&report))
+        reads::get_recommended_defaults(self).await
     }
 
     async fn stage_recommended_defaults(
         &self,
         #[zbus(header)] hdr: Header<'_>,
     ) -> zbus::fdo::Result<JsonReply> {
-        let report = recommend::recommend().map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
+        let report = reads::bounded(self, recommend::recommend).await?;
         if pending_is_empty(&report.pending) {
             return Ok(json_map(&report));
         }
@@ -245,14 +231,12 @@ impl Manager {
 
     async fn apply(&self, #[zbus(header)] hdr: Header<'_>) -> zbus::fdo::Result<Vec<String>> {
         authorize(&self.connection, &hdr, "io.github.xzram.apply").await?;
-        let _guard = self.gate.lock().await;
-        crate::privileged::run_helper("apply", "{}").await
+        crate::privileged::run_helper(self.lock_gate().await, "apply", "{}").await
     }
 
     async fn rollback(&self, #[zbus(header)] hdr: Header<'_>) -> zbus::fdo::Result<Vec<String>> {
         authorize(&self.connection, &hdr, "io.github.xzram.rollback").await?;
-        let _guard = self.gate.lock().await;
-        crate::privileged::run_helper("rollback", "{}").await
+        crate::privileged::run_helper(self.lock_gate().await, "rollback", "{}").await
     }
 
     async fn list_snapshots(
@@ -277,8 +261,7 @@ impl Manager {
         label: &str,
     ) -> zbus::fdo::Result<JsonReply> {
         authorize(&self.connection, &hdr, "io.github.xzram.snapshot.create").await?;
-        let trigger = SnapshotTrigger::parse(trigger)
-            .map_err(|e| zbus::fdo::Error::InvalidArgs(e.to_string()))?;
+        let trigger = util::caller_snapshot_trigger(trigger)?;
         let label_opt = if label.is_empty() { None } else { Some(label) };
         let _guard = self.gate.lock().await;
         let meta = snapshot::create_snapshot(trigger, label_opt, None)
@@ -293,8 +276,7 @@ impl Manager {
     ) -> zbus::fdo::Result<Vec<String>> {
         authorize(&self.connection, &hdr, "io.github.xzram.snapshot.restore").await?;
         let payload = serde_json::json!({ "id": id }).to_string();
-        let _guard = self.gate.lock().await;
-        crate::privileged::run_helper("snapshot.restore", &payload).await
+        crate::privileged::run_helper(self.lock_gate().await, "snapshot.restore", &payload).await
     }
 
     async fn delete_snapshot(
@@ -331,6 +313,7 @@ impl Manager {
         authorize(&self.connection, &hdr, "io.github.xzram.zram.migrate").await?;
         let pending =
             migrate_from_zram_tools().map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
+        validate_staged_pending(&pending)?;
         let _guard = self.gate.lock().await;
         stage(&pending).map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
         Ok(())

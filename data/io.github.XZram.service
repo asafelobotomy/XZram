@@ -13,17 +13,35 @@ PrivateTmp=yes
 ProtectSystem=strict
 ProtectHome=yes
 ProtectKernelTunables=yes
-ProtectControlGroups=yes
 ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+LockPersonality=yes
 MemoryDenyWriteExecute=yes
-PrivateDevices=yes
-SystemCallArchitectures=native
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
 RestrictNamespaces=yes
-RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
-# Apply/restore run xzram-helper in a transient unit (see xzramd privileged.rs).
-ReadWritePaths=/var/lib/xzram
-StateDirectory=xzram
+SystemCallArchitectures=native
 SystemCallFilter=@system-service
+# Only the system bus / systemd private socket are needed; no network at all.
+RestrictAddressFamilies=AF_UNIX
+IPAddressDeny=any
+# No PrivateDevices=: read-only status/detection resolves UUID= swap partitions via
+# /dev/disk/by-uuid and blkid, which must see the host's real block devices or the daemon
+# disagrees with the CLI. Device-node access is still limited to block devices (read-only)
+# plus the standard pseudo devices (/dev/null, /dev/urandom, …).
+DevicePolicy=closed
+DeviceAllow=block-* r
+# Drop capabilities xzramd never needs. Privileged writes happen in the transient
+# xzram-helper unit (see xzramd privileged.rs), which does not inherit this set.
+CapabilityBoundingSet=~CAP_SYS_MODULE CAP_SYS_RAWIO CAP_SYS_TIME CAP_SYS_BOOT CAP_SYS_PTRACE CAP_SYS_TTY_CONFIG CAP_NET_ADMIN CAP_NET_RAW CAP_NET_BIND_SERVICE CAP_NET_BROADCAST CAP_MKNOD CAP_LINUX_IMMUTABLE CAP_SETUID CAP_SETGID CAP_SETPCAP CAP_SETFCAP CAP_KILL CAP_AUDIT_CONTROL CAP_AUDIT_READ CAP_AUDIT_WRITE CAP_SYSLOG CAP_WAKE_ALARM CAP_BLOCK_SUSPEND CAP_MAC_ADMIN CAP_MAC_OVERRIDE CAP_LEASE CAP_IPC_LOCK CAP_BPF CAP_PERFMON
+# /var/lib/xzram (writable under ProtectSystem=strict via StateDirectory).
+StateDirectory=xzram
+# /run/xzram: per-call helper error files (XZRAM_ERROR_FILE).
+RuntimeDirectory=xzram
+RuntimeDirectoryMode=0700
 
 [Install]
 WantedBy=multi-user.target
