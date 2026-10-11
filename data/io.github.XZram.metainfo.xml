@@ -14,6 +14,11 @@
   <project_license>GPL-3.0-or-later</project_license>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.3.2" date="2026-10-11">
+      <description>
+        <p>Security and reliability release: safer swapfile handling, crash-safe configuration writes, snapshot restore that keeps unrelated mounts and removes swapfiles added since, automatic rollback when apply fails, a hardened daemon, and a GUI that no longer freezes during privileged operations.</p>
+      </description>
+    </release>
     <release version="0.3.1" date="2026-09-23">
       <description>
         <p>Fix zram status/doctor misreading a sysfs field as a bogus compression-stream count, warn when zram is nearly full and disk swap is absorbing overflow, and fix a D-Bus startup registration race in xzramd.</p>

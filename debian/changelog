@@ -1,3 +1,17 @@
+xzram (0.3.2-1) unstable; urgency=medium
+
+  * Security: harden swapfile path handling against symlink races; tighten
+    xzramd sandbox and input validation
+  * Atomic writes for fstab and all state files; exact fstab entry matching
+  * Snapshot restore merges fstab swap entries and removes swapfiles added
+    since the snapshot; a failed apply rolls back automatically
+  * Swapfile resize keeps the old swap on failure and resizes in place when
+    space is tight
+  * CLI exit code 3 for unhealthy doctor; non-blocking GUI privileged actions
+  * Packaging: Debian source format 3.0 (quilt), watch file, CC0 metadata
+
+ -- XZram contributors <xzram@example.com>  Sun, 11 Oct 2026 12:00:00 +0100
+
 xzram (0.3.1-1) unstable; urgency=medium
 
   * Fix zram mm_stat field mislabeled as a compression-stream count (now `peak` bytes)

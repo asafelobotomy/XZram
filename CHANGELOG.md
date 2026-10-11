@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.2] — 2026-10-11
+
 ### Security
 - Swapfile create/resize/remove/prepare require every existing ancestor directory to be root-owned and not group/other-writable (when running as root), reject symlinked ancestors and non-regular leaves, and allocate/chmod via `O_NOFOLLOW` file descriptors (closes a symlink race against root writes)
 - Release builds ignore `XZRAM_DEV_HELPER` (CLI) and the GUI no longer honours `XZRAM_CLI` or searches `PATH` unless built with `-DXZRAM_DEV_OVERRIDES=ON`
@@ -34,7 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Helper direct actions take a `pre_apply` snapshot first; polkit messages for `stage`/`apply`/`swapfile.create`/`zram.migrate` describe their full effect
 - D-Bus policy allows `Introspectable`, `Peer` and `Properties.Get/GetAll` for unprivileged callers
 - `make version-check` moved to `scripts/version-check.sh`: also checks AUR `.SRCINFO` pkgver, PKGBUILD/`.SRCINFO` `pkgver` and `sha256sums` agreement, rejects `SKIP`, rejects reusing an earlier version's pinned checksum after a bump, checks the RPM `%changelog` top entry, and warns on the placeholder sum; now run in CI
-- Packaging (AUR): `.SRCINFO` regenerated for `pkgver=0.3.1` (was still 0.3.0); the stale 0.3.0 checksum in `packaging/aur/PKGBUILD` is replaced by an explicit all-zero placeholder until tag `v0.3.1` is published and release CI pins the real sum
+- Packaging (AUR): `.SRCINFO` was stale at 0.3.0 while the PKGBUILD said 0.3.1; now regenerated; the stale 0.3.0 checksum in `packaging/aur/PKGBUILD` is replaced by an explicit all-zero placeholder until the release tag is published and release CI pins the real sum
 - Packaging (Arch): optdepend renamed `systemd-zram-generator` → `zram-generator` (the Arch package name) in both PKGBUILDs and `.SRCINFO`
 - Packaging (Arch): `xzram.install` no longer runs `systemctl enable` on install/upgrade; it only prints a hint (xzramd is D-Bus activated, enabling is optional) and is now wired via `install=` in both PKGBUILDs (copy shipped in `packaging/aur/`)
 - Packaging (RPM): `Source0` points at the GitHub tag archive and `%autosetup -n XZram-%{version}` matches its top-level directory; `%changelog` de-duplicated (Aug 11 entry is 0.3.0-1, 0.1.0 dated Jul 10); `%doc` ships `SCOPE.md`/`SNAPSHOTS.md` (and `GUI-PHASE2.md` for the GUI) like the PKGBUILD
@@ -139,6 +141,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Staged apply, zram/swapfile/sysctl management, doctor, snapshots
 - Packaging stubs (Arch PKGBUILD, Fedora spec, Debian)
 
+[Unreleased]: https://github.com/asafelobotomy/XZram/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/asafelobotomy/XZram/compare/v0.3.0...v0.3.2
 [0.3.0]: https://github.com/asafelobotomy/XZram/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/asafelobotomy/XZram/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/asafelobotomy/XZram/releases/tag/v0.1.0

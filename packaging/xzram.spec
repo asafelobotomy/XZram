@@ -1,5 +1,5 @@
 Name:           xzram
-Version:        0.3.1
+Version:        0.3.2
 Release:        1%{?dist}
 Summary:        Cross-distro Linux swap management
 
@@ -84,6 +84,13 @@ done
 %systemd_postun xzramd.service
 
 %changelog
+* Sun Oct 11 2026 XZram contributors <xzram@example.com> - 0.3.2-1
+- Security: harden swapfile path handling against symlink races; tighten xzramd sandbox and input validation
+- Atomic writes for fstab and all state files; fstab entries matched exactly
+- Snapshot restore merges fstab swap entries and removes swapfiles added since; failed apply rolls back
+- Resize keeps the old swap on failure and falls back to in-place when space is tight
+- CLI exit code 3 for unhealthy doctor; GUI privileged operations no longer block
+
 * Wed Sep 23 2026 XZram contributors <xzram@example.com> - 0.3.1-1
 - Fix zram mm_stat field mislabeled as compression streams
 - Doctor warns when zram is near full and disk swap absorbs overflow
