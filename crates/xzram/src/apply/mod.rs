@@ -9,7 +9,7 @@ pub mod types;
 pub use commands::*;
 pub use engine::*;
 pub use pending::*;
-pub use store_lock::with_store_lock;
+pub use store_lock::{lock_helper_run, with_store_lock, HelperRunLock};
 pub use types::*;
 
 #[cfg(test)]

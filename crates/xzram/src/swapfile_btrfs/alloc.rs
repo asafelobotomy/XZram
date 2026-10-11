@@ -11,6 +11,7 @@ use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::os::unix::io::AsRawFd;
 use std::path::{Path, PathBuf};
 
+use super::inplace;
 use super::{btrfs_mkswapfile_available, ensure_ready_for_swapfile, is_btrfs_path};
 use super::{parent_directory, prepare_nodatacow};
 use crate::apply;
@@ -64,12 +65,20 @@ pub fn create_allocated_swapfile(path: &Path, size_mb: u64) -> Result<()> {
 
 /// Resize `path` to `size_mb` and activate it with `priority`.
 ///
-/// The replacement is fully allocated and formatted before the old swap is touched. If that
-/// fails (e.g. ENOSPC), the staging file is removed and the old swap stays active. Needs
-/// free space for both files at once.
+/// When the filesystem has room for a complete second file, the replacement is fully
+/// allocated and formatted before the old swap is touched; on failure (e.g. ENOSPC) the
+/// staging file is removed and the old swap stays active. Otherwise the existing file is
+/// resized in place (needs only the growth delta) and restored to its old size on failure.
+/// If even the delta doesn't fit, nothing is changed.
 pub fn replace_swapfile(path: &Path, size_mb: u64, priority: i32) -> Result<()> {
     ensure_nonzero(size_mb)?;
     ensure_regular_or_absent(path)?;
+    let old_bytes = fs::symlink_metadata(path).map(|m| m.len()).unwrap_or(0);
+    let avail = inplace::available_bytes(&parent_directory(path)?)?;
+    let strategy = inplace::choose_strategy(avail, old_bytes, size_mb)?;
+    if strategy == inplace::ResizeStrategy::InPlace && old_bytes > 0 {
+        return inplace::resize_in_place(path, old_bytes, size_mb, priority);
+    }
     let path_str = path.to_string_lossy().into_owned();
     let was_active = path_is_active_swap(path);
     let staged = build_staged(path, size_mb)?;

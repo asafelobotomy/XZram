@@ -25,7 +25,9 @@ static RUN_SEQ: AtomicU64 = AtomicU64::new(0);
 /// The caller's `gate` guard is moved into the blocking task and only dropped once
 /// `systemd-run --wait` has returned, i.e. after the helper unit has fully stopped. There
 /// is no daemon-side timeout: returning early would release the gate while the helper is
-/// still mutating system state.
+/// still mutating system state. The gate only orders calls within this daemon instance; the
+/// helper's own run lock (`xzram::apply::lock_helper_run`) also serializes against pkexec
+/// helpers and against helpers left running by a previous xzramd instance after a restart.
 pub async fn run_helper(
     gate: OwnedMutexGuard<()>,
     action: &str,

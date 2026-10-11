@@ -6,6 +6,7 @@ use crate::apply;
 use crate::error::{Result, XzramError};
 
 mod alloc;
+mod inplace;
 pub use alloc::{
     chmod_swapfile_nofollow, create_allocated_swapfile, path_is_active_swap, replace_swapfile,
 };

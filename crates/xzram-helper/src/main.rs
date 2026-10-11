@@ -38,7 +38,10 @@ fn main() {
     // Always start from a clean slate so a stale message can't be blamed on this run.
     let errors = ErrorSink::from_env();
     errors.clear();
-    if let Err(e) = run(&args.action, &args.payload) {
+    // One privileged run at a time, however it was launched (pkexec or xzramd) and even
+    // across xzramd restarts; released when this process exits.
+    let result = apply::lock_helper_run().and_then(|_lock| run(&args.action, &args.payload));
+    if let Err(e) = result {
         let msg = format!("xzram-helper: {e}");
         errors.write(&msg);
         eprintln!("{msg}");

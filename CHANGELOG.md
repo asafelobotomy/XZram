@@ -17,7 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - `/etc/fstab`, `pending.json`, snapshot index/manifests, sysctl drop-in, zram override and `last_error` are written atomically (temp + fsync + rename)
 - fstab swap entries are matched by exact decoded path (not substring); re-creating a swapfile updates its `pri=`; `\NNN` escapes decoded; backslashes rejected in new swap paths
-- Swapfile resize builds the new file beside the old one and only swaps it in once ready; failures leave the old swap active
+- Swapfile resize builds the new file beside the old one and only swaps it in once ready; failures leave the old swap active. When there isn't room for both, it resizes in place (needs only the growth delta) and restores the original size on failure; if even the delta doesn't fit, nothing is touched
+- Privileged helper runs are serialized by a process-held lock (`/var/lib/xzram/helper.lock`), so pkexec and xzramd helpers never run concurrently, including across xzramd restarts
 - Swapfile create refuses to replace an active swap (use resize)
 - Snapshot restore merges only fstab swap entries and removes swapfiles created after the snapshot (previously a no-op)
 - Failed `apply` automatically restores the pre-apply snapshot and keeps pending for retry
