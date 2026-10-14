@@ -1,3 +1,13 @@
+xzram (0.4.0-1) unstable; urgency=medium
+
+  * Recommended defaults enable systemd-oomd with ManagedOOM kill policies
+    when no userspace OOM killer is active; rollback undoes it
+  * Grow an undersized /swap/swapfile instead of reporting "already matches"
+  * Warn when disk swap is on a rotational drive
+  * Doctor: OOM kills, memory pressure (PSI), swap headroom, overflow size
+
+ -- XZram contributors <xzram@example.com>  Wed, 14 Oct 2026 12:00:00 +0100
+
 xzram (0.3.2-1) unstable; urgency=medium
 
   * Security: harden swapfile path handling against symlink races; tighten

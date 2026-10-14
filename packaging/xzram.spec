@@ -1,5 +1,5 @@
 Name:           xzram
-Version:        0.3.2
+Version:        0.4.0
 Release:        1%{?dist}
 Summary:        Cross-distro Linux swap management
 
@@ -84,6 +84,12 @@ done
 %systemd_postun xzramd.service
 
 %changelog
+* Wed Oct 14 2026 XZram contributors <xzram@example.com> - 0.4.0-1
+- Recommended defaults enable systemd-oomd with ManagedOOM kill policies; rollback undoes it
+- Grow an undersized /swap/swapfile instead of reporting "already matches"
+- Warn when disk swap is on a rotational drive
+- Doctor: OOM kills, memory pressure (PSI), swap headroom, overflow size
+
 * Sun Oct 11 2026 XZram contributors <xzram@example.com> - 0.3.2-1
 - Security: harden swapfile path handling against symlink races; tighten xzramd sandbox and input validation
 - Atomic writes for fstab and all state files; fstab entries matched exactly

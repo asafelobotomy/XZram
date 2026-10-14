@@ -14,6 +14,11 @@
   <project_license>GPL-3.0-or-later</project_license>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.4.0" date="2026-10-14">
+      <description>
+        <p>OOM protection and swap sizing: recommended defaults can enable systemd-oomd with kill policies, grow an undersized distro swapfile, and warn about disk swap on hard drives. Doctor now reports past OOM kills, memory pressure, swap headroom and undersized disk overflow.</p>
+      </description>
+    </release>
     <release version="0.3.2" date="2026-10-11">
       <description>
         <p>Security and reliability release: safer swapfile handling, crash-safe configuration writes, snapshot restore that keeps unrelated mounts and removes swapfiles added since, automatic rollback when apply fails, a hardened daemon, and a GUI that no longer freezes during privileged operations.</p>

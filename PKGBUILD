@@ -2,7 +2,7 @@
 # Local/CI checkout package (file://$startdir). For AUR, use packaging/aur/.
 pkgbase=xzram
 pkgname=('xzram' 'xzram-gui')
-pkgver=0.3.2
+pkgver=0.4.0
 pkgrel=1
 pkgdesc="Cross-distro Linux swap management (zram, swap files, sysctl tuning)"
 arch=('x86_64' 'aarch64')

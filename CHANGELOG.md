@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-10-14
+
+### Fixed
+- Recommended defaults grow an undersized `/swap/swapfile` (e.g. a distro-installed 512 MiB file) to the overflow target instead of reporting "already matches"; previously any active disk swap suppressed the overflow safety net
+
+### Added
+- Recommended defaults warn when disk swap is (or would be) placed on a rotational drive
+- OOM protection: when no userspace OOM killer can act, recommended defaults stage `enable_oomd`; apply installs `ManagedOOMSwap=kill` (`-.slice`) and `ManagedOOMMemoryPressure=kill` (`user@.service`) drop-ins and enables systemd-oomd. Snapshots track the drop-ins and service state, so rollback undoes it
+- Doctor checks: `no_oom_protection`, `oomd_no_policies`, `oom_kills` (this and previous boot), `memory_pressure_high` / `memory_pressure_elevated` (PSI), `swap_nearly_full`, `disk_overflow_small` / `no_disk_overflow`, `swap_on_rotational`
+- GUI: pending banner counts `enable_oomd`; recommendation chips label zswap and OOM-protection items
+
 ## [0.3.2] — 2026-10-11
 
 ### Security
@@ -141,7 +152,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Staged apply, zram/swapfile/sysctl management, doctor, snapshots
 - Packaging stubs (Arch PKGBUILD, Fedora spec, Debian)
 
-[Unreleased]: https://github.com/asafelobotomy/XZram/compare/v0.3.2...HEAD
+[Unreleased]: https://github.com/asafelobotomy/XZram/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/asafelobotomy/XZram/compare/v0.3.2...v0.4.0
 [0.3.2]: https://github.com/asafelobotomy/XZram/compare/v0.3.0...v0.3.2
 [0.3.0]: https://github.com/asafelobotomy/XZram/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/asafelobotomy/XZram/compare/v0.1.0...v0.2.0
