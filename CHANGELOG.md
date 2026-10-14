@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Doctor `oom_kills` no longer repeats "grow swap, enable an OOM killer" once protection is active: past kills are still listed, as info, with advice on reading what was killed (MGLRU `min_ttl_ms` deliberately OOM-kills instead of thrashing). Recommend drops its "OOM killer fired recently" note in that case
+- GUI: dashboard swap table sizes Type / Status / Used / Priority / Source to their contents (the path column takes the slack), so "Used / size" is no longer elided; the size cell has a tooltip
+
 ## [0.4.2] — 2026-10-14
 
 ### Fixed

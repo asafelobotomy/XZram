@@ -64,19 +64,36 @@ pub(super) fn check_oom_protection(issues: &mut Vec<DoctorIssue>, probe: &OomPro
     ));
 }
 
+/// `protected`: an early OOM killer is active and the session is shielded, so the fix
+/// advice no longer applies; past kills stay visible as history (info).
 pub(super) fn check_oom_kills(
     issues: &mut Vec<DoctorIssue>,
     this_boot: Option<u64>,
     previous_boot: Option<usize>,
+    protected: bool,
 ) {
     let (now, prev) = (this_boot.unwrap_or(0), previous_boot.unwrap_or(0));
     if now == 0 && prev == 0 {
         return;
     }
+    let message =
+        format!("Kernel OOM killer fired {now} time(s) this boot and {prev} in the previous boot");
+    if protected {
+        issues.push(issue(
+            IssueSeverity::Info,
+            "oom_kills",
+            message,
+            "OOM protection is active now. Kills that still occur mean the workload outgrew RAM \
+             plus swap (MGLRU min_ttl_ms deliberately OOM-kills instead of thrashing); check \
+             'journalctl -u systemd-oomd' and 'journalctl -k -g \"Out of memory\"' for what was \
+             killed",
+        ));
+        return;
+    }
     issues.push(issue(
         IssueSeverity::Warning,
         "oom_kills",
-        format!("Kernel OOM killer fired {now} time(s) this boot and {prev} in the previous boot"),
+        message,
         "RAM and swap were exhausted. Grow disk overflow swap and enable an early OOM killer: \
          'xzram defaults apply' (add --swap-scale high for a larger swapfile)",
     ));
@@ -262,12 +279,20 @@ mod tests {
     #[test]
     fn oom_kills_reported_from_either_boot() {
         let mut issues = Vec::new();
-        check_oom_kills(&mut issues, Some(0), Some(0));
-        check_oom_kills(&mut issues, None, None);
+        check_oom_kills(&mut issues, Some(0), Some(0), false);
+        check_oom_kills(&mut issues, None, None, false);
         assert!(issues.is_empty());
-        check_oom_kills(&mut issues, Some(0), Some(1));
+        check_oom_kills(&mut issues, Some(0), Some(1), false);
         assert_eq!(codes(&issues), ["oom_kills"]);
         assert!(issues[0].message.contains("1 in the previous boot"));
+        assert_eq!(issues[0].severity, IssueSeverity::Warning);
+
+        // Once protected: still reported as history, but info with no stale fix advice.
+        check_oom_kills(&mut issues, Some(0), Some(1), true);
+        assert_eq!(issues[1].severity, IssueSeverity::Info);
+        let advice = issues[1].suggestion.as_deref().unwrap();
+        assert!(advice.contains("protection is active"), "{advice}");
+        assert!(!advice.contains("swap-scale"), "{advice}");
     }
 
     #[test]

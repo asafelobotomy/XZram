@@ -126,11 +126,13 @@ pub fn doctor() -> Result<DoctorReport> {
     check_zram_capacity(&mut issues, &status.swaps);
     let _ = crate::swap_partition::check_missing_swap_partitions(&mut issues);
 
-    memory::check_oom_protection(&mut issues, &crate::oom::probe());
+    let oom = crate::oom::probe();
+    memory::check_oom_protection(&mut issues, &oom);
     memory::check_oom_kills(
         &mut issues,
         crate::oom::oom_kills_this_boot(),
         crate::oom::oom_kills_previous_boot(),
+        oom.protected() && !oom.session_at_risk(),
     );
     let psi = std::fs::read_to_string("/proc/pressure/memory").ok();
     memory::check_memory_pressure(

@@ -14,7 +14,9 @@ pub(super) fn stage_oom_fixes(
     recent_oom_kills: u64,
     staging_blocked: bool,
 ) {
-    if recent_oom_kills > 0 {
+    // Once protected, the note's fix advice is stale; doctor keeps the kill history.
+    let fully_protected = probe.protected() && !probe.session_at_risk();
+    if recent_oom_kills > 0 && !fully_protected {
         items.push(note_item(
             "Kernel OOM killer fired recently",
             format!(
@@ -125,7 +127,8 @@ mod tests {
             },
         ] {
             let (mut items, mut pending) = (Vec::new(), PendingConfig::default());
-            stage_oom_fixes(&mut items, &mut pending, &probe, 0, false);
+            // Past kills alone add no note once protected (doctor keeps the history).
+            stage_oom_fixes(&mut items, &mut pending, &probe, 3, false);
             assert!(!pending.enable_oomd);
             assert!(items.is_empty());
         }

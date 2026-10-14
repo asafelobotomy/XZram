@@ -70,8 +70,12 @@ DashboardWidget::DashboardWidget(QWidget *parent) : QWidget(parent) {
     m_swapTable->setHorizontalHeaderLabels(
         {tr("Device / path"), tr("Type"), tr("Status"), tr("Used / size"), tr("Priority"),
          tr("Source")});
-    m_swapTable->horizontalHeader()->setStretchLastSection(true);
-    m_swapTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
+    // Path takes the slack; every other column fits its contents so values such as
+    // "399.8 MiB / 8.0 GiB" are never elided.
+    auto *header = m_swapTable->horizontalHeader();
+    header->setStretchLastSection(false);
+    header->setSectionResizeMode(QHeaderView::ResizeToContents);
+    header->setSectionResizeMode(0, QHeaderView::Stretch);
     m_swapTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_swapTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_swapTable->verticalHeader()->setVisible(false);
@@ -200,7 +204,9 @@ void DashboardWidget::setSwapsJson(const QString &json) {
             statusItem->setForeground(QBrush(QColor(QStringLiteral("#856404"))));
         }
         m_swapTable->setItem(row, 2, statusItem);
-        m_swapTable->setItem(row, 3, new QTableWidgetItem(sizeText));
+        auto *sizeItem = new QTableWidgetItem(sizeText);
+        sizeItem->setToolTip(sizeText);
+        m_swapTable->setItem(row, 3, sizeItem);
         m_swapTable->setItem(row, 4, new QTableWidgetItem(QString::number(priority)));
         m_swapTable->setItem(row, 5, new QTableWidgetItem(FormatUtils::swapSourceLabel(source)));
         ++row;
