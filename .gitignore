@@ -13,5 +13,6 @@ debian/*.debhelper
 debian/*.substvars
 rpmbuild/
 
-# Stray listing file
-/xzram-0.3.0
+# makepkg with the root PKGBUILD (git clone + build dirs)
+/src/
+/xzram-*/

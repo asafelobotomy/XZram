@@ -5,6 +5,7 @@ use std::time::SystemTime;
 use tracing::info;
 
 use crate::dbus_client::{self, ServiceUnavailable};
+use crate::helper_version::ensure_helper_supports_client;
 
 /// Polkit policy annotates only this path (`org.freedesktop.policykit.exec.path`).
 const ANNOTATED_HELPER: &str = "/usr/libexec/xzram-helper";
@@ -16,6 +17,7 @@ const PKEXEC_NOT_AUTHORIZED: i32 = 127;
 
 pub(crate) fn run_privileged_pkexec(action: &str, payload: &str) -> anyhow::Result<()> {
     let helper = find_helper_for_pkexec()?;
+    ensure_helper_supports_client(&helper)?;
     let spawned_at = SystemTime::now();
     let status = Command::new("pkexec")
         .arg(&helper)
@@ -83,6 +85,8 @@ pub(crate) fn run_privileged(use_dbus: bool, action: &str, payload: &str) -> any
     let force_pkexec = matches!(action, "apply" | "stage" | "zram.migrate")
         && payload_needs_helper_passthrough(action, payload);
     if use_dbus && !force_pkexec {
+        // xzramd forwards to the same installed helper; check it before going via D-Bus.
+        ensure_helper_supports_client(&find_helper_for_pkexec()?)?;
         match run_via_dbus(action, payload) {
             Ok(()) => return Ok(()),
             // Only safe to retry via pkexec when the request never reached xzramd.

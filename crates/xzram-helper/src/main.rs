@@ -13,12 +13,13 @@ use xzram::apply::{
 };
 use xzram::migrate::migrate_from_zram_tools;
 use xzram::snapshot::{self, SnapshotTrigger};
+use xzram::validation::from_value_strict;
 
 use error_sink::ErrorSink;
 
 /// Privileged helper for xzram — invoked via pkexec with polkit authorization.
 #[derive(Parser)]
-#[command(name = "xzram-helper", about = "XZram privileged helper")]
+#[command(name = "xzram-helper", version, about = "XZram privileged helper")]
 struct Args {
     /// Action to perform
     action: String,
@@ -61,6 +62,10 @@ fn caller_snapshot_trigger(raw: &str) -> xzram::Result<SnapshotTrigger> {
     }
 }
 
+fn parse_value(payload: &str) -> xzram::Result<serde_json::Value> {
+    serde_json::from_str(payload).map_err(|e| xzram::XzramError::Parse(e.to_string()))
+}
+
 fn run(action: &str, payload: &str) -> xzram::Result<()> {
     info!(action, "helper action");
     if direct::run(action, payload)? {
@@ -77,22 +82,16 @@ fn run(action: &str, payload: &str) -> xzram::Result<()> {
                 #[serde(default)]
                 mkdir_parents: bool,
             }
-            #[derive(Deserialize)]
-            struct StageWithPrepare {
-                pending: PendingConfig,
-                prepare_swapfile: PrepareSpec,
-            }
-            if let Ok(wrapped) = serde_json::from_str::<StageWithPrepare>(payload) {
-                stage_with_optional_prepare(
-                    &wrapped.pending,
-                    Some((
-                        &wrapped.prepare_swapfile.path,
-                        wrapped.prepare_swapfile.mkdir_parents,
-                    )),
-                )?;
-            } else {
-                let partial: PendingConfig = serde_json::from_str(payload)
+            let value = parse_value(payload)?;
+            // `{pending, prepare_swapfile}` wrapper, or a bare PendingConfig.
+            if let Some(prepare) = value.get("prepare_swapfile") {
+                let spec: PrepareSpec = serde_json::from_value(prepare.clone())
                     .map_err(|e| xzram::XzramError::Parse(e.to_string()))?;
+                let pending: PendingConfig =
+                    from_value_strict(value.get("pending").unwrap_or(&serde_json::Value::Null))?;
+                stage_with_optional_prepare(&pending, Some((&spec.path, spec.mkdir_parents)))?;
+            } else {
+                let partial: PendingConfig = from_value_strict(&value)?;
                 stage_with_optional_prepare(&partial, None)?;
             }
             println!("Configuration staged");
@@ -129,15 +128,12 @@ fn run(action: &str, payload: &str) -> xzram::Result<()> {
             let result = if payload.trim().is_empty() || payload.trim() == "{}" {
                 apply_pending()?
             } else {
-                #[derive(Deserialize)]
-                struct ApplyBundle {
-                    pending: PendingConfig,
-                }
-                if let Ok(bundle) = serde_json::from_str::<ApplyBundle>(payload) {
-                    stage_then_apply(&bundle.pending)?
+                let value = parse_value(payload)?;
+                // `{pending}` bundle (stage + apply in one prompt), or a legacy ApplyRequest.
+                if let Some(pending) = value.get("pending") {
+                    stage_then_apply(&from_value_strict::<PendingConfig>(pending)?)?
                 } else {
-                    let request: ApplyRequest = serde_json::from_str(payload)
-                        .map_err(|e| xzram::XzramError::Parse(e.to_string()))?;
+                    let request: ApplyRequest = from_value_strict(&value)?;
                     apply(&request)?
                 }
             };

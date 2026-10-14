@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- A CLI newer than the installed helper no longer half-applies: helpers before 0.4.2 silently dropped payload fields they did not know (0.4.1's oomd, memory tunables and new sysctls were ignored while apply reported success). The helper and `xzramd` now parse privileged payloads strictly and name any unsupported field; the CLI refuses helpers older than 0.4.2 (checked via the new `xzram-helper --version`) before prompting
+- Helper `stage` / `apply` pick the payload shape by its `pending` / `prepare_swapfile` keys instead of retrying a failed parse as the other shape (which turned real errors into "missing field" noise)
+- Root `PKGBUILD` (local checkout package) builds again: the `file://$startdir` source made makepkg save a directory listing instead of the tree; it now uses `git+file://` (committed HEAD) and depends on `git`
+
 ## [0.4.1] — 2026-10-14
 
 ### Fixed

@@ -26,7 +26,7 @@ pub(super) async fn apply_now_zram(
     config_json: &str,
 ) -> zbus::fdo::Result<()> {
     authorize(&mgr.connection, &hdr, "io.github.xzram.zram.configure").await?;
-    let config: ZramConfig = serde_json::from_str(config_json).map_err(invalid)?;
+    let config: ZramConfig = validation::from_json_strict(config_json).map_err(invalid)?;
     validation::validate_zram_config(&config).map_err(invalid)?;
     let payload = to_payload(&config)?;
     crate::privileged::run_helper(mgr.lock_gate().await, "zram.configure", &payload).await?;
@@ -115,7 +115,7 @@ pub(super) async fn apply_now_sysctl(
     values_json: &str,
 ) -> zbus::fdo::Result<()> {
     authorize(&mgr.connection, &hdr, "io.github.xzram.sysctl.set").await?;
-    let values: SysctlValues = serde_json::from_str(values_json).map_err(invalid)?;
+    let values: SysctlValues = validation::from_json_strict(values_json).map_err(invalid)?;
     sysctl::validate_sysctl_values(&values).map_err(invalid)?;
     let payload = to_payload(&values)?;
     crate::privileged::run_helper(mgr.lock_gate().await, "sysctl.set", &payload).await?;

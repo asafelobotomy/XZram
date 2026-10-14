@@ -1,5 +1,5 @@
 # Maintainer: XZram contributors
-# Local/CI checkout package (file://$startdir). For AUR, use packaging/aur/.
+# Local checkout package: builds the committed HEAD (git+file://$startdir). For AUR, use packaging/aur/.
 pkgbase=xzram
 pkgname=('xzram' 'xzram-gui')
 pkgver=0.4.1
@@ -8,8 +8,8 @@ pkgdesc="Cross-distro Linux swap management (zram, swap files, sysctl tuning)"
 arch=('x86_64' 'aarch64')
 url="https://github.com/asafelobotomy/XZram"
 license=('GPL-3.0-or-later')
-makedepends=('rust' 'cargo' 'cmake' 'qt6-base' 'polkit' 'systemd' 'util-linux')
-source=("$pkgbase-$pkgver::file://$startdir")
+makedepends=('git' 'rust' 'cargo' 'cmake' 'qt6-base' 'polkit' 'systemd' 'util-linux')
+source=("$pkgbase-$pkgver::git+file://$startdir")
 sha256sums=('SKIP')
 
 prepare() {

@@ -125,7 +125,7 @@ impl Manager {
         config_json: &str,
     ) -> zbus::fdo::Result<()> {
         authorize(&self.connection, &hdr, "io.github.xzram.stage").await?;
-        let config: ZramConfig = serde_json::from_str(config_json)
+        let config: ZramConfig = xzram::validation::from_json_strict(config_json)
             .map_err(|e| zbus::fdo::Error::InvalidArgs(e.to_string()))?;
         validation::validate_zram_config(&config)
             .map_err(|e| zbus::fdo::Error::InvalidArgs(e.to_string()))?;
@@ -217,7 +217,7 @@ impl Manager {
         values_json: &str,
     ) -> zbus::fdo::Result<()> {
         authorize(&self.connection, &hdr, "io.github.xzram.stage").await?;
-        let values: SysctlValues = serde_json::from_str(values_json)
+        let values: SysctlValues = xzram::validation::from_json_strict(values_json)
             .map_err(|e| zbus::fdo::Error::InvalidArgs(e.to_string()))?;
         let pending = PendingConfig {
             sysctl: Some(values),
@@ -325,7 +325,7 @@ impl Manager {
         pending_json: &str,
     ) -> zbus::fdo::Result<()> {
         authorize(&self.connection, &hdr, "io.github.xzram.stage").await?;
-        let pending: PendingConfig = serde_json::from_str(pending_json)
+        let pending: PendingConfig = xzram::validation::from_json_strict(pending_json)
             .map_err(|e| zbus::fdo::Error::InvalidArgs(e.to_string()))?;
         validate_staged_pending(&pending)?;
         let _guard = self.gate.lock().await;

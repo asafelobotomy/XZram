@@ -2,6 +2,7 @@ mod args;
 mod commands;
 mod dbus_client;
 mod exit_codes;
+mod helper_version;
 mod print;
 mod privileged;
 mod snapshot_ops;

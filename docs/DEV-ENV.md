@@ -36,6 +36,8 @@ export XZRAM_DEV_HELPER=$PWD/target/debug/xzram-helper
 cargo run -p xzram-cli -- status   # debug build: dev helper override honoured
 ```
 
+Before any privileged action the CLI runs `<helper> --version` and refuses helpers older than 0.4.2 (they silently ignored payload fields they did not know). From 0.4.2 the helper and `xzramd` reject unknown fields themselves (`validation::from_json_strict`), so a CLI newer than the installed package fails loudly instead of half-applying. When developing against an older installed package, use the dev-helper override above or upgrade the package.
+
 GUI against a local CLI (the override is compiled out unless requested):
 
 ```bash

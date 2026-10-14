@@ -1,10 +1,12 @@
 pub mod fstab;
 mod path;
 mod secure;
+mod strict;
 mod zram;
 
 pub use path::*;
 pub use secure::*;
+pub use strict::{from_json_strict, from_value_strict};
 pub use zram::*;
 
 use crate::apply::PendingConfig;

@@ -39,7 +39,7 @@ fn swapfile_backend() -> Result<Box<dyn SwapfileBackendTrait>> {
 pub fn run(action: &str, payload: &str) -> Result<bool> {
     match action {
         "zram.configure" => {
-            let config: ZramConfig = parse(payload)?;
+            let config: ZramConfig = validation::from_json_strict(payload)?;
             validation::validate_zram_config(&config)?;
             let backend = ensure_zram_backend()?;
             pre_change_snapshot(action)?;
@@ -117,7 +117,7 @@ pub fn run(action: &str, payload: &str) -> Result<bool> {
             println!("Swap {}: {}", p.action, p.device);
         }
         "sysctl.set" => {
-            let values: SysctlValues = parse(payload)?;
+            let values: SysctlValues = validation::from_json_strict(payload)?;
             sysctl::validate_sysctl_values(&values)?;
             pre_change_snapshot(action)?;
             sysctl::set(&values)?;
