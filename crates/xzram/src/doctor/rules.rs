@@ -195,6 +195,9 @@ mod tests {
 
     #[test]
     fn btrfs_root_tip_skipped_when_swapfiles_configured() {
+        // The swapfile list reads fstab under XZRAM_ETC_ROOT, which other tests repoint
+        // in parallel; hold the env lock so both lists below see the same fstab.
+        let _guard = crate::test_env_lock();
         let mut issues = Vec::new();
         // With a configured swapfile on this host, the generic tip must not fire.
         // (Integration-style: uses real backend list when available.)
