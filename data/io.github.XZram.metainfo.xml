@@ -14,6 +14,11 @@
   <project_license>GPL-3.0-or-later</project_license>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.4.2" date="2026-10-14">
+      <description>
+        <p>Fix silent partial applies when the command-line tool is newer than the installed privileged helper: unknown settings are now rejected with a clear message, and the CLI asks you to upgrade first. The local Arch PKGBUILD builds again.</p>
+      </description>
+    </release>
     <release version="0.4.1" date="2026-10-14">
       <description>
         <p>OOM protection now shields the desktop session so apps are killed before the compositor and shell. Recommended defaults add MGLRU thrashing prevention, background THP compaction, smaller dirty-writeback batches and gentler dentry/inode cache reclaim.</p>

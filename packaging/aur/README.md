@@ -20,11 +20,11 @@ AUR_MODE=local AUR_OUT=$PWD/aur-out ./scripts/ci-aur-package.sh
 
 ## Release / pin checksums
 
-1. Tag and publish a GitHub Release: `v$pkgver` (e.g. `v0.4.1`; must match `pkgver`).
+1. Tag and publish a GitHub Release: `v$pkgver` (e.g. `v0.4.2`; must match `pkgver`).
 2. Run release CI (automatic on `release: published`) or:
 
 ```bash
-AUR_MODE=release AUR_TAG=v0.4.1 AUR_OUT=$PWD/aur-out ./scripts/ci-aur-package.sh
+AUR_MODE=release AUR_TAG=v0.4.2 AUR_OUT=$PWD/aur-out ./scripts/ci-aur-package.sh
 ```
 
 3. Copy `aur-out/PKGBUILD`, `aur-out/.SRCINFO` (checksums pinned), and `aur-out/xzram.install` into the AUR clone and push:
@@ -34,7 +34,7 @@ git clone ssh://aur@aur.archlinux.org/xzram.git
 cp aur-out/PKGBUILD aur-out/.SRCINFO aur-out/xzram.install xzram/
 cd xzram
 git add PKGBUILD .SRCINFO xzram.install
-git commit -m "Update to 0.4.1"
+git commit -m "Update to 0.4.2"
 git push
 ```
 

@@ -1,5 +1,5 @@
 Name:           xzram
-Version:        0.4.1
+Version:        0.4.2
 Release:        1%{?dist}
 Summary:        Cross-distro Linux swap management
 
@@ -84,6 +84,11 @@ done
 %systemd_postun xzramd.service
 
 %changelog
+* Wed Oct 14 2026 XZram contributors <xzram@example.com> - 0.4.2-1
+- Helper and xzramd reject unknown payload fields; CLI refuses helpers older than 0.4.2 before prompting
+- xzram-helper --version
+- Root PKGBUILD builds from git+file:// (local checkout package)
+
 * Wed Oct 14 2026 XZram contributors <xzram@example.com> - 0.4.1-1
 - systemd-oomd policy shields session.slice so apps are killed before the compositor and shell
 - Recommended defaults: MGLRU min_ttl_ms=1000, THP defrag=defer+madvise, dirty writeback bytes, vfs_cache_pressure

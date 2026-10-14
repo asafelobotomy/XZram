@@ -1,3 +1,12 @@
+xzram (0.4.2-1) unstable; urgency=medium
+
+  * Helper and xzramd reject unknown payload fields instead of silently
+    dropping them; CLI refuses helpers older than 0.4.2 before prompting
+  * xzram-helper --version
+  * Root PKGBUILD builds from git+file:// (local checkout package)
+
+ -- XZram contributors <xzram@example.com>  Wed, 14 Oct 2026 19:00:00 +0100
+
 xzram (0.4.1-1) unstable; urgency=medium
 
   * systemd-oomd policy shields session.slice (ManagedOOMPreference=avoid)
