@@ -66,6 +66,9 @@ pub struct SnapshotMeta {
     /// Runtime zswap state when captured; `None` for older snapshots or no zswap support.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub zswap_enabled: Option<bool>,
+    /// Whether systemd-oomd was enabled at boot when captured; `None` for older snapshots.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub oomd_enabled: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -76,4 +79,8 @@ pub struct SnapshotArtifacts {
     pub zramswap: SnapshotArtifact,
     #[serde(default)]
     pub zswap: SnapshotArtifact,
+    #[serde(default)]
+    pub oomd_root: SnapshotArtifact,
+    #[serde(default)]
+    pub oomd_user: SnapshotArtifact,
 }

@@ -52,8 +52,19 @@ pub struct RecommendedDefaults {
 pub enum OverflowDecision {
     Stage(SwapfileConfig),
     SkipActiveDiskSwap,
-    SkipConfiguredDiskSwap { paths: Vec<String> },
-    SkipInsufficientSpace { required_mb: u64, available_mb: u64 },
+    /// Existing managed overflow swapfile is undersized; resize it in place.
+    Grow {
+        path: String,
+        from_mb: u64,
+        to_mb: u64,
+    },
+    SkipConfiguredDiskSwap {
+        paths: Vec<String>,
+    },
+    SkipInsufficientSpace {
+        required_mb: u64,
+        available_mb: u64,
+    },
     SkipZeroSize,
 }
 

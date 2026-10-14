@@ -1,6 +1,6 @@
 //! Core recommendation builder (testable without live detect/status).
 
-use crate::apply::{PendingConfig, ZramConfig};
+use crate::apply::{PendingConfig, SwapfileResizeConfig, ZramConfig};
 use crate::checks;
 use crate::detect::{DetectionReport, ZramBackend};
 use crate::status::{self, StatusReport};
@@ -263,6 +263,10 @@ fn stage_overflow(
     overflow: Option<&OverflowInputs>,
     swap_scale: RecommendSizeScale,
 ) {
+    // Live probes only; tests inject `overflow` and must not depend on host disks.
+    if overflow.is_none() {
+        push_rotational_warnings(items, status);
+    }
     let (configured_disk_swap, configured_paths, available_bytes) = match overflow {
         Some(o) => (
             o.configured_disk_swap,
@@ -336,6 +340,50 @@ fn stage_overflow(
                 Some("overflow-swapfile"),
             ));
         }
+        OverflowDecision::Grow {
+            path,
+            from_mb,
+            to_mb,
+        } => {
+            items.push(RecommendationItem {
+                category: "swapfile".into(),
+                summary: format!("Grow overflow swap file ({from_mb} MiB -> {to_mb} MiB)"),
+                detail: format!(
+                    "{path} is much smaller than the recommended safety net (capped at {cap} MiB); once zram fills, the system has nowhere to page out. Resized in place on apply."
+                ),
+                will_stage: true,
+                reference: Some("overflow-swapfile".into()),
+            });
+            pending.swapfile_resize = Some(SwapfileResizeConfig {
+                path,
+                size_mb: to_mb,
+            });
+        }
         OverflowDecision::SkipActiveDiskSwap | OverflowDecision::SkipZeroSize => {}
+    }
+}
+
+/// Disk swap should live on the fastest device; flag swap on (or headed for) an HDD.
+fn push_rotational_warnings(items: &mut Vec<RecommendationItem>, status: &StatusReport) {
+    use crate::placement::{is_rotational_path, is_rotational_swap};
+    let mut slow: Vec<String> = status
+        .swaps
+        .iter()
+        .filter(|s| !s.name.contains("zram"))
+        .filter(|s| is_rotational_swap(&s.name) == Some(true))
+        .map(|s| s.name.clone())
+        .collect();
+    if !has_active_disk_swap(status) && is_rotational_path(OVERFLOW_SWAPFILE_PATH) == Some(true) {
+        slow.push(OVERFLOW_SWAPFILE_PATH.into());
+    }
+    if !slow.is_empty() {
+        items.push(note_item(
+            "Disk swap is on a rotational drive (HDD)",
+            format!(
+                "{} sits on spinning media; paging there stalls the desktop. Move disk swap to an SSD/NVMe filesystem.",
+                slow.join(", ")
+            ),
+            Some("overflow-swapfile"),
+        ));
     }
 }

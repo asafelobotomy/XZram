@@ -35,6 +35,12 @@ QString categoryTitle(const QString &category) {
     if (category == QLatin1String("swapfile")) {
         return QStringLiteral("Swap file");
     }
+    if (category == QLatin1String("zswap")) {
+        return QStringLiteral("zswap");
+    }
+    if (category == QLatin1String("oom")) {
+        return QStringLiteral("OOM protection");
+    }
     return QStringLiteral("Advisory");
 }
 

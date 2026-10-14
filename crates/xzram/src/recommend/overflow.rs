@@ -41,7 +41,7 @@ pub fn decide_overflow_swapfile_scaled(
     scale: super::scales::RecommendSizeScale,
 ) -> OverflowDecision {
     if has_active_disk_swap(status) {
-        return OverflowDecision::SkipActiveDiskSwap;
+        return decide_grow_existing(status, available_bytes, scale);
     }
     if has_configured_disk_swap {
         return OverflowDecision::SkipConfiguredDiskSwap {
@@ -143,6 +143,50 @@ fn df_available_bytes(path: &Path) -> Option<u64> {
     None
 }
 
+/// Slack below the target before an existing overflow swapfile counts as undersized
+/// (`/proc/swaps` reports the size minus the header page).
+const GROW_SLACK_MB: u64 = 64;
+
+/// Active disk swap exists. If it is solely an undersized swapfile at the managed overflow
+/// path (e.g. a distro-installed 512 MiB `/swap/swapfile`), grow it to the target size;
+/// any other disk swap is left alone.
+fn decide_grow_existing(
+    status: &StatusReport,
+    available_bytes: Option<u64>,
+    scale: super::scales::RecommendSizeScale,
+) -> OverflowDecision {
+    let disk: Vec<_> = status
+        .swaps
+        .iter()
+        .filter(|s| !s.name.contains("zram"))
+        .collect();
+    let [only] = disk.as_slice() else {
+        return OverflowDecision::SkipActiveDiskSwap;
+    };
+    if only.name != OVERFLOW_SWAPFILE_PATH || only.swap_type != "file" {
+        return OverflowDecision::SkipActiveDiskSwap;
+    }
+    let size_mb = super::scales::overflow_size_mb_for_scale(status.memory.mem_total_kb, scale);
+    let current_mb = only.size_bytes / (1024 * 1024);
+    if current_mb.saturating_add(GROW_SLACK_MB) >= size_mb {
+        return OverflowDecision::SkipActiveDiskSwap;
+    }
+    // In-place growth only needs the delta; apply re-checks space before touching anything.
+    let required_mb = (size_mb - current_mb).saturating_add(OVERFLOW_FREE_SPACE_MARGIN_MB);
+    let available_mb = available_bytes.unwrap_or(0) / (1024 * 1024);
+    if available_mb < required_mb {
+        return OverflowDecision::SkipInsufficientSpace {
+            required_mb,
+            available_mb,
+        };
+    }
+    OverflowDecision::Grow {
+        path: OVERFLOW_SWAPFILE_PATH.into(),
+        from_mb: current_mb,
+        to_mb: size_mb,
+    }
+}
+
 pub(super) fn has_active_disk_swap(status: &StatusReport) -> bool {
     status.swaps.iter().any(|s| !s.name.contains("zram"))
 }
@@ -230,6 +274,52 @@ mod tests {
         };
         assert!(matches!(
             decide_overflow_swapfile(&status, false, &[], Some(64 * 1024 * 1024 * 1024)),
+            OverflowDecision::SkipActiveDiskSwap
+        ));
+    }
+
+    #[test]
+    fn grows_undersized_managed_swapfile() {
+        let status = StatusReport {
+            swaps: vec![status::SwapEntry {
+                name: OVERFLOW_SWAPFILE_PATH.into(),
+                swap_type: "file".into(),
+                size_bytes: 512 * 1024 * 1024 - 4096,
+                used_bytes: 0,
+                priority: -1,
+            }],
+            zram_devices: vec![],
+            memory: status::MemoryInfo {
+                mem_total_kb: 16 * 1024 * 1024,
+                mem_available_kb: 8 * 1024 * 1024,
+                swap_total_kb: 0,
+                swap_free_kb: 0,
+            },
+        };
+        let space = Some(64 * 1024 * 1024 * 1024);
+        match decide_overflow_swapfile_scaled(
+            &status,
+            true,
+            &[],
+            space,
+            super::super::scales::RecommendSizeScale::High,
+        ) {
+            OverflowDecision::Grow {
+                path,
+                from_mb,
+                to_mb,
+            } => {
+                assert_eq!(path, OVERFLOW_SWAPFILE_PATH);
+                assert_eq!(from_mb, 511);
+                assert_eq!(to_mb, 16384);
+            }
+            other => panic!("expected Grow, got {other:?}"),
+        }
+        // Already at target: nothing to do.
+        let mut sized = status.clone();
+        sized.swaps[0].size_bytes = 8192 * 1024 * 1024 - 4096;
+        assert!(matches!(
+            decide_overflow_swapfile(&sized, true, &[], space),
             OverflowDecision::SkipActiveDiskSwap
         ));
     }

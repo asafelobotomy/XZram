@@ -13,7 +13,7 @@ Hardware-aware defaults used by `xzram defaults recommend` and the Dashboard **A
 
 **Priority tiers:** zram `swap-priority = 100`, disk swapfile `pri = 10`.
 
-**Overflow gates:** skipped when active `/proc/swaps` disk swap exists, when fstab/managed inventory already lists non-zram swap, or when free space near `/swap` is below size + 512 MiB margin.
+**Overflow gates:** when the only active disk swap is an undersized swapfile at `/swap/swapfile` (e.g. a distro-installed 512 MiB file), Apply grows it in place to the target (`swapfile_resize`; never shrinks). Otherwise skipped when other active `/proc/swaps` disk swap exists, when fstab/managed inventory already lists non-zram swap, or when free space near `/swap` is below size + 512 MiB margin.
 
 **Size scale (GUI / CLI):** `xzram defaults recommend|stage|apply` accept `--zram-scale` and `--swap-scale` (`low` | `default` | `high`). The Recommended defaults dialog exposes the same tiers as sliders. Recommended matches the matrix above; Low is more conservative; High raises caps (overflow High caps at 16 GiB). See `size_scales` in `--json` output.
 
@@ -21,7 +21,9 @@ Hardware-aware defaults used by `xzram defaults recommend` and the Dashboard **A
 
 **Staging hard stops:** read-only `/etc` or `immutable_os` (NixOS / ostree / Silverblue) → no zram, sysctl, or swapfile staging.
 
-**Anchor IDs:** `profile-constrained`, `profile-conservative`, `profile-performance`, `sysctl-tuning`, `overflow-swapfile`, `priority-tiers`.
+**Placement:** recommend and doctor (`swap_on_rotational`) warn when disk swap is, or would be created, on a rotational drive (sysfs `queue/rotational`). zram lives in RAM and is unaffected.
+
+**Anchor IDs:** `profile-constrained`, `profile-conservative`, `profile-performance`, `sysctl-tuning`, `overflow-swapfile`, `priority-tiers`, `oom-protection`.
 
 ## Distro overrides
 
@@ -42,6 +44,11 @@ Anchor: `distro-overrides`.
 | `hibernate_zram` | Advisory; zram staging skipped |
 | `priority_inverted` | Fixed by staged zram pri 100 + swapfile pri 10 when those changes are in scope |
 | `btrfs_swapfile_nodatacow` | Prepare runs before create via `ensure_ready_for_swapfile`; for existing allowlisted swapfiles whose parent lacks nodatacow, Apply stages `prepare_swapfiles` (chattr +C on the parent; not reverted by restore) |
+| `no_oom_protection` / `oomd_no_policies` | Staged as `enable_oomd` when no userspace OOM killer can act (see § oom-protection); advisory when systemd-oomd is missing, PSI is unavailable, or staging is blocked |
+| `oom_kills` | Advisory note: kernel OOM kills in this or the previous boot (`/proc/vmstat`, journal) |
+| `disk_overflow_small` / `no_disk_overflow` | Overflow swapfile grown / created (see overflow gates) |
+| `swap_nearly_full` / `memory_pressure_high` / `memory_pressure_elevated` | Doctor only (live swap use ≥ 80%, PSI full avg60 ≥ 10% / some avg300 ≥ 10%) |
+| `swap_on_rotational` | Advisory: move disk swap to SSD/NVMe |
 | `zram_tools_legacy` | Advisory: run `xzram zram migrate` first (Apply does not migrate) |
 | `no_zram` / `zram_generator_missing` | Informational; package name from package manager |
 | `zfs_root` | Advisory only |
@@ -86,6 +93,15 @@ Anchor: `known-conflicts`.
 - XZram uses a low-priority overflow **swapfile** instead; simpler and automatic.
 - Anchor: `writeback-device`.
 
+### OOM protection (systemd-oomd) {#oom-protection}
+
+- When RAM, zram and disk swap run out, the kernel OOM killer fires only after the system has thrashed, often for minutes with a frozen desktop. systemd-oomd acts earlier using PSI and swap usage ([systemd-oomd(8)](https://www.freedesktop.org/software/systemd/man/latest/systemd-oomd.service.html), [oomd.conf(5)](https://www.freedesktop.org/software/systemd/man/latest/oomd.conf.html)).
+- systemd-oomd only watches units with `ManagedOOMSwap=kill` / `ManagedOOMMemoryPressure=kill`. Fedora (`systemd-oomd-defaults`) and Ubuntu ship these; **Arch / Manjaro do not**, so enabling the service alone does nothing.
+- When no userspace killer can act (earlyoom / nohang count as protected), Apply writes `/etc/systemd/system/-.slice.d/10-xzram-oomd.conf` (`ManagedOOMSwap=kill`) and `/etc/systemd/system/user@.service.d/10-xzram-oomd.conf` (`ManagedOOMMemoryPressure=kill`, limit 50%), mirroring Fedora's defaults, then runs `systemctl enable --now systemd-oomd`.
+- Snapshot restore removes the drop-ins and disables systemd-oomd again if it was disabled when the snapshot was taken.
+- Requires PSI (`/proc/pressure/memory`); without it the recommendation suggests earlyoom.
+- Anchor: `oom-protection`.
+
 ### Implement vs document matrix {#advanced-matrix}
 
 | Topic | Apply Defaults | Document | Future |
@@ -96,6 +112,7 @@ Anchor: `known-conflicts`.
 | Writeback device | No (overflow swapfile) | § writeback-device | Expert mode |
 | Vendor size respect | Keep ≥ recommended size | § distro-overrides | — |
 | Overflow cap 8 GiB | Yes | § overflow gates | — |
+| systemd-oomd policies | Staged when no OOM killer can act | § oom-protection | — |
 
 ## Citations
 
@@ -132,5 +149,6 @@ Anchor: `known-conflicts`.
 
 | Date | Change |
 |------|--------|
+| 2026-10-14 | Grow undersized managed `/swap/swapfile`; rotational placement warning; systemd-oomd OOM protection (drop-ins + enable); doctor RAM/swap checks (OOM kills, PSI, swap headroom, overflow size) |
 | 2026-07-22 | Overflow capped at 8 GiB; fstab + free-space gates; RO `/etc` and immutable OS skip all staging; respect larger vendor zram-size; Apt package hint; GUI Apply vs Configure copy |
 | 2026-07-13 | Initial matrix: conservative/performance/constrained profiles, overflow swapfile, sysctl defaults, advanced topics, doctor mapping |

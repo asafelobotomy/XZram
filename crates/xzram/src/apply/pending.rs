@@ -129,6 +129,9 @@ fn merge_pending(current: &mut PendingConfig, partial: &PendingConfig) {
     if partial.disable_zswap {
         current.disable_zswap = true;
     }
+    if partial.enable_oomd {
+        current.enable_oomd = true;
+    }
     for path in &partial.prepare_swapfiles {
         if !current.prepare_swapfiles.contains(path) {
             current.prepare_swapfiles.push(path.clone());
@@ -191,6 +194,7 @@ pub fn pending_is_empty(config: &PendingConfig) -> bool {
         && config.sysctl.is_none()
         && !config.finalize_zram_tools
         && !config.disable_zswap
+        && !config.enable_oomd
         && config.prepare_swapfiles.is_empty()
 }
 

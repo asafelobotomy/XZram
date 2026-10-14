@@ -26,12 +26,23 @@ pub(crate) fn etc_path(relative: &str) -> PathBuf {
     etc_root().join(relative)
 }
 
-pub(crate) fn managed_etc_files() -> [(&'static str, &'static str); 5] {
+/// Backup filename inside a snapshot directory for a managed `/etc` path.
+pub(crate) fn snapshot_filename(relative: &str) -> &'static str {
+    managed_etc_files()
+        .into_iter()
+        .find(|(r, _)| *r == relative)
+        .map(|(_, f)| f)
+        .unwrap_or("")
+}
+
+pub(crate) fn managed_etc_files() -> [(&'static str, &'static str); 7] {
     [
         (ZRAM_CONF, "zram-generator.conf"),
         (FSTAB, "fstab"),
         (SYSCTL_FILE, "99-xzram.conf"),
         (ZRAMSWAP_FILE, "zramswap"),
         (crate::zswap::ZSWAP_TMPFILES, "xzram-zswap.conf"),
+        (crate::oom::OOMD_ROOT_DROPIN, "xzram-oomd-root.conf"),
+        (crate::oom::OOMD_USER_DROPIN, "xzram-oomd-user.conf"),
     ]
 }

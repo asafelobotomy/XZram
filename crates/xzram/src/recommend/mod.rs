@@ -5,6 +5,7 @@ mod host_fixes;
 mod link;
 mod link_sanitize;
 mod link_types;
+mod oom_fixes;
 mod overflow;
 mod profile;
 pub mod scales;

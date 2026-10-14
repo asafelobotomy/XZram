@@ -7,6 +7,8 @@ pub mod doctor;
 pub mod error;
 pub mod fsutil;
 pub mod migrate;
+pub mod oom;
+pub mod placement;
 pub mod recommend;
 pub mod snapshot;
 pub mod status;

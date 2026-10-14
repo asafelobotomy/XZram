@@ -58,6 +58,10 @@ pub fn create_snapshot(
             swapfiles: captured.swapfiles,
             zram_devices: captured.zram_devices,
             zswap_enabled: crate::checks::zswap_enabled(),
+            oomd_enabled: std::env::var_os("XZRAM_ETC_ROOT")
+                .is_none()
+                .then(crate::oom::oomd_enabled)
+                .flatten(),
         };
 
         let dir = snapshots_root().join(&id);
@@ -94,6 +98,8 @@ pub(crate) fn capture_system_state() -> Result<CapturedState> {
         sysctl: SnapshotArtifact::default(),
         zramswap: SnapshotArtifact::default(),
         zswap: SnapshotArtifact::default(),
+        oomd_root: SnapshotArtifact::default(),
+        oomd_user: SnapshotArtifact::default(),
     };
 
     for (relative, filename) in managed_etc_files() {
@@ -118,6 +124,8 @@ pub(crate) fn capture_system_state() -> Result<CapturedState> {
             SYSCTL_FILE => artifacts.sysctl = artifact,
             ZRAMSWAP_FILE => artifacts.zramswap = artifact,
             crate::zswap::ZSWAP_TMPFILES => artifacts.zswap = artifact,
+            crate::oom::OOMD_ROOT_DROPIN => artifacts.oomd_root = artifact,
+            crate::oom::OOMD_USER_DROPIN => artifacts.oomd_user = artifact,
             _ => {}
         }
     }
@@ -220,6 +228,9 @@ pub fn pending_summary(pending: &PendingConfig) -> String {
     }
     if pending.disable_zswap {
         parts.push("disable zswap".into());
+    }
+    if pending.enable_oomd {
+        parts.push("enable systemd-oomd".into());
     }
     parts.join(", ")
 }

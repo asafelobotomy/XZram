@@ -18,6 +18,9 @@ pub(crate) struct HostProbes {
     pub zswap_enabled: Option<bool>,
     /// Swapfiles on btrfs whose parent directory lacks nodatacow (prepare-path validated).
     pub swapfiles_missing_nodatacow: Vec<String>,
+    pub oom: crate::oom::OomProbe,
+    /// Kernel OOM kills in this boot plus the previous one.
+    pub recent_oom_kills: u64,
 }
 
 pub(crate) fn probe_host() -> HostProbes {
@@ -33,9 +36,13 @@ pub(crate) fn probe_host() -> HostProbes {
                 .is_ok_and(|s| s.on_btrfs && s.parent_nodatacow == Some(false))
         })
         .collect();
+    let recent_oom_kills = crate::oom::oom_kills_this_boot().unwrap_or(0)
+        + crate::oom::oom_kills_previous_boot().unwrap_or(0) as u64;
     HostProbes {
         zswap_enabled: checks::zswap_enabled(),
         swapfiles_missing_nodatacow,
+        oom: crate::oom::probe(),
+        recent_oom_kills,
     }
 }
 
@@ -84,6 +91,14 @@ pub(crate) fn stage_host_fixes(
             report.pending.prepare_swapfiles.push(path.clone());
         }
     }
+
+    super::oom_fixes::stage_oom_fixes(
+        &mut items,
+        &mut report.pending,
+        &probes.oom,
+        probes.recent_oom_kills,
+        staging_blocked,
+    );
 
     if !pending_is_empty(&report.pending) {
         report.items.retain(|i| i.summary != ALREADY_MATCHES);
@@ -152,6 +167,7 @@ mod tests {
         let probes = HostProbes {
             zswap_enabled: Some(true),
             swapfiles_missing_nodatacow: vec!["/swap/swapfile".into()],
+            ..Default::default()
         };
         stage_host_fixes(&mut r, &status_with_zram(), &probes);
         assert!(r.pending.disable_zswap);
@@ -187,6 +203,7 @@ mod tests {
         let probes = HostProbes {
             zswap_enabled: Some(true),
             swapfiles_missing_nodatacow: vec!["/swap/swapfile".into()],
+            ..Default::default()
         };
         stage_host_fixes(&mut r, &status_with_zram(), &probes);
         assert!(pending_is_empty(&r.pending));

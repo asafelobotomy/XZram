@@ -11,7 +11,8 @@ on major systemd-based Linux distributions.
 - Swap file create / resize / remove with fstab persistence
 - Swap partition listing and activation control
 - Sysctl tuning (swappiness, watermark_boost_factor, watermark_scale_factor, page-cluster)
-- Read-only diagnostics: status, detect, doctor
+- Read-only diagnostics: status, detect, doctor (incl. OOM kills, memory pressure, swap headroom)
+- OOM protection: systemd-oomd ManagedOOM drop-ins + enable via recommended defaults
 - Polkit-gated privileged operations
 - System D-Bus daemon (`xzramd`) and Qt6 GUI (`xzram-qt`)
 - Configuration snapshots and recommended defaults

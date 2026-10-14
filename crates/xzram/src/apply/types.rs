@@ -52,6 +52,9 @@ pub struct PendingConfig {
     /// When true, apply turns zswap off now and persists it via tmpfiles.d.
     #[serde(default)]
     pub disable_zswap: bool,
+    /// When true, apply installs systemd-oomd ManagedOOM drop-ins and enables the service.
+    #[serde(default)]
+    pub enable_oomd: bool,
     /// Existing swapfiles whose btrfs parent directory gets nodatacow (chattr +C).
     #[serde(default)]
     pub prepare_swapfiles: Vec<String>,

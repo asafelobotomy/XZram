@@ -69,14 +69,25 @@ pub fn restore_snapshot(id: &str) -> Result<ApplyResult> {
         "zram-tools configuration",
     )?;
 
-    restore_etc_file(
-        &dir,
-        "xzram-zswap.conf",
-        etc_path(crate::zswap::ZSWAP_TMPFILES),
-        meta.artifacts.zswap.present,
-        &mut messages,
-        "zswap drop-in",
-    )?;
+    use crate::oom::{OOMD_ROOT_DROPIN as OOMD_ROOT, OOMD_USER_DROPIN as OOMD_USER};
+    let a = &meta.artifacts;
+    let drop_ins = [
+        (&a.zswap, crate::zswap::ZSWAP_TMPFILES, "zswap drop-in"),
+        (&a.oomd_root, OOMD_ROOT, "systemd-oomd root policy"),
+        (&a.oomd_user, OOMD_USER, "systemd-oomd user policy"),
+    ];
+    for (artifact, relative, label) in drop_ins {
+        let filename = super::paths::snapshot_filename(relative);
+        let target = etc_path(relative);
+        restore_etc_file(
+            &dir,
+            filename,
+            target,
+            artifact.present,
+            &mut messages,
+            label,
+        )?;
+    }
 
     if hermetic {
         for path in &extra {
@@ -111,6 +122,7 @@ pub fn restore_snapshot(id: &str) -> Result<ApplyResult> {
 
         swapon_from_fstab(&mut messages)?;
         restore_zswap_runtime(&meta, &mut messages)?;
+        crate::oom::restore_runtime(meta.oomd_enabled, &mut messages);
     }
 
     info!(id = %meta.id, hermetic, "restored snapshot");

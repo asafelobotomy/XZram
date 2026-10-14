@@ -118,6 +118,10 @@ pub(crate) fn apply_from_pending(pending: &PendingConfig) -> Result<ApplyResult>
         result.messages.extend(crate::zswap::disable()?);
     }
 
+    if pending.enable_oomd {
+        result.messages.extend(crate::oom::enable_oomd()?);
+    }
+
     if pending.finalize_zram_tools
         && std::env::var_os("XZRAM_ETC_ROOT").is_none()
         && migrate::zramswap_config_exists()
@@ -324,5 +328,31 @@ mod tests {
         assert!(result.messages.iter().any(|m| m.contains("zswap")));
         assert!(written);
         assert!(!after_rollback, "rollback should remove the zswap drop-in");
+    }
+
+    #[test]
+    fn enable_oomd_writes_drop_ins_and_rollback_removes_them() {
+        let _guard = test_lock();
+        let data = tempfile::tempdir().unwrap();
+        let etc = tempfile::tempdir().unwrap();
+        std::env::set_var("XZRAM_DATA_DIR", data.path());
+        std::env::set_var("XZRAM_ETC_ROOT", etc.path());
+
+        let pending = PendingConfig {
+            enable_oomd: true,
+            ..Default::default()
+        };
+        let result = stage_then_apply(&pending).unwrap();
+        let drop_ins = [crate::oom::OOMD_ROOT_DROPIN, crate::oom::OOMD_USER_DROPIN]
+            .map(|r| etc.path().join(r));
+        let written = drop_ins.iter().all(|p| p.exists());
+        rollback().unwrap();
+        let after_rollback = drop_ins.iter().any(|p| p.exists());
+        std::env::remove_var("XZRAM_DATA_DIR");
+        std::env::remove_var("XZRAM_ETC_ROOT");
+
+        assert!(result.messages.iter().any(|m| m.contains("systemd-oomd")));
+        assert!(written);
+        assert!(!after_rollback, "rollback should remove the oomd drop-ins");
     }
 }
