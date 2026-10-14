@@ -2,7 +2,7 @@
 # Local checkout package: builds the committed HEAD (git+file://$startdir). For AUR, use packaging/aur/.
 pkgbase=xzram
 pkgname=('xzram' 'xzram-gui')
-pkgver=0.4.2
+pkgver=0.4.3
 pkgrel=1
 pkgdesc="Cross-distro Linux swap management (zram, swap files, sysctl tuning)"
 arch=('x86_64' 'aarch64')

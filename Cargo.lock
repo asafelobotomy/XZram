@@ -1297,7 +1297,7 @@ dependencies = [
 
 [[package]]
 name = "xzram"
-version = "0.4.2"
+version = "0.4.3"
 dependencies = [
  "anyhow",
  "fs2",
@@ -1312,7 +1312,7 @@ dependencies = [
 
 [[package]]
 name = "xzram-cli"
-version = "0.4.2"
+version = "0.4.3"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -1328,7 +1328,7 @@ dependencies = [
 
 [[package]]
 name = "xzram-helper"
-version = "0.4.2"
+version = "0.4.3"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -1344,7 +1344,7 @@ dependencies = [
 
 [[package]]
 name = "xzramd"
-version = "0.4.2"
+version = "0.4.3"
 dependencies = [
  "anyhow",
  "serde",

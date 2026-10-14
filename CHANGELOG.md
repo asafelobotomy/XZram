@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.3] — 2026-10-14
+
 ### Fixed
 - Doctor `oom_kills` no longer repeats "grow swap, enable an OOM killer" once protection is active: past kills are still listed, as info, with advice on reading what was killed (MGLRU `min_ttl_ms` deliberately OOM-kills instead of thrashing). Recommend drops its "OOM killer fired recently" note in that case
 - GUI: dashboard swap table sizes Type / Status / Used / Priority / Source to their contents (the path column takes the slack), so "Used / size" is no longer elided; the size cell has a tooltip
@@ -175,7 +177,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Staged apply, zram/swapfile/sysctl management, doctor, snapshots
 - Packaging stubs (Arch PKGBUILD, Fedora spec, Debian)
 
-[Unreleased]: https://github.com/asafelobotomy/XZram/compare/v0.4.2...HEAD
+[Unreleased]: https://github.com/asafelobotomy/XZram/compare/v0.4.3...HEAD
+[0.4.3]: https://github.com/asafelobotomy/XZram/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/asafelobotomy/XZram/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/asafelobotomy/XZram/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/asafelobotomy/XZram/compare/v0.3.2...v0.4.0

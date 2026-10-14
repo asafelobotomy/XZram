@@ -1,3 +1,12 @@
+xzram (0.4.3-1) unstable; urgency=medium
+
+  * Doctor: past OOM kills are info with current advice once OOM protection
+    is active; recommend drops its stale note
+  * GUI: dashboard swap table columns fit their contents
+  * Tests: fix an env race that failed CI intermittently
+
+ -- XZram contributors <xzram@example.com>  Wed, 14 Oct 2026 20:00:00 +0100
+
 xzram (0.4.2-1) unstable; urgency=medium
 
   * Helper and xzramd reject unknown payload fields instead of silently

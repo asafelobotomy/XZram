@@ -1,5 +1,5 @@
 Name:           xzram
-Version:        0.4.2
+Version:        0.4.3
 Release:        1%{?dist}
 Summary:        Cross-distro Linux swap management
 
@@ -84,6 +84,11 @@ done
 %systemd_postun xzramd.service
 
 %changelog
+* Wed Oct 14 2026 XZram contributors <xzram@example.com> - 0.4.3-1
+- Doctor: past OOM kills are info with current advice once OOM protection is active
+- GUI: dashboard swap table columns fit their contents
+- Tests: fix an env race that failed CI intermittently
+
 * Wed Oct 14 2026 XZram contributors <xzram@example.com> - 0.4.2-1
 - Helper and xzramd reject unknown payload fields; CLI refuses helpers older than 0.4.2 before prompting
 - xzram-helper --version
