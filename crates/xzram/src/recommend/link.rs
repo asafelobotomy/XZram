@@ -167,6 +167,7 @@ mod tests {
                 watermark_boost_factor: Some(0),
                 watermark_scale_factor: Some(125),
                 page_cluster: Some(99),
+                ..Default::default()
             }),
             ..Default::default()
         };

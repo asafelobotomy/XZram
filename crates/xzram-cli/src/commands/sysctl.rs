@@ -20,6 +20,9 @@ pub(crate) fn run(command: SysctlCommands, json: bool, dbus: bool) -> anyhow::Re
             watermark_boost_factor,
             watermark_scale_factor,
             page_cluster,
+            vfs_cache_pressure,
+            dirty_bytes,
+            dirty_background_bytes,
             zram_defaults,
             now,
         } => {
@@ -31,6 +34,9 @@ pub(crate) fn run(command: SysctlCommands, json: bool, dbus: bool) -> anyhow::Re
                     watermark_boost_factor,
                     watermark_scale_factor,
                     page_cluster,
+                    vfs_cache_pressure,
+                    dirty_bytes,
+                    dirty_background_bytes,
                 }
             };
             let pending = PendingConfig {

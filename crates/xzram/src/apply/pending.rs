@@ -132,6 +132,10 @@ fn merge_pending(current: &mut PendingConfig, partial: &PendingConfig) {
     if partial.enable_oomd {
         current.enable_oomd = true;
     }
+    if let Some(ref mm) = partial.mm {
+        let base = current.mm.take().unwrap_or_default();
+        current.mm = Some(base.merged(mm));
+    }
     for path in &partial.prepare_swapfiles {
         if !current.prepare_swapfiles.contains(path) {
             current.prepare_swapfiles.push(path.clone());
@@ -140,25 +144,7 @@ fn merge_pending(current: &mut PendingConfig, partial: &PendingConfig) {
 }
 
 fn merge_sysctl(existing: Option<&SysctlValues>, incoming: &SysctlValues) -> SysctlValues {
-    let mut merged = existing.cloned().unwrap_or(SysctlValues {
-        swappiness: None,
-        watermark_boost_factor: None,
-        watermark_scale_factor: None,
-        page_cluster: None,
-    });
-    if incoming.swappiness.is_some() {
-        merged.swappiness = incoming.swappiness;
-    }
-    if incoming.watermark_boost_factor.is_some() {
-        merged.watermark_boost_factor = incoming.watermark_boost_factor;
-    }
-    if incoming.watermark_scale_factor.is_some() {
-        merged.watermark_scale_factor = incoming.watermark_scale_factor;
-    }
-    if incoming.page_cluster.is_some() {
-        merged.page_cluster = incoming.page_cluster;
-    }
-    merged
+    crate::sysctl::merge_sysctl_overlay(existing.cloned().unwrap_or_default(), incoming)
 }
 
 pub fn write_pending(config: &PendingConfig) -> Result<()> {
@@ -195,6 +181,7 @@ pub fn pending_is_empty(config: &PendingConfig) -> bool {
         && !config.finalize_zram_tools
         && !config.disable_zswap
         && !config.enable_oomd
+        && config.mm.as_ref().is_none_or(|m| m.is_empty())
         && config.prepare_swapfiles.is_empty()
 }
 
@@ -262,12 +249,14 @@ mod tests {
                 watermark_boost_factor: None,
                 watermark_scale_factor: None,
                 page_cluster: None,
+                ..Default::default()
             }),
             &SysctlValues {
                 swappiness: None,
                 watermark_boost_factor: Some(0),
                 watermark_scale_factor: Some(125),
                 page_cluster: None,
+                ..Default::default()
             },
         );
         assert_eq!(merged.swappiness, Some(60));

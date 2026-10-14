@@ -39,6 +39,7 @@ int countPendingChanges(const QJsonValue &pending) {
     if (obj.value(QStringLiteral("enable_oomd")).toBool()) {
         ++count;
     }
+    count += static_cast<int>(obj.value(QStringLiteral("mm")).toObject().size());
     count += static_cast<int>(obj.value(QStringLiteral("prepare_swapfiles")).toArray().size());
     return count;
 }

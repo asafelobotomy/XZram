@@ -2,7 +2,7 @@
 
 use std::process::Command;
 
-use super::OOMD_SERVICE;
+use super::{OOMD_SERVICE, OOMD_SESSION_DROPIN};
 
 /// Other userspace OOM killers; any one of them active makes systemd-oomd redundant.
 const OTHER_KILLERS: [&str; 3] = [
@@ -25,6 +25,11 @@ pub struct OomProbe {
     pub other_killer: Option<String>,
     /// Kernel exposes PSI (`/proc/pressure/memory`), which systemd-oomd requires.
     pub psi_available: bool,
+    /// A `user@*.service` has `ManagedOOMMemoryPressure=kill` (can pick session cgroups).
+    pub user_pressure_kill: bool,
+    /// `session.slice` is `ManagedOOMPreference=avoid|omit` (xzram drop-in or the
+    /// calling user's manager reports it).
+    pub session_guarded: bool,
 }
 
 impl OomProbe {
@@ -32,13 +37,21 @@ impl OomProbe {
     pub fn protected(&self) -> bool {
         self.other_killer.is_some() || (self.oomd_active && self.oomd_has_policies)
     }
+
+    /// oomd may kill inside the user manager but the desktop session is not shielded.
+    pub fn session_at_risk(&self) -> bool {
+        self.oomd_active && self.user_pressure_kill && !self.session_guarded
+    }
 }
 
 pub fn probe() -> OomProbe {
+    let show = managed_show();
     OomProbe {
         oomd_installed: unit_installed(OOMD_SERVICE),
         oomd_active: unit_active(OOMD_SERVICE),
-        oomd_has_policies: oomd_has_policies(),
+        oomd_has_policies: show_has_kill_policy(&show),
+        user_pressure_kill: show_user_pressure_kill(&show),
+        session_guarded: session_guarded(),
         other_killer: OTHER_KILLERS
             .iter()
             .find(|u| unit_active(u))
@@ -61,18 +74,51 @@ fn unit_installed(unit: &str) -> bool {
         .is_ok_and(|o| String::from_utf8_lossy(&o.stdout).contains(unit))
 }
 
-fn oomd_has_policies() -> bool {
+fn session_guarded() -> bool {
+    if crate::snapshot::paths::etc_path(OOMD_SESSION_DROPIN).exists() {
+        return true;
+    }
+    Command::new("systemctl")
+        .args([
+            "--user",
+            "show",
+            "-p",
+            "ManagedOOMPreference",
+            "session.slice",
+        ])
+        .output()
+        .is_ok_and(|o| {
+            let out = String::from_utf8_lossy(&o.stdout);
+            matches!(
+                out.trim(),
+                "ManagedOOMPreference=avoid" | "ManagedOOMPreference=omit"
+            )
+        })
+}
+
+/// `systemctl show` output for [`MANAGED_UNITS`], one block per unit (with `Id=`).
+fn managed_show() -> String {
     let mut args = vec![
         "show",
         "-p",
-        "ManagedOOMSwap,ManagedOOMMemoryPressure",
+        "Id,ManagedOOMSwap,ManagedOOMMemoryPressure",
         "--",
     ];
     args.extend(MANAGED_UNITS);
     Command::new("systemctl")
         .args(&args)
         .output()
-        .is_ok_and(|o| show_has_kill_policy(&String::from_utf8_lossy(&o.stdout)))
+        .map(|o| String::from_utf8_lossy(&o.stdout).into_owned())
+        .unwrap_or_default()
+}
+
+fn show_user_pressure_kill(show: &str) -> bool {
+    show.split("\n\n").any(|block| {
+        block.lines().any(|l| l.starts_with("Id=user@"))
+            && block
+                .lines()
+                .any(|l| l.trim() == "ManagedOOMMemoryPressure=kill")
+    })
 }
 
 fn show_has_kill_policy(show: &str) -> bool {
@@ -167,6 +213,27 @@ mod tests {
         assert!(show_has_kill_policy(
             "ManagedOOMSwap=kill\nManagedOOMMemoryPressure=auto\n"
         ));
+    }
+
+    #[test]
+    fn detects_user_pressure_kill_block() {
+        let show = "Id=-.slice\nManagedOOMSwap=kill\nManagedOOMMemoryPressure=auto\n\n\
+                    Id=user@1000.service\nManagedOOMSwap=auto\nManagedOOMMemoryPressure=kill\n";
+        assert!(show_user_pressure_kill(show));
+        assert!(!show_user_pressure_kill(
+            "Id=-.slice\nManagedOOMMemoryPressure=kill\n"
+        ));
+        let at_risk = OomProbe {
+            oomd_active: true,
+            user_pressure_kill: true,
+            ..Default::default()
+        };
+        assert!(at_risk.session_at_risk());
+        assert!(!OomProbe {
+            session_guarded: true,
+            ..at_risk
+        }
+        .session_at_risk());
     }
 
     #[test]

@@ -69,12 +69,22 @@ pub fn restore_snapshot(id: &str) -> Result<ApplyResult> {
         "zram-tools configuration",
     )?;
 
-    use crate::oom::{OOMD_ROOT_DROPIN as OOMD_ROOT, OOMD_USER_DROPIN as OOMD_USER};
+    use crate::oom::{OOMD_ROOT_DROPIN as ROOT, OOMD_SESSION_DROPIN as SESSION};
     let a = &meta.artifacts;
     let drop_ins = [
         (&a.zswap, crate::zswap::ZSWAP_TMPFILES, "zswap drop-in"),
-        (&a.oomd_root, OOMD_ROOT, "systemd-oomd root policy"),
-        (&a.oomd_user, OOMD_USER, "systemd-oomd user policy"),
+        (&a.oomd_root, ROOT, "systemd-oomd root policy"),
+        (
+            &a.oomd_user,
+            crate::oom::OOMD_USER_DROPIN,
+            "systemd-oomd user policy",
+        ),
+        (&a.oomd_session, SESSION, "systemd-oomd session guard"),
+        (
+            &a.mm,
+            crate::mm_tunables::MM_TMPFILES,
+            "memory tunables drop-in",
+        ),
     ];
     for (artifact, relative, label) in drop_ins {
         let filename = super::paths::snapshot_filename(relative);
@@ -121,8 +131,9 @@ pub fn restore_snapshot(id: &str) -> Result<ApplyResult> {
         }
 
         swapon_from_fstab(&mut messages)?;
-        restore_zswap_runtime(&meta, &mut messages)?;
+        crate::zswap::restore_runtime(meta.zswap_enabled, &mut messages)?;
         crate::oom::restore_runtime(meta.oomd_enabled, &mut messages);
+        crate::mm_tunables::restore_runtime(meta.mm_runtime.as_ref(), &mut messages);
     }
 
     info!(id = %meta.id, hermetic, "restored snapshot");
@@ -135,18 +146,6 @@ pub fn restore_snapshot(id: &str) -> Result<ApplyResult> {
 pub fn rollback() -> Result<ApplyResult> {
     let id = latest_pre_apply_id()?;
     restore_snapshot(&id)
-}
-
-/// Re-enable zswap when the snapshot had it on and nothing persistent keeps it off now.
-fn restore_zswap_runtime(meta: &SnapshotMeta, messages: &mut Vec<String>) -> Result<()> {
-    if meta.zswap_enabled == Some(true)
-        && crate::checks::zswap_enabled() == Some(false)
-        && !crate::zswap::persistently_disabled()
-    {
-        crate::zswap::set_runtime(true)?;
-        messages.push("Re-enabled zswap (enabled in snapshot)".into());
-    }
-    Ok(())
 }
 
 fn swapoff_managed_swaps(meta: &SnapshotMeta, extra: &[String]) -> Result<()> {

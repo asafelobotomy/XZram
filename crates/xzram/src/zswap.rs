@@ -35,6 +35,21 @@ pub(crate) fn set_runtime(enabled: bool) -> Result<()> {
     Ok(())
 }
 
+/// Re-enable zswap when the snapshot had it on and nothing persistent keeps it off now.
+pub(crate) fn restore_runtime(
+    snapshot_enabled: Option<bool>,
+    messages: &mut Vec<String>,
+) -> Result<()> {
+    if snapshot_enabled == Some(true)
+        && crate::checks::zswap_enabled() == Some(false)
+        && !persistently_disabled()
+    {
+        set_runtime(true)?;
+        messages.push("Re-enabled zswap (enabled in snapshot)".into());
+    }
+    Ok(())
+}
+
 /// Whether the xzram drop-in or the kernel cmdline keeps zswap off across reboots.
 pub fn persistently_disabled() -> bool {
     etc_path(ZSWAP_TMPFILES).exists()

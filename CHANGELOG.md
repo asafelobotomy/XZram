@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- systemd-oomd policy no longer risks killing the whole desktop session: apply also writes `/etc/systemd/user/session.slice.d/10-xzram-oomd.conf` (`ManagedOOMPreference=avoid`) so apps in `app.slice` die before the compositor and shell, and reloads running user managers. Hosts already running oomd with a `user@` pressure kill policy get just this guard staged (Ubuntu 26.10 dropped that policy after it ended sessions)
+
+### Added
+- Kernel memory tunables (`mm` in pending, persisted via `/etc/tmpfiles.d/xzram-mm.conf`, live sysfs write, snapshot restore writes old values back): MGLRU `min_ttl_ms=1000` thrashing prevention and THP `defrag=defer+madvise`
+- Sysctl: `vm.dirty_bytes` (256 MiB), `vm.dirty_background_bytes` (64 MiB) and `vm.vfs_cache_pressure` (50) are staged with recommended defaults; `xzram sysctl set` gains `--dirty-bytes`, `--dirty-background-bytes`, `--vfs-cache-pressure`
+- Doctor: `oomd_session_unprotected`, `thp_always_low_ram`
+- GUI: pending banner counts memory tunables; "Memory" recommendation chip
+
 ## [0.4.0] — 2026-10-14
 
 ### Fixed

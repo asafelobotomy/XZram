@@ -55,6 +55,9 @@ pub struct PendingConfig {
     /// When true, apply installs systemd-oomd ManagedOOM drop-ins and enables the service.
     #[serde(default)]
     pub enable_oomd: bool,
+    /// Kernel sysfs memory tunables (MGLRU min_ttl_ms, THP defrag), persisted via tmpfiles.d.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mm: Option<crate::mm_tunables::MmTunables>,
     /// Existing swapfiles whose btrfs parent directory gets nodatacow (chattr +C).
     #[serde(default)]
     pub prepare_swapfiles: Vec<String>,

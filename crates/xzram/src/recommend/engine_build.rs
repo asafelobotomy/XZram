@@ -237,19 +237,19 @@ fn stage_sysctl(
     pending: &mut PendingConfig,
     current_sysctl: Option<&SysctlValues>,
 ) {
-    let recommended_sysctl = sysctl::zram_tuning_defaults();
+    let recommended_sysctl = sysctl::recommended_defaults();
     if sysctl_needs_update(current_sysctl, &recommended_sysctl) {
         items.push(RecommendationItem {
             category: "sysctl".into(),
-            summary: "Apply zram sysctl tuning defaults".into(),
-            detail: "vm.swappiness=180, vm.watermark_boost_factor=0, vm.watermark_scale_factor=125, vm.page-cluster=0".into(),
+            summary: "Apply zram and memory sysctl tuning defaults".into(),
+            detail: "vm.swappiness=180, vm.watermark_boost_factor=0, vm.watermark_scale_factor=125, vm.page-cluster=0; vm.dirty_bytes=256 MiB and vm.dirty_background_bytes=64 MiB (flush in small batches instead of up to 20% of RAM), vm.vfs_cache_pressure=50".into(),
             will_stage: true,
             reference: Some("sysctl-tuning".into()),
         });
         pending.sysctl = Some(recommended_sysctl);
     } else {
         items.push(note_item(
-            "Sysctl values already match zram tuning defaults",
+            "Sysctl values already match tuning defaults",
             "No vm.* changes needed.",
             Some("sysctl-tuning"),
         ));

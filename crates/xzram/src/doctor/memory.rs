@@ -24,6 +24,16 @@ fn issue(severity: IssueSeverity, code: &str, message: String, suggestion: &str)
 }
 
 pub(super) fn check_oom_protection(issues: &mut Vec<DoctorIssue>, probe: &OomProbe) {
+    if probe.session_at_risk() {
+        issues.push(issue(
+            IssueSeverity::Warning,
+            "oomd_session_unprotected",
+            "systemd-oomd can kill inside user@.service but session.slice is not shielded; \
+             a pressure spike can end the whole desktop session"
+                .into(),
+            "Run 'xzram defaults apply' to set ManagedOOMPreference=avoid on session.slice",
+        ));
+    }
     if probe.protected() {
         return;
     }
@@ -154,6 +164,26 @@ pub(super) fn check_overflow_size(issues: &mut Vec<DoctorIssue>, status: &Status
              16 GiB)",
         ));
     }
+}
+
+/// THP `always` backs sparse anonymous mappings with 2 MiB pages, inflating RSS; on
+/// smaller machines that memory is better left to zram and the page cache.
+pub(super) fn check_thp_mode(issues: &mut Vec<DoctorIssue>, mode: Option<&str>, ram_bytes: u64) {
+    const THP_ALWAYS_RAM_LIMIT: u64 = 16 * GIB;
+    if mode != Some("always") || ram_bytes >= THP_ALWAYS_RAM_LIMIT {
+        return;
+    }
+    issues.push(issue(
+        IssueSeverity::Info,
+        "thp_always_low_ram",
+        format!(
+            "Transparent huge pages are 'always' on a {} RAM system; sparse mappings get \
+             2 MiB pages and use more memory",
+            format_bytes(ram_bytes)
+        ),
+        "Consider transparent_hugepage=madvise on the kernel cmdline (apps that benefit opt \
+         in with MADV_HUGEPAGE)",
+    ));
 }
 
 pub(super) fn check_swap_placement(issues: &mut Vec<DoctorIssue>, status: &StatusReport) {
@@ -299,5 +329,16 @@ mod tests {
         );
         assert_eq!(codes(&issues), ["no_disk_overflow", "disk_overflow_small"]);
         assert_eq!(issues[1].severity, IssueSeverity::Warning);
+    }
+
+    #[test]
+    fn thp_always_flagged_only_below_16_gib() {
+        let mut issues = Vec::new();
+        check_thp_mode(&mut issues, Some("madvise"), 8 * GIB);
+        check_thp_mode(&mut issues, Some("always"), 32 * GIB);
+        check_thp_mode(&mut issues, None, 8 * GIB);
+        assert!(issues.is_empty());
+        check_thp_mode(&mut issues, Some("always"), 15 * GIB);
+        assert_eq!(codes(&issues), ["thp_always_low_ram"]);
     }
 }

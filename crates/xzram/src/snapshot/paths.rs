@@ -35,7 +35,7 @@ pub(crate) fn snapshot_filename(relative: &str) -> &'static str {
         .unwrap_or("")
 }
 
-pub(crate) fn managed_etc_files() -> [(&'static str, &'static str); 7] {
+pub(crate) fn managed_etc_files() -> [(&'static str, &'static str); 9] {
     [
         (ZRAM_CONF, "zram-generator.conf"),
         (FSTAB, "fstab"),
@@ -44,5 +44,7 @@ pub(crate) fn managed_etc_files() -> [(&'static str, &'static str); 7] {
         (crate::zswap::ZSWAP_TMPFILES, "xzram-zswap.conf"),
         (crate::oom::OOMD_ROOT_DROPIN, "xzram-oomd-root.conf"),
         (crate::oom::OOMD_USER_DROPIN, "xzram-oomd-user.conf"),
+        (crate::oom::OOMD_SESSION_DROPIN, "xzram-oomd-session.conf"),
+        (crate::mm_tunables::MM_TMPFILES, "xzram-mm.conf"),
     ]
 }

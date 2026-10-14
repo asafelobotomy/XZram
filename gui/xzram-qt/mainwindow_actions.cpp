@@ -63,7 +63,8 @@ bool MainWindow::pendingHasChanges(const QJsonObject &pending) const {
     }
     if (pending.value(QStringLiteral("disable_zram")).toBool()
         || pending.value(QStringLiteral("disable_zswap")).toBool()
-        || pending.value(QStringLiteral("enable_oomd")).toBool()) {
+        || pending.value(QStringLiteral("enable_oomd")).toBool()
+        || !pending.value(QStringLiteral("mm")).toObject().isEmpty()) {
         return true;
     }
     if (!pending.value(QStringLiteral("prepare_swapfiles")).toArray().isEmpty()) {

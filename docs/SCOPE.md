@@ -10,7 +10,8 @@ on major systemd-based Linux distributions.
 - ZRAM configuration via `systemd-zram-generator`
 - Swap file create / resize / remove with fstab persistence
 - Swap partition listing and activation control
-- Sysctl tuning (swappiness, watermark_boost_factor, watermark_scale_factor, page-cluster)
+- Sysctl tuning (swappiness, watermark_boost_factor, watermark_scale_factor, page-cluster, dirty_bytes, dirty_background_bytes, vfs_cache_pressure)
+- Kernel memory tunables via tmpfiles.d (MGLRU min_ttl_ms, THP defrag)
 - Read-only diagnostics: status, detect, doctor (incl. OOM kills, memory pressure, swap headroom)
 - OOM protection: systemd-oomd ManagedOOM drop-ins + enable via recommended defaults
 - Polkit-gated privileged operations

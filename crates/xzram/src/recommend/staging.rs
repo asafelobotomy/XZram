@@ -103,24 +103,11 @@ pub(super) fn sysctl_needs_update(
     let Some(current) = current else {
         return true;
     };
-    field_differs(current.swappiness, recommended.swappiness)
-        || field_differs(
-            current.watermark_boost_factor,
-            recommended.watermark_boost_factor,
-        )
-        || field_differs(
-            current.watermark_scale_factor,
-            recommended.watermark_scale_factor,
-        )
-        || field_differs(current.page_cluster, recommended.page_cluster)
-}
-
-fn field_differs(current: Option<u32>, recommended: Option<u32>) -> bool {
-    match (current, recommended) {
-        (None, None) => false,
-        (Some(a), Some(b)) => a != b,
-        _ => true,
-    }
+    let current = current.entries();
+    recommended
+        .entries()
+        .iter()
+        .any(|entry| !current.contains(entry))
 }
 
 #[cfg(test)]

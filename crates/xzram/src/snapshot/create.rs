@@ -62,6 +62,7 @@ pub fn create_snapshot(
                 .is_none()
                 .then(crate::oom::oomd_enabled)
                 .flatten(),
+            mm_runtime: Some(crate::mm_tunables::current()),
         };
 
         let dir = snapshots_root().join(&id);
@@ -92,15 +93,7 @@ pub(crate) struct CapturedState {
 
 pub(crate) fn capture_system_state() -> Result<CapturedState> {
     let mut hash = Sha256::new();
-    let mut artifacts = SnapshotArtifacts {
-        zram_generator_conf: SnapshotArtifact::default(),
-        fstab: SnapshotArtifact::default(),
-        sysctl: SnapshotArtifact::default(),
-        zramswap: SnapshotArtifact::default(),
-        zswap: SnapshotArtifact::default(),
-        oomd_root: SnapshotArtifact::default(),
-        oomd_user: SnapshotArtifact::default(),
-    };
+    let mut artifacts = SnapshotArtifacts::default();
 
     for (relative, filename) in managed_etc_files() {
         let path = etc_path(relative);
@@ -126,6 +119,8 @@ pub(crate) fn capture_system_state() -> Result<CapturedState> {
             crate::zswap::ZSWAP_TMPFILES => artifacts.zswap = artifact,
             crate::oom::OOMD_ROOT_DROPIN => artifacts.oomd_root = artifact,
             crate::oom::OOMD_USER_DROPIN => artifacts.oomd_user = artifact,
+            crate::oom::OOMD_SESSION_DROPIN => artifacts.oomd_session = artifact,
+            crate::mm_tunables::MM_TMPFILES => artifacts.mm = artifact,
             _ => {}
         }
     }
@@ -231,6 +226,9 @@ pub fn pending_summary(pending: &PendingConfig) -> String {
     }
     if pending.enable_oomd {
         parts.push("enable systemd-oomd".into());
+    }
+    if pending.mm.as_ref().is_some_and(|m| !m.is_empty()) {
+        parts.push("memory tunables".into());
     }
     parts.join(", ")
 }

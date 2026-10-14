@@ -7,6 +7,7 @@ pub mod doctor;
 pub mod error;
 pub mod fsutil;
 pub mod migrate;
+pub mod mm_tunables;
 pub mod oom;
 pub mod placement;
 pub mod recommend;

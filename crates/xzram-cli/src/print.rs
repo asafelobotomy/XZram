@@ -172,16 +172,7 @@ pub(crate) fn print_nodatacow_status(status: &swapfile_btrfs::NodatacowStatus) {
 }
 
 pub(crate) fn print_sysctl(v: &SysctlValues) {
-    if let Some(s) = v.swappiness {
-        println!("vm.swappiness = {s}");
-    }
-    if let Some(s) = v.watermark_boost_factor {
-        println!("vm.watermark_boost_factor = {s}");
-    }
-    if let Some(s) = v.watermark_scale_factor {
-        println!("vm.watermark_scale_factor = {s}");
-    }
-    if let Some(s) = v.page_cluster {
-        println!("vm.page-cluster = {s}");
+    for (key, value) in v.entries() {
+        println!("{key} = {value}");
     }
 }

@@ -69,9 +69,12 @@ pub struct SnapshotMeta {
     /// Whether systemd-oomd was enabled at boot when captured; `None` for older snapshots.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub oomd_enabled: Option<bool>,
+    /// Live MGLRU / THP sysfs values when captured; `None` for older snapshots.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mm_runtime: Option<crate::mm_tunables::MmTunables>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct SnapshotArtifacts {
     pub zram_generator_conf: SnapshotArtifact,
     pub fstab: SnapshotArtifact,
@@ -83,4 +86,8 @@ pub struct SnapshotArtifacts {
     pub oomd_root: SnapshotArtifact,
     #[serde(default)]
     pub oomd_user: SnapshotArtifact,
+    #[serde(default)]
+    pub oomd_session: SnapshotArtifact,
+    #[serde(default)]
+    pub mm: SnapshotArtifact,
 }

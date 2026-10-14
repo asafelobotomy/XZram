@@ -140,6 +140,11 @@ pub fn doctor() -> Result<DoctorReport> {
     memory::check_swap_headroom(&mut issues, &status);
     memory::check_overflow_size(&mut issues, &status);
     memory::check_swap_placement(&mut issues, &status);
+    memory::check_thp_mode(
+        &mut issues,
+        crate::mm_tunables::thp_enabled_mode().as_deref(),
+        status.memory.mem_total_kb * 1024,
+    );
 
     let healthy = !issues.iter().any(|i| i.severity == IssueSeverity::Error);
 

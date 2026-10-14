@@ -122,6 +122,10 @@ pub(crate) fn apply_from_pending(pending: &PendingConfig) -> Result<ApplyResult>
         result.messages.extend(crate::oom::enable_oomd()?);
     }
 
+    if let Some(mm) = pending.mm.as_ref().filter(|m| !m.is_empty()) {
+        result.messages.extend(crate::mm_tunables::apply(mm)?);
+    }
+
     if pending.finalize_zram_tools
         && std::env::var_os("XZRAM_ETC_ROOT").is_none()
         && migrate::zramswap_config_exists()
@@ -227,6 +231,7 @@ mod tests {
                 watermark_boost_factor: None,
                 watermark_scale_factor: None,
                 page_cluster: None,
+                ..Default::default()
             }),
             ..Default::default()
         };
@@ -260,6 +265,7 @@ mod tests {
                 watermark_boost_factor: Some(0),
                 watermark_scale_factor: Some(125),
                 page_cluster: Some(0),
+                ..Default::default()
             }),
             ..Default::default()
         };
@@ -290,6 +296,7 @@ mod tests {
                 watermark_boost_factor: Some(0),
                 watermark_scale_factor: Some(125),
                 page_cluster: Some(0),
+                ..Default::default()
             }),
             ..Default::default()
         };
@@ -331,7 +338,7 @@ mod tests {
     }
 
     #[test]
-    fn enable_oomd_writes_drop_ins_and_rollback_removes_them() {
+    fn oomd_and_mm_drop_ins_written_and_rolled_back() {
         let _guard = test_lock();
         let data = tempfile::tempdir().unwrap();
         let etc = tempfile::tempdir().unwrap();
@@ -340,11 +347,20 @@ mod tests {
 
         let pending = PendingConfig {
             enable_oomd: true,
+            mm: Some(crate::mm_tunables::MmTunables {
+                mglru_min_ttl_ms: Some(1000),
+                thp_defrag: None,
+            }),
             ..Default::default()
         };
         let result = stage_then_apply(&pending).unwrap();
-        let drop_ins = [crate::oom::OOMD_ROOT_DROPIN, crate::oom::OOMD_USER_DROPIN]
-            .map(|r| etc.path().join(r));
+        let drop_ins = [
+            crate::oom::OOMD_ROOT_DROPIN,
+            crate::oom::OOMD_USER_DROPIN,
+            crate::oom::OOMD_SESSION_DROPIN,
+            crate::mm_tunables::MM_TMPFILES,
+        ]
+        .map(|r| etc.path().join(r));
         let written = drop_ins.iter().all(|p| p.exists());
         rollback().unwrap();
         let after_rollback = drop_ins.iter().any(|p| p.exists());
@@ -353,6 +369,9 @@ mod tests {
 
         assert!(result.messages.iter().any(|m| m.contains("systemd-oomd")));
         assert!(written);
-        assert!(!after_rollback, "rollback should remove the oomd drop-ins");
+        assert!(
+            !after_rollback,
+            "rollback should remove the oomd and mm drop-ins"
+        );
     }
 }

@@ -13,6 +13,8 @@ Hardware-aware defaults used by `xzram defaults recommend` and the Dashboard **A
 
 **Priority tiers:** zram `swap-priority = 100`, disk swapfile `pri = 10`.
 
+**Sysctl (all profiles):** the zram set above (`swappiness` 180, `watermark_boost_factor` 0, `watermark_scale_factor` 125, `page-cluster` 0, from Pop!_OS via the [Arch Wiki](https://wiki.archlinux.org/title/Zram)) plus desktop knobs from [CachyOS-Settings](https://github.com/CachyOS/CachyOS-Settings): `vm.dirty_bytes` 256 MiB / `vm.dirty_background_bytes` 64 MiB (the default 20% / 10% ratios let gigabytes of dirty pages pile up, then stall on flush, worst on HDDs) and `vm.vfs_cache_pressure` 50. Anchor: `sysctl-tuning`.
+
 **Overflow gates:** when the only active disk swap is an undersized swapfile at `/swap/swapfile` (e.g. a distro-installed 512 MiB file), Apply grows it in place to the target (`swapfile_resize`; never shrinks). Otherwise skipped when other active `/proc/swaps` disk swap exists, when fstab/managed inventory already lists non-zram swap, or when free space near `/swap` is below size + 512 MiB margin.
 
 **Size scale (GUI / CLI):** `xzram defaults recommend|stage|apply` accept `--zram-scale` and `--swap-scale` (`low` | `default` | `high`). The Recommended defaults dialog exposes the same tiers as sliders. Recommended matches the matrix above; Low is more conservative; High raises caps (overflow High caps at 16 GiB). See `size_scales` in `--json` output.
@@ -23,7 +25,7 @@ Hardware-aware defaults used by `xzram defaults recommend` and the Dashboard **A
 
 **Placement:** recommend and doctor (`swap_on_rotational`) warn when disk swap is, or would be created, on a rotational drive (sysfs `queue/rotational`). zram lives in RAM and is unaffected.
 
-**Anchor IDs:** `profile-constrained`, `profile-conservative`, `profile-performance`, `sysctl-tuning`, `overflow-swapfile`, `priority-tiers`, `oom-protection`.
+**Anchor IDs:** `profile-constrained`, `profile-conservative`, `profile-performance`, `sysctl-tuning`, `overflow-swapfile`, `priority-tiers`, `oom-protection`, `mm-tunables`.
 
 ## Distro overrides
 
@@ -45,6 +47,8 @@ Anchor: `distro-overrides`.
 | `priority_inverted` | Fixed by staged zram pri 100 + swapfile pri 10 when those changes are in scope |
 | `btrfs_swapfile_nodatacow` | Prepare runs before create via `ensure_ready_for_swapfile`; for existing allowlisted swapfiles whose parent lacks nodatacow, Apply stages `prepare_swapfiles` (chattr +C on the parent; not reverted by restore) |
 | `no_oom_protection` / `oomd_no_policies` | Staged as `enable_oomd` when no userspace OOM killer can act (see § oom-protection); advisory when systemd-oomd is missing, PSI is unavailable, or staging is blocked |
+| `oomd_session_unprotected` | Staged as `enable_oomd` (adds the `session.slice` guard) when oomd kills inside `user@.service` but the session slice is not `avoid`/`omit` |
+| `thp_always_low_ram` | Doctor info only (THP `always` on &lt; 16 GiB RAM): suggest `transparent_hugepage=madvise` on the kernel cmdline |
 | `oom_kills` | Advisory note: kernel OOM kills in this or the previous boot (`/proc/vmstat`, journal) |
 | `disk_overflow_small` / `no_disk_overflow` | Overflow swapfile grown / created (see overflow gates) |
 | `swap_nearly_full` / `memory_pressure_high` / `memory_pressure_elevated` | Doctor only (live swap use ≥ 80%, PSI full avg60 ≥ 10% / some avg300 ≥ 10%) |
@@ -98,9 +102,18 @@ Anchor: `known-conflicts`.
 - When RAM, zram and disk swap run out, the kernel OOM killer fires only after the system has thrashed, often for minutes with a frozen desktop. systemd-oomd acts earlier using PSI and swap usage ([systemd-oomd(8)](https://www.freedesktop.org/software/systemd/man/latest/systemd-oomd.service.html), [oomd.conf(5)](https://www.freedesktop.org/software/systemd/man/latest/oomd.conf.html)).
 - systemd-oomd only watches units with `ManagedOOMSwap=kill` / `ManagedOOMMemoryPressure=kill`. Fedora (`systemd-oomd-defaults`) and Ubuntu ship these; **Arch / Manjaro do not**, so enabling the service alone does nothing.
 - When no userspace killer can act (earlyoom / nohang count as protected), Apply writes `/etc/systemd/system/-.slice.d/10-xzram-oomd.conf` (`ManagedOOMSwap=kill`) and `/etc/systemd/system/user@.service.d/10-xzram-oomd.conf` (`ManagedOOMMemoryPressure=kill`, limit 50%), mirroring Fedora's defaults, then runs `systemctl enable --now systemd-oomd`.
+- **Session guard:** a pressure kill on `user@.service` picks a cgroup inside the user manager, which can be the compositor/shell. Ubuntu 26.10 dropped that policy after it ended whole sessions ([It's FOSS](https://itsfoss.com/news/ubuntu-26-10-oom-policy/)). XZram keeps it but also writes `/etc/systemd/user/session.slice.d/10-xzram-oomd.conf` (`ManagedOOMPreference=avoid`, honoured for user cgroups since systemd 252), so apps in `app.slice` are killed first, and reloads running user managers. Systems already protected by distro policies get only this guard staged.
 - Snapshot restore removes the drop-ins and disables systemd-oomd again if it was disabled when the snapshot was taken.
 - Requires PSI (`/proc/pressure/memory`); without it the recommendation suggests earlyoom.
 - Anchor: `oom-protection`.
+
+### Kernel memory tunables {#mm-tunables}
+
+- Persisted in `/etc/tmpfiles.d/xzram-mm.conf` (`w-` lines, applied early at boot) and written to sysfs on apply. Snapshots record the live values; restore removes the drop-in and writes the old values back.
+- **MGLRU `min_ttl_ms = 1000`** (staged when `/sys/kernel/mm/lru_gen` is enabled and the value is 0): protects the last second of working set; if it cannot stay resident the kernel OOM-kills instead of thrashing. Kernel docs: 1000 "usually eliminates intolerable janks", 3000 risks premature OOM kills ([multigen_lru](https://docs.kernel.org/admin-guide/mm/multigen_lru.html)). openSUSE Leap 16 ships 1000.
+- **THP `defrag = defer+madvise`** (staged only when the kernel default `madvise` or `always` is active): compaction runs in the background except for `MADV_HUGEPAGE` regions ([transhuge](https://docs.kernel.org/admin-guide/mm/transhuge.html)); CachyOS ships it.
+- THP `enabled` is a boot-time choice and is only advised by doctor (`thp_always_low_ram`).
+- Anchor: `mm-tunables`.
 
 ### Implement vs document matrix {#advanced-matrix}
 
@@ -113,6 +126,9 @@ Anchor: `known-conflicts`.
 | Vendor size respect | Keep ≥ recommended size | § distro-overrides | — |
 | Overflow cap 8 GiB | Yes | § overflow gates | — |
 | systemd-oomd policies | Staged when no OOM killer can act | § oom-protection | — |
+| oomd session guard | Staged when user@ pressure kill lacks it | § oom-protection | — |
+| MGLRU min_ttl_ms / THP defrag | Staged (tmpfiles.d) | § mm-tunables | — |
+| Dirty writeback / vfs_cache_pressure | Staged (sysctl) | § summary | — |
 
 ## Citations
 
@@ -149,6 +165,7 @@ Anchor: `known-conflicts`.
 
 | Date | Change |
 |------|--------|
+| 2026-10-14 (0.4.1) | oomd `session.slice` guard; MGLRU `min_ttl_ms`, THP `defrag`, dirty bytes, `vfs_cache_pressure`; doctor `oomd_session_unprotected`, `thp_always_low_ram` |
 | 2026-10-14 | Grow undersized managed `/swap/swapfile`; rotational placement warning; systemd-oomd OOM protection (drop-ins + enable); doctor RAM/swap checks (OOM kills, PSI, swap headroom, overflow size) |
 | 2026-07-22 | Overflow capped at 8 GiB; fstab + free-space gates; RO `/etc` and immutable OS skip all staging; respect larger vendor zram-size; Apt package hint; GUI Apply vs Configure copy |
 | 2026-07-13 | Initial matrix: conservative/performance/constrained profiles, overflow swapfile, sysctl defaults, advanced topics, doctor mapping |

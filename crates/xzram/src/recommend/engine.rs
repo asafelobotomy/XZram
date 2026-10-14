@@ -53,7 +53,6 @@ mod tests {
     use crate::apply::ZramConfig;
     use crate::detect::{DetectionReport, DistroFamily, DistroInfo, PackageManager, ZramBackend};
     use crate::status::{MemoryInfo, StatusReport};
-    use crate::sysctl::SysctlValues;
 
     fn base_detection(etc_writable: bool, immutable_os: bool) -> DetectionReport {
         DetectionReport {
@@ -132,12 +131,7 @@ mod tests {
 
     #[test]
     fn overflow_may_stage_with_injected_space() {
-        let matching_sysctl = SysctlValues {
-            swappiness: Some(180),
-            watermark_boost_factor: Some(0),
-            watermark_scale_factor: Some(125),
-            page_cluster: Some(0),
-        };
+        let matching_sysctl = crate::sysctl::recommended_defaults();
         let current_zram = ZramConfig {
             device: "zram0".into(),
             zram_size: Some("min(ram / 2, 4096)".into()),
@@ -174,12 +168,7 @@ mod tests {
             fs_type: None,
             mount_point: None,
         };
-        let matching_sysctl = SysctlValues {
-            swappiness: Some(180),
-            watermark_boost_factor: Some(0),
-            watermark_scale_factor: Some(125),
-            page_cluster: Some(0),
-        };
+        let matching_sysctl = crate::sysctl::recommended_defaults();
         let report = recommend_from_context_scaled(
             &base_detection(true, false),
             &base_status(16 * 1024 * 1024),

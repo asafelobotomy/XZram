@@ -276,6 +276,14 @@ pub enum SysctlCommands {
         watermark_scale_factor: Option<u32>,
         #[arg(long)]
         page_cluster: Option<u32>,
+        #[arg(long)]
+        vfs_cache_pressure: Option<u32>,
+        /// vm.dirty_bytes in bytes (0 = use vm.dirty_ratio)
+        #[arg(long)]
+        dirty_bytes: Option<u64>,
+        /// vm.dirty_background_bytes in bytes (0 = use vm.dirty_background_ratio)
+        #[arg(long)]
+        dirty_background_bytes: Option<u64>,
         /// Apply recommended zram tuning defaults
         #[arg(long)]
         zram_defaults: bool,

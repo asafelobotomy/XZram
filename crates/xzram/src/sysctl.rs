@@ -3,21 +3,86 @@ use crate::error::{Result, XzramError};
 use crate::snapshot::paths::{etc_path, SYSCTL_FILE};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct SysctlValues {
     pub swappiness: Option<u32>,
     pub watermark_boost_factor: Option<u32>,
     pub watermark_scale_factor: Option<u32>,
     pub page_cluster: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub vfs_cache_pressure: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dirty_bytes: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dirty_background_bytes: Option<u64>,
+}
+
+/// Every managed key as (sysctl name, field accessor). Values are carried as u64.
+type Field = fn(&mut SysctlValues) -> FieldRef<'_>;
+
+enum FieldRef<'a> {
+    U32(&'a mut Option<u32>),
+    U64(&'a mut Option<u64>),
+}
+
+impl FieldRef<'_> {
+    fn get(&self) -> Option<u64> {
+        match self {
+            FieldRef::U32(v) => v.map(u64::from),
+            FieldRef::U64(v) => **v,
+        }
+    }
+
+    fn set(&mut self, value: Option<u64>) {
+        match self {
+            FieldRef::U32(v) => **v = value.and_then(|x| u32::try_from(x).ok()),
+            FieldRef::U64(v) => **v = value,
+        }
+    }
+}
+
+const KEYS: [(&str, Field); 7] = [
+    ("vm.swappiness", |v| FieldRef::U32(&mut v.swappiness)),
+    ("vm.watermark_boost_factor", |v| {
+        FieldRef::U32(&mut v.watermark_boost_factor)
+    }),
+    ("vm.watermark_scale_factor", |v| {
+        FieldRef::U32(&mut v.watermark_scale_factor)
+    }),
+    ("vm.page-cluster", |v| FieldRef::U32(&mut v.page_cluster)),
+    ("vm.vfs_cache_pressure", |v| {
+        FieldRef::U32(&mut v.vfs_cache_pressure)
+    }),
+    ("vm.dirty_bytes", |v| FieldRef::U64(&mut v.dirty_bytes)),
+    ("vm.dirty_background_bytes", |v| {
+        FieldRef::U64(&mut v.dirty_background_bytes)
+    }),
+];
+
+impl SysctlValues {
+    /// (sysctl name, value) for every set key, in drop-in order.
+    pub fn entries(&self) -> Vec<(&'static str, u64)> {
+        let mut copy = self.clone();
+        KEYS.iter()
+            .filter_map(|(key, field)| field(&mut copy).get().map(|v| (*key, v)))
+            .collect()
+    }
+
+    fn set_key(&mut self, key: &str, value: u64) {
+        if let Some((_, field)) = KEYS.iter().find(|(k, _)| *k == key) {
+            field(self).set(Some(value));
+        }
+    }
 }
 
 pub fn show() -> Result<SysctlValues> {
-    Ok(SysctlValues {
-        swappiness: read_sysctl("vm.swappiness"),
-        watermark_boost_factor: read_sysctl("vm.watermark_boost_factor"),
-        watermark_scale_factor: read_sysctl("vm.watermark_scale_factor"),
-        page_cluster: read_sysctl("vm.page-cluster"),
-    })
+    let mut values = SysctlValues::default();
+    for (key, _) in KEYS {
+        if let Some(v) = read_sysctl(key) {
+            values.set_key(key, v);
+        }
+    }
+    Ok(values)
 }
 
 /// Map a sysctl dotted name to its `/proc/sys` path (`vm.page-cluster` → `vm/page-cluster`).
@@ -25,7 +90,7 @@ pub fn proc_sys_path(key: &str) -> String {
     format!("/proc/sys/{}", key.replace('.', "/"))
 }
 
-fn read_sysctl(key: &str) -> Option<u32> {
+fn read_sysctl(key: &str) -> Option<u64> {
     std::fs::read_to_string(proc_sys_path(key))
         .ok()
         .and_then(|s| s.trim().parse().ok())
@@ -33,12 +98,7 @@ fn read_sysctl(key: &str) -> Option<u32> {
 
 /// Parse known keys from an existing `/etc/sysctl.d/99-xzram.conf` drop-in.
 fn read_drop_in(path: &std::path::Path) -> SysctlValues {
-    let mut values = SysctlValues {
-        swappiness: None,
-        watermark_boost_factor: None,
-        watermark_scale_factor: None,
-        page_cluster: None,
-    };
+    let mut values = SysctlValues::default();
     let Ok(content) = std::fs::read_to_string(path) else {
         return values;
     };
@@ -50,61 +110,74 @@ fn read_drop_in(path: &std::path::Path) -> SysctlValues {
         let Some((key, raw)) = line.split_once('=') else {
             continue;
         };
-        let key = key.trim();
-        let Ok(v) = raw.trim().parse::<u32>() else {
-            continue;
-        };
-        match key {
-            "vm.swappiness" => values.swappiness = Some(v),
-            "vm.watermark_boost_factor" => values.watermark_boost_factor = Some(v),
-            "vm.watermark_scale_factor" => values.watermark_scale_factor = Some(v),
-            "vm.page-cluster" => values.page_cluster = Some(v),
-            _ => {}
+        if let Ok(v) = raw.trim().parse::<u64>() {
+            values.set_key(key.trim(), v);
         }
     }
     values
 }
 
-fn merge_sysctl_overlay(base: SysctlValues, overlay: &SysctlValues) -> SysctlValues {
-    SysctlValues {
-        swappiness: overlay.swappiness.or(base.swappiness),
-        watermark_boost_factor: overlay
-            .watermark_boost_factor
-            .or(base.watermark_boost_factor),
-        watermark_scale_factor: overlay
-            .watermark_scale_factor
-            .or(base.watermark_scale_factor),
-        page_cluster: overlay.page_cluster.or(base.page_cluster),
+/// Keys set in `overlay` win; unset keys keep `base`.
+pub fn merge_sysctl_overlay(base: SysctlValues, overlay: &SysctlValues) -> SysctlValues {
+    let mut merged = base;
+    for (key, value) in overlay.entries() {
+        merged.set_key(key, value);
     }
+    merged
 }
+
+/// Kernel minimum for `vm.dirty_bytes` (two pages); `0` means "use the ratio instead".
+const DIRTY_BYTES_MIN: u64 = 2 * 4096;
+const DIRTY_BYTES_MAX: u64 = 64 << 30;
 
 /// Validate sysctl values against kernel-aligned ranges (matches GUI spin caps).
 pub fn validate_sysctl_values(values: &SysctlValues) -> Result<()> {
-    if let Some(v) = values.swappiness {
-        if v > 200 {
+    let ranges: [(&str, Option<u64>, u64, u64); 5] = [
+        ("vm.swappiness", values.swappiness.map(u64::from), 0, 200),
+        (
+            "vm.watermark_boost_factor",
+            values.watermark_boost_factor.map(u64::from),
+            0,
+            10000,
+        ),
+        (
+            "vm.watermark_scale_factor",
+            values.watermark_scale_factor.map(u64::from),
+            0,
+            10000,
+        ),
+        ("vm.page-cluster", values.page_cluster.map(u64::from), 0, 8),
+        // 0 lets dentry/inode caches grow until OOM; cap well above the 100 default.
+        (
+            "vm.vfs_cache_pressure",
+            values.vfs_cache_pressure.map(u64::from),
+            1,
+            1000,
+        ),
+    ];
+    for (key, value, min, max) in ranges {
+        if let Some(v) = value.filter(|v| !(min..=max).contains(v)) {
             return Err(XzramError::Validation(format!(
-                "vm.swappiness must be 0–200 (got {v})"
+                "{key} must be {min}–{max} (got {v})"
             )));
         }
     }
-    if let Some(v) = values.watermark_boost_factor {
-        if v > 10000 {
+    for (key, value) in [
+        ("vm.dirty_bytes", values.dirty_bytes),
+        ("vm.dirty_background_bytes", values.dirty_background_bytes),
+    ] {
+        if let Some(v) =
+            value.filter(|&v| v != 0 && !(DIRTY_BYTES_MIN..=DIRTY_BYTES_MAX).contains(&v))
+        {
             return Err(XzramError::Validation(format!(
-                "vm.watermark_boost_factor must be 0–10000 (got {v})"
+                "{key} must be 0 or {DIRTY_BYTES_MIN}–{DIRTY_BYTES_MAX} bytes (got {v})"
             )));
         }
     }
-    if let Some(v) = values.watermark_scale_factor {
-        if v > 10000 {
+    if let (Some(fg), Some(bg)) = (values.dirty_bytes, values.dirty_background_bytes) {
+        if fg != 0 && bg >= fg {
             return Err(XzramError::Validation(format!(
-                "vm.watermark_scale_factor must be 0–10000 (got {v})"
-            )));
-        }
-    }
-    if let Some(v) = values.page_cluster {
-        if v > 8 {
-            return Err(XzramError::Validation(format!(
-                "vm.page-cluster must be 0–8 (got {v})"
+                "vm.dirty_background_bytes ({bg}) must be below vm.dirty_bytes ({fg})"
             )));
         }
     }
@@ -117,20 +190,11 @@ pub fn set(values: &SysctlValues) -> Result<()> {
     let merged = merge_sysctl_overlay(read_drop_in(&path), values);
     validate_sysctl_values(&merged)?;
 
-    let mut lines = Vec::new();
-    if let Some(v) = merged.swappiness {
-        lines.push(format!("vm.swappiness = {v}"));
-    }
-    if let Some(v) = merged.watermark_boost_factor {
-        lines.push(format!("vm.watermark_boost_factor = {v}"));
-    }
-    if let Some(v) = merged.watermark_scale_factor {
-        lines.push(format!("vm.watermark_scale_factor = {v}"));
-    }
-    if let Some(v) = merged.page_cluster {
-        lines.push(format!("vm.page-cluster = {v}"));
-    }
-
+    let lines: Vec<String> = merged
+        .entries()
+        .into_iter()
+        .map(|(key, v)| format!("{key} = {v}"))
+        .collect();
     if lines.is_empty() {
         return Err(XzramError::Validation("No sysctl values provided".into()));
     }
@@ -151,7 +215,24 @@ pub fn zram_tuning_defaults() -> SysctlValues {
         watermark_boost_factor: Some(0),
         watermark_scale_factor: Some(125),
         page_cluster: Some(0),
+        ..Default::default()
     }
+}
+
+/// Desktop responsiveness knobs (CachyOS-Settings values): flush dirty pages in small
+/// batches instead of up to 20% of RAM at once, and keep dentry/inode caches longer.
+pub fn desktop_tuning_defaults() -> SysctlValues {
+    SysctlValues {
+        vfs_cache_pressure: Some(50),
+        dirty_bytes: Some(256 << 20),
+        dirty_background_bytes: Some(64 << 20),
+        ..Default::default()
+    }
+}
+
+/// Everything recommended defaults stage: zram tuning plus desktop tuning.
+pub fn recommended_defaults() -> SysctlValues {
+    merge_sysctl_overlay(zram_tuning_defaults(), &desktop_tuning_defaults())
 }
 
 #[cfg(test)]
@@ -190,6 +271,7 @@ mod tests {
             watermark_boost_factor: None,
             watermark_scale_factor: None,
             page_cluster: None,
+            ..Default::default()
         })
         .unwrap();
 
@@ -207,9 +289,11 @@ mod tests {
             watermark_boost_factor: Some(10000),
             watermark_scale_factor: Some(0),
             page_cluster: Some(8),
+            ..Default::default()
         })
         .is_ok());
         assert!(validate_sysctl_values(&zram_tuning_defaults()).is_ok());
+        assert!(validate_sysctl_values(&recommended_defaults()).is_ok());
     }
 
     #[test]
@@ -219,6 +303,7 @@ mod tests {
             watermark_boost_factor: None,
             watermark_scale_factor: None,
             page_cluster: None,
+            ..Default::default()
         })
         .is_err());
         assert!(validate_sysctl_values(&SysctlValues {
@@ -226,6 +311,7 @@ mod tests {
             watermark_boost_factor: Some(10001),
             watermark_scale_factor: None,
             page_cluster: None,
+            ..Default::default()
         })
         .is_err());
         assert!(validate_sysctl_values(&SysctlValues {
@@ -233,7 +319,47 @@ mod tests {
             watermark_boost_factor: None,
             watermark_scale_factor: None,
             page_cluster: Some(9),
+            ..Default::default()
         })
         .is_err());
+    }
+
+    #[test]
+    fn dirty_and_vfs_validation() {
+        let ok = recommended_defaults();
+        assert!(validate_sysctl_values(&ok).is_ok());
+        for bad in [
+            SysctlValues {
+                vfs_cache_pressure: Some(0),
+                ..Default::default()
+            },
+            SysctlValues {
+                dirty_bytes: Some(100),
+                ..Default::default()
+            },
+            SysctlValues {
+                dirty_bytes: Some(64 << 20),
+                dirty_background_bytes: Some(64 << 20),
+                ..Default::default()
+            },
+        ] {
+            assert!(validate_sysctl_values(&bad).is_err(), "{bad:?}");
+        }
+    }
+
+    #[test]
+    fn set_writes_and_rereads_byte_keys() {
+        let _guard = crate::test_env_lock();
+        let dir = tempfile::tempdir().unwrap();
+        std::env::set_var("XZRAM_ETC_ROOT", dir.path());
+        set(&recommended_defaults()).unwrap();
+        let path = dir.path().join(SYSCTL_FILE);
+        let content = std::fs::read_to_string(&path).unwrap();
+        let reread = read_drop_in(&path);
+        std::env::remove_var("XZRAM_ETC_ROOT");
+
+        assert!(content.contains("vm.dirty_bytes = 268435456"));
+        assert!(content.contains("vm.vfs_cache_pressure = 50"));
+        assert_eq!(reread, recommended_defaults());
     }
 }

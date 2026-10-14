@@ -25,6 +25,16 @@ pub(super) fn stage_oom_fixes(
     }
 
     if probe.protected() {
+        if probe.session_at_risk() && !staging_blocked {
+            items.push(RecommendationItem {
+                category: "oom".into(),
+                summary: "Protect the desktop session from systemd-oomd".into(),
+                detail: "systemd-oomd kills inside user@.service under memory pressure but session.slice (compositor, shell) is not shielded, so it can end the whole session. Apply adds ManagedOOMPreference=avoid on session.slice so apps are killed first.".into(),
+                will_stage: true,
+                reference: Some("oom-protection".into()),
+            });
+            pending.enable_oomd = true;
+        }
         return;
     }
     if !probe.psi_available {
@@ -61,7 +71,7 @@ pub(super) fn stage_oom_fixes(
         category: "oom".into(),
         summary: "Enable systemd-oomd OOM protection".into(),
         detail: format!(
-            "{why} Apply adds ManagedOOMSwap=kill on -.slice and ManagedOOMMemoryPressure=kill (50%) on user@.service under /etc/systemd/system, then enables systemd-oomd."
+            "{why} Apply adds ManagedOOMSwap=kill on -.slice and ManagedOOMMemoryPressure=kill (50%) on user@.service, shields session.slice (ManagedOOMPreference=avoid) so apps die before the compositor, then enables systemd-oomd."
         ),
         will_stage: true,
         reference: Some("oom-protection".into()),
@@ -119,6 +129,20 @@ mod tests {
             assert!(!pending.enable_oomd);
             assert!(items.is_empty());
         }
+    }
+
+    #[test]
+    fn stages_session_guard_when_protected_but_session_exposed() {
+        let probe = OomProbe {
+            oomd_active: true,
+            oomd_has_policies: true,
+            user_pressure_kill: true,
+            ..unprotected()
+        };
+        let (mut items, mut pending) = (Vec::new(), PendingConfig::default());
+        stage_oom_fixes(&mut items, &mut pending, &probe, 0, false);
+        assert!(pending.enable_oomd);
+        assert!(items[0].summary.contains("session"));
     }
 
     #[test]

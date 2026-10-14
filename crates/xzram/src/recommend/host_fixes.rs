@@ -21,6 +21,7 @@ pub(crate) struct HostProbes {
     pub oom: crate::oom::OomProbe,
     /// Kernel OOM kills in this boot plus the previous one.
     pub recent_oom_kills: u64,
+    pub mm: super::mm_fixes::MmProbe,
 }
 
 pub(crate) fn probe_host() -> HostProbes {
@@ -43,6 +44,7 @@ pub(crate) fn probe_host() -> HostProbes {
         swapfiles_missing_nodatacow,
         oom: crate::oom::probe(),
         recent_oom_kills,
+        mm: super::mm_fixes::probe_mm(),
     }
 }
 
@@ -99,6 +101,8 @@ pub(crate) fn stage_host_fixes(
         probes.recent_oom_kills,
         staging_blocked,
     );
+
+    super::mm_fixes::stage_mm_fixes(&mut items, &mut report.pending, &probes.mm, staging_blocked);
 
     if !pending_is_empty(&report.pending) {
         report.items.retain(|i| i.summary != ALREADY_MATCHES);

@@ -41,6 +41,9 @@ QString categoryTitle(const QString &category) {
     if (category == QLatin1String("oom")) {
         return QStringLiteral("OOM protection");
     }
+    if (category == QLatin1String("memory")) {
+        return QStringLiteral("Memory");
+    }
     return QStringLiteral("Advisory");
 }
 
