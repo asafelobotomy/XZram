@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] — 2026-10-14
+
 ### Fixed
 - systemd-oomd policy no longer risks killing the whole desktop session: apply also writes `/etc/systemd/user/session.slice.d/10-xzram-oomd.conf` (`ManagedOOMPreference=avoid`) so apps in `app.slice` die before the compositor and shell, and reloads running user managers. Hosts already running oomd with a `user@` pressure kill policy get just this guard staged (Ubuntu 26.10 dropped that policy after it ended sessions)
 
@@ -161,7 +163,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Staged apply, zram/swapfile/sysctl management, doctor, snapshots
 - Packaging stubs (Arch PKGBUILD, Fedora spec, Debian)
 
-[Unreleased]: https://github.com/asafelobotomy/XZram/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/asafelobotomy/XZram/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/asafelobotomy/XZram/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/asafelobotomy/XZram/compare/v0.3.2...v0.4.0
 [0.3.2]: https://github.com/asafelobotomy/XZram/compare/v0.3.0...v0.3.2
 [0.3.0]: https://github.com/asafelobotomy/XZram/compare/v0.2.0...v0.3.0
