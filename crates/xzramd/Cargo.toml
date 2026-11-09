@@ -26,7 +26,7 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 xzram = { path = "../xzram" }
 zbus = { version = "5", features = ["tokio"] }
-zbus_polkit = "5"
+zbus_polkit = "6"
 
 [dev-dependencies]
 zbus = { version = "5", features = ["tokio"] }
