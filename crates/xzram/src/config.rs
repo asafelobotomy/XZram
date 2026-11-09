@@ -21,7 +21,7 @@ pub struct ZramDeviceSection {
     pub mount_point: Option<String>,
 }
 
-pub fn parse_zram_generator_conf(path: &str) -> Result<ZramGeneratorConf> {
+pub fn parse_zram_generator_conf(path: impl AsRef<Path>) -> Result<ZramGeneratorConf> {
     let content = fs::read_to_string(path)?;
     let mut conf = ZramGeneratorConf::default();
     let mut current: Option<ZramDeviceSection> = None;
