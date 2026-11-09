@@ -115,7 +115,7 @@ pub fn restore_snapshot(id: &str) -> Result<ApplyResult> {
         if meta.artifacts.zram_generator_conf.present {
             let backup = dir.join("zram-generator.conf");
             if backup.exists() {
-                restart_zram_units_from_config(backup.to_str().unwrap())?;
+                restart_zram_units_from_config(&backup)?;
                 messages.push("Restarted zram units".into());
             }
         } else {
@@ -255,7 +255,7 @@ fn swapon_from_fstab(messages: &mut Vec<String>) -> Result<()> {
     Ok(())
 }
 
-fn restart_zram_units_from_config(path: &str) -> Result<()> {
+fn restart_zram_units_from_config(path: &Path) -> Result<()> {
     let conf = crate::config::parse_zram_generator_conf(path)?;
     for device in &conf.devices {
         restart_zram_setup_unit(&device.name)?;
