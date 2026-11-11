@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- A "Memory and swap" page for [uQ](https://github.com/asafelobotomy/uq) Settings (`uq/pages/xzram/`): memory and swap in use, zram size and compression, swappiness and the swap list. It talks to `xzramd` over D-Bus (`ApplyNowZram`, `ApplyNowSysctl`), sends the whole zram configuration back with one field changed, and asks before changing zram. Swap files stay in the XZram app. Installed by `make install-cli` and both PKGBUILDs (`uq` is an optional dependency); CI gains a `uq` job (Node and QML tests, install check, `uqctl integrations check`)
+
 ## [0.4.3] — 2026-10-14
 
 ### Fixed

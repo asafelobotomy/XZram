@@ -41,7 +41,7 @@ lint: fmt-check clippy loc-check
 loc-check:
 	./scripts/check-loc.sh
 
-# CLI/daemon/polkit/dbus only (no Qt).
+# CLI/daemon/polkit/dbus only (no Qt), plus the uQ Settings page (inert without uQ).
 # Polkit/systemd/D-Bus unit files hardcode /usr/libexec; install with PREFIX=/usr.
 install-cli: build
 	install -Dm755 target/release/xzram $(DESTDIR)$(BINDIR)/xzram
@@ -52,6 +52,7 @@ install-cli: build
 	install -Dm644 data/io.github.XZram.service $(DESTDIR)$(SYSTEMDUNITDIR)/xzramd.service
 	install -Dm644 data/io.github.XZram.conf $(DESTDIR)$(DATADIR)/dbus-1/system.d/io.github.XZram.conf
 	install -Dm644 data/dbus-1/system-services/io.github.XZram1.service $(DESTDIR)$(DATADIR)/dbus-1/system-services/io.github.XZram1.service
+	install -Dm644 -t $(DESTDIR)$(DATADIR)/uq/settings/pages/xzram uq/pages/xzram/*
 
 # Full install including Qt GUI and desktop metadata.
 install: build build-gui install-cli

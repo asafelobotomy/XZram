@@ -18,6 +18,7 @@ Linux distributions. It includes a Qt6 GUI and system D-Bus daemon (`xzramd`).
 - **Polkit integration** — granular privileged operations (no blanket sudo)
 - **D-Bus daemon** — `xzramd` on `io.github.XZram1` for `--dbus` / other clients; D-Bus activation starts it on demand (native GUI does not auto-start or require it)
 - **Qt6 GUI** — dashboard, zram, swap files, sysctl, doctor, snapshots, and settings (CLI/pkexec-first; daemon optional)
+- **uQ Settings page** — on [uQ](https://github.com/asafelobotomy/uq) systems, a "Memory and swap" page under Apps: memory and swap in use, zram size and compression, swappiness, and the swap list (read-only). Optional: install `uq`; see [`uq/README.md`](uq/README.md)
 - **Configuration snapshots** — automatic backups before every apply; versioned restore (`app_open` is manual)
 
 ## Supported distros
@@ -111,6 +112,8 @@ sudo cp -a /tmp/xzram-install/* /
 sudo systemctl enable --now xzramd
 ```
 
+`make install-cli` also installs the uQ Settings page to `$(DATADIR)/uq/settings/pages/xzram/`. It does nothing unless uQ is installed.
+
 Prefer `DESTDIR` staging over installing as root into the source tree so
 `build-gui/` does not become root-owned. For reinstall/uninstall helpers see
 [`scripts/reinstall-system.sh`](scripts/reinstall-system.sh) and
@@ -134,6 +137,8 @@ make build-gui
 yay -S xzram          # CLI / helper / daemon
 yay -S xzram-gui      # Qt6 GUI (depends on xzram)
 ```
+
+The `xzram` package lists `uq` as an optional dependency for its Memory and swap page in uQ Settings; the page is installed with the package either way.
 
 Release CI (`.github/workflows/aur-release.yml`) builds the AUR packages in an Arch container and, on a published GitHub Release (`v*`), uploads `.pkg.tar.zst` plus pinned `PKGBUILD` / `.SRCINFO` to that release. First-time AUR publish is still a manual `git push` to `ssh://aur@aur.archlinux.org/xzram.git` using those files (see [`packaging/aur/README.md`](packaging/aur/README.md)).
 
