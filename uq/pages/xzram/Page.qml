@@ -32,7 +32,10 @@ Item {
     property bool busyZram: false
     property bool busySwappiness: false
     property bool moreAvailable: true
-    property var pendingZram: null
+    property var pendingChanges: null
+    /// Shared with delayed callbacks: set when the page is destroyed, so they do nothing.
+    readonly property var life: ({ gone: false })
+    Component.onDestruction: life.gone = true
     property int readSerial: 0
 
     readonly property var sizeRows: Logic.sizeChoices(page.zramConfig ? page.zramConfig.zram_size : null)
@@ -51,11 +54,12 @@ Item {
         if (!page.ctx)
             return;
         const serial = ++page.readSerial;
+        const life = page.life;
         const failures = [];
         let waiting = 4;
         function done(parse, take) {
             return function (reply) {
-                if (serial !== page.readSerial)
+                if (life.gone || serial !== page.readSerial)
                     return;
                 const result = parse(reply);
                 if (result.ok)
@@ -77,7 +81,10 @@ Item {
 
     /// One read, tried once more when the service was still starting.
     function read(method, callback, attempt) {
+        const life = page.life;
         page.ctx.dbus.call(method, [], reply => {
+            if (life.gone)
+                return;
             if (reply && reply.error && !attempt && Logic.isRetryable(reply.error))
                 page.read(method, callback, 1);
             else
@@ -91,12 +98,14 @@ Item {
             if (page.phase !== "ready")
                 page.rawDetail = "";
             page.phase = "ready";
+            page.resetControls();
             return;
         }
         const e = Logic.describeError(failures[0], "read the memory settings");
         page.rawDetail = e.raw;
         page.phase = (e.kind === "unavailable" && page.status === null) ? "unavailable" : "error";
         page.problemText = e.kind === "other" ? "Couldn't read the memory settings." : e.message;
+        page.resetControls();
     }
 
     // -----------------------------------------------------------------------------------------
@@ -109,6 +118,7 @@ Item {
     }
 
     function askZram(changes) {
+        // Check the value now, so a bad one never reaches the dialog.
         const built = Logic.buildZramConfig(page.zramConfig, changes);
         page.notice = "";
         if (!built.ok) {
@@ -117,27 +127,44 @@ Item {
             return;
         }
         page.problem = "";
-        page.pendingZram = built;
+        page.pendingChanges = changes;
         confirm.question = Logic.CONFIRMS[built.kind];
         confirm.open();
     }
 
+    /// After Confirm: read the zram settings again, so the other fields sent are current,
+    /// then write.
     function runZram() {
-        const built = page.pendingZram;
-        page.pendingZram = null;
-        if (!built || !page.ctx)
+        const changes = page.pendingChanges;
+        page.pendingChanges = null;
+        if (!changes || !page.ctx)
             return;
+        const life = page.life;
         page.busyZram = true;
-        page.ctx.dbus.call("ApplyNowZram", [built.json], reply => {
-            page.busyZram = false;
-            page.finishWrite(reply, "change the zram settings",
-                built.kind === "zram-size" ? "Size changed." : "Compression changed.");
+        page.ctx.dbus.call("GetZramConfig", [], fresh => {
+            if (life.gone)
+                return;
+            const current = Logic.parseZramConfig(fresh);
+            const built = current.ok ? Logic.buildZramConfig(current.config, changes) : { ok: false, error: "Couldn't read the zram settings, so nothing was changed." };
+            if (!built.ok) {
+                page.busyZram = false;
+                page.problem = built.error;
+                page.resetControls();
+                return;
+            }
+            page.ctx.dbus.call("ApplyNowZram", [built.json], reply => {
+                if (life.gone)
+                    return;
+                page.busyZram = false;
+                page.finishWrite(reply, "change the zram settings",
+                    built.kind === "zram-size" ? "Size changed." : "Compression changed.");
+            });
         });
     }
 
     function cancelZram() {
         // Cancel is not a failure: put the controls back and say nothing.
-        page.pendingZram = null;
+        page.pendingChanges = null;
         page.resetControls();
     }
 
@@ -151,9 +178,13 @@ Item {
         }
         page.problem = "";
         page.busySwappiness = true;
+        const life = page.life;
+        const chosen = spin.value;
         page.ctx.dbus.call("ApplyNowSysctl", [built.json], reply => {
+            if (life.gone)
+                return;
             page.busySwappiness = false;
-            page.finishWrite(reply, "change swappiness", "Swappiness set to " + spin.value + ".");
+            page.finishWrite(reply, "change swappiness", "Swappiness set to " + chosen + ".");
         });
     }
 
@@ -179,10 +210,13 @@ Item {
     function openXzram() {
         if (!page.ctx)
             return;
+        const life = page.life;
         page.ctx.openApp("io.github.XZram.desktop", reply => {
+            if (life.gone)
+                return;
             if (reply && reply.error) {
                 page.moreAvailable = false;
-                page.notice = "The XZram app isn't installed.";
+                page.notice = "Couldn't open XZram.";
             }
         });
     }

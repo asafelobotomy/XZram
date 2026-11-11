@@ -219,6 +219,43 @@ Item {
             compare(part("algorithmBox").enabled, false);
         }
 
+        function test_combos_follow_a_changed_config_across_refresh() {
+            const changed = JSON.parse(JSON.stringify(root.zramDoc));
+            changed.zram_size = "min(ram / 2, 4096)";
+            changed.compression_algorithm = "lz4";
+            fake.dbus.GetZramConfig = root.reply(changed);
+            part("refreshButton").clicked();
+            tryVerify(() => part("sizeBox").currentText === "Custom: min(ram / 2, 4096)");
+            compare(part("algorithmBox").currentText, "lz4");
+            // And back to a preset: the box must not fall to the first row.
+            fake.dbus.GetZramConfig = root.reply(root.zramDoc);
+            part("refreshButton").clicked();
+            tryVerify(() => part("sizeBox").currentText === "Half of memory");
+            compare(part("algorithmBox").currentText, "zstd");
+        }
+
+        function test_the_write_uses_a_fresh_read_of_the_config() {
+            const box = part("sizeBox");
+            box.currentIndex = 3;
+            box.activated(3);
+            // Someone changed the priority elsewhere after the page opened.
+            const newer = JSON.parse(JSON.stringify(root.zramDoc));
+            newer.swap_priority = 50;
+            fake.dbus.GetZramConfig = root.reply(newer);
+            part("confirmDialog").accept();
+            tryVerify(() => root.writes().length === 1);
+            compare(JSON.parse(root.writes()[0][2][0]).swap_priority, 50);
+        }
+
+        function test_a_failed_open_is_a_soft_notice() {
+            const real = fake.ctx;
+            loader.item.ctx = Object.assign({}, real, { openApp: (id, cb) => Qt.callLater(() => cb({ error: "no such app" })) });
+            part("moreButton").clicked();
+            tryVerify(() => part("noticeLabel").visible);
+            compare(part("noticeLabel").text, "Couldn't open XZram.");
+            compare(part("moreButton").visible, false);
+        }
+
         function test_more_in_xzram_opens_the_app() {
             part("moreButton").clicked();
             compare(fake.calls[fake.calls.length - 1], ["openApp", "io.github.XZram.desktop"]);
