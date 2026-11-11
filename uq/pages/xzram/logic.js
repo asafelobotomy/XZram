@@ -360,3 +360,14 @@ function isRetryable(error) {
     var kind = describeError(error, "read").kind;
     return kind === "pending" || kind === "unavailable";
 }
+
+/// Wraps a callback so it does nothing once `life.gone` is true. The wrapper lives here, not
+/// in the page, so calling it after the page is destroyed is safe (a function made inside a
+/// destroyed page can't be called at all).
+function guarded(life, fn) {
+    return function () {
+        if (life.gone)
+            return undefined;
+        return fn.apply(null, arguments);
+    };
+}

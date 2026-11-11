@@ -58,8 +58,8 @@ Item {
         const failures = [];
         let waiting = 4;
         function done(parse, take) {
-            return function (reply) {
-                if (life.gone || serial !== page.readSerial)
+            return Logic.guarded(life, function (reply) {
+                if (serial !== page.readSerial)
                     return;
                 const result = parse(reply);
                 if (result.ok)
@@ -68,7 +68,7 @@ Item {
                     failures.push(result.error);
                 if (--waiting === 0)
                     page.finishRead(failures);
-            };
+            });
         }
         page.read("GetStatus", done(Logic.parseStatus, r => page.status = r));
         page.read("GetZramConfig", done(Logic.parseZramConfig, r => {
@@ -82,14 +82,12 @@ Item {
     /// One read, tried once more when the service was still starting.
     function read(method, callback, attempt) {
         const life = page.life;
-        page.ctx.dbus.call(method, [], reply => {
-            if (life.gone)
-                return;
+        page.ctx.dbus.call(method, [], Logic.guarded(life, reply => {
             if (reply && reply.error && !attempt && Logic.isRetryable(reply.error))
                 page.read(method, callback, 1);
             else
                 callback(reply);
-        });
+        }));
     }
 
     function finishRead(failures) {
@@ -141,9 +139,7 @@ Item {
             return;
         const life = page.life;
         page.busyZram = true;
-        page.ctx.dbus.call("GetZramConfig", [], fresh => {
-            if (life.gone)
-                return;
+        page.ctx.dbus.call("GetZramConfig", [], Logic.guarded(life, fresh => {
             const current = Logic.parseZramConfig(fresh);
             const built = current.ok ? Logic.buildZramConfig(current.config, changes) : { ok: false, error: "Couldn't read the zram settings, so nothing was changed." };
             if (!built.ok) {
@@ -152,14 +148,12 @@ Item {
                 page.resetControls();
                 return;
             }
-            page.ctx.dbus.call("ApplyNowZram", [built.json], reply => {
-                if (life.gone)
-                    return;
+            page.ctx.dbus.call("ApplyNowZram", [built.json], Logic.guarded(life, reply => {
                 page.busyZram = false;
                 page.finishWrite(reply, "change the zram settings",
                     built.kind === "zram-size" ? "Size changed." : "Compression changed.");
-            });
-        });
+            }));
+        }));
     }
 
     function cancelZram() {
@@ -180,12 +174,10 @@ Item {
         page.busySwappiness = true;
         const life = page.life;
         const chosen = spin.value;
-        page.ctx.dbus.call("ApplyNowSysctl", [built.json], reply => {
-            if (life.gone)
-                return;
+        page.ctx.dbus.call("ApplyNowSysctl", [built.json], Logic.guarded(life, reply => {
             page.busySwappiness = false;
             page.finishWrite(reply, "change swappiness", "Swappiness set to " + chosen + ".");
-        });
+        }));
     }
 
     function finishWrite(reply, what, done) {
@@ -211,14 +203,12 @@ Item {
         if (!page.ctx)
             return;
         const life = page.life;
-        page.ctx.openApp("io.github.XZram.desktop", reply => {
-            if (life.gone)
-                return;
+        page.ctx.openApp("io.github.XZram.desktop", Logic.guarded(life, reply => {
             if (reply && reply.error) {
                 page.moreAvailable = false;
                 page.notice = "Couldn't open XZram.";
             }
-        });
+        }));
     }
 
     function scrollTo(id) {
