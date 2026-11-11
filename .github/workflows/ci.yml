@@ -132,6 +132,54 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
 
+  uq:
+    name: uQ Settings page
+    runs-on: ubuntu-latest
+    env:
+      # The uQ release whose page rules and test kit this page is checked against. Move it
+      # when uQ ships a newer one (and refresh tests/uq from templates/settings-page-tests).
+      UQ_TAG: v0.3.0-rc.1
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Install the Qt 6 QML test tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            qt6-declarative-dev-tools \
+            qml6-module-qtquick qml6-module-qtquick-layouts qml6-module-qtquick-controls \
+            qml6-module-qttest qml6-module-qtqml-workerscript \
+            qml6-module-qtquick-window qml6-module-qtquick-templates
+
+      - name: Page logic and manifest tests (Node)
+        run: node --test tests/uq/*.test.mjs
+
+      - name: Page tests (QML)
+        run: QT_QPA_PLATFORM=offscreen /usr/lib/qt6/bin/qmltestrunner -import tests/uq/stub -input tests/uq
+
+      - name: Page install check (Makefile and both PKGBUILDs)
+        run: ./scripts/check-uq-install.sh
+
+      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master (stable toolchain)
+        with:
+          toolchain: stable
+
+      - name: Cache uqctl
+        id: uqctl
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.uq
+          key: uqctl-${{ env.UQ_TAG }}
+
+      - name: Build uqctl
+        if: steps.uqctl.outputs.cache-hit != 'true'
+        run: cargo install --locked --git https://github.com/asafelobotomy/uq --tag "$UQ_TAG" uqctl --root "$HOME/.uq"
+
+      # `--no-programs` skips only the "program exists" check: this page has no commands and
+      # needs no installed xzram. Paths and everything else are still checked.
+      - name: uQ integration check
+        run: ~/.uq/bin/uqctl integrations check --no-programs uq/
+
   arch-package:
     name: Verify PKGBUILD
     runs-on: ubuntu-latest

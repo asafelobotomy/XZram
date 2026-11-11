@@ -17,6 +17,7 @@ rm -f /usr/share/dbus-1/system.d/io.github.XZram.conf
 rm -f /usr/share/dbus-1/system-services/io.github.XZram1.service
 rm -f /usr/share/polkit-1/actions/io.github.xzram.policy
 rm -f /usr/share/bash-completion/completions/xzram
+rm -rf /usr/share/uq/settings/pages/xzram
 rm -f /usr/share/applications/io.github.XZram.desktop
 rm -f /usr/share/metainfo/io.github.XZram.metainfo.xml
 rm -f /usr/share/icons/hicolor/*/apps/io.github.XZram.png

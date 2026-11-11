@@ -29,6 +29,7 @@ package_xzram() {
   optdepends=(
     'zram-generator: zram swap via zram-generator'
     'xzram-gui: Qt6 desktop GUI'
+    'uq: the Memory and swap page in uQ Settings'
   )
   pkgdesc="CLI, helper, and D-Bus daemon for Linux swap management"
   install=xzram.install
@@ -44,6 +45,7 @@ package_xzram() {
   install -Dm644 data/dbus-1/system-services/io.github.XZram1.service "$pkgdir/usr/share/dbus-1/system-services/io.github.XZram1.service"
   install -Dm644 docs/SCOPE.md "$pkgdir/usr/share/doc/xzram/SCOPE.md"
   install -Dm644 docs/SNAPSHOTS.md "$pkgdir/usr/share/doc/xzram/SNAPSHOTS.md"
+  install -Dm644 -t "$pkgdir/usr/share/uq/settings/pages/xzram" uq/pages/xzram/*
 }
 
 package_xzram-gui() {

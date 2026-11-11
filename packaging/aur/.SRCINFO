@@ -24,6 +24,7 @@ pkgname = xzram
 	depends = util-linux
 	optdepends = zram-generator: zram swap via zram-generator
 	optdepends = xzram-gui: Qt6 desktop GUI
+	optdepends = uq: the Memory and swap page in uQ Settings
 
 pkgname = xzram-gui
 	pkgdesc = Qt6 GUI for XZram swap management
