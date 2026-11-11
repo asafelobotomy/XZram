@@ -1,0 +1,43 @@
+# The Memory and swap page for uQ Settings (https://github.com/asafelobotomy/uq).
+# Installed to /usr/share/uq/settings/pages/xzram/ by the xzram package. Reference:
+# docs/settings-pages.md in the uQ repository.
+uq_api = 1
+id = "xzram"
+name = "Memory and swap"
+icon = "media-flash"
+qml = "Page.qml"
+keywords = ["swap", "zram", "memory", "ram", "swappiness", "compression"]
+
+[[setting]]
+id = "zram-size"
+label = "Compressed memory size"
+keywords = ["zram", "swap size", "ram", "memory"]
+
+[[setting]]
+id = "zram-algorithm"
+label = "Compression"
+keywords = ["zram", "algorithm", "zstd", "lz4", "compression"]
+
+[[setting]]
+id = "swappiness"
+label = "Swappiness"
+keywords = ["swap", "vm.swappiness", "memory pressure", "ram"]
+
+[[setting]]
+id = "swaps"
+label = "Active swap"
+keywords = ["swap file", "swap partition", "swap devices", "memory"]
+
+# No `bus_name`: xzramd is started on demand by the bus, so the page shows while xzram is
+# installed. Reads are open to every user. The two Apply methods ask for an administrator
+# password (a polkit prompt), which takes longer than the default 2 seconds.
+[requires]
+bins = ["xzram"]
+
+[dbus]
+name = "io.github.XZram1"
+path = "/io/github/XZram"
+interface = "io.github.XZram.Manager"
+bus = "system"
+methods = ["GetStatus", "GetZramConfig", "GetSysctl", "ListSwaps", "ApplyNowZram", "ApplyNowSysctl"]
+timeout_ms = { ApplyNowZram = 120000, ApplyNowSysctl = 120000 }
