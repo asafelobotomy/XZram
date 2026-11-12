@@ -1,5 +1,5 @@
 Name:           xzram
-Version:        0.4.3
+Version:        0.5.0
 Release:        1%{?dist}
 Summary:        Cross-distro Linux swap management
 
@@ -84,6 +84,11 @@ done
 %systemd_postun xzramd.service
 
 %changelog
+* Thu Nov 12 2026 XZram contributors <xzram@example.com> - 0.5.0-1
+- uQ Settings: a "Memory and swap" page (optional, needs uq)
+- Snapshot restore no longer panics on non-UTF-8 snapshot paths
+- Update zbus_polkit to 5.1.0 and tokio to 1.54.1 (security advisories)
+
 * Wed Oct 14 2026 XZram contributors <xzram@example.com> - 0.4.3-1
 - Doctor: past OOM kills are info with current advice once OOM protection is active
 - GUI: dashboard swap table columns fit their contents

@@ -7,8 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-11-12
+
 ### Added
 - A "Memory and swap" page for [uQ](https://github.com/asafelobotomy/uq) Settings (`uq/pages/xzram/`): memory and swap in use, zram size and compression, swappiness and the swap list. It talks to `xzramd` over D-Bus (`ApplyNowZram`, `ApplyNowSysctl`), sends the whole zram configuration back with one field changed, and asks before changing zram. Swap files stay in the XZram app. Installed by `make install-cli` and both PKGBUILDs (`uq` is an optional dependency); CI gains a `uq` job (Node and QML tests, install check, `uqctl integrations check`)
+
+### Changed
+- Dependencies: zbus_polkit 5.0.0 → 5.1.0 (RUSTSEC-2026-0278; `xzramd` uses `new_for_message_header`, not the affected `new_for_owner`, so it was not exploitable) and tokio 1.52.3 → 1.54.1 (RUSTSEC-2026-0386); async-executor moves off a yanked release
+- CI: a `cargo deny check advisories` job (`deny.toml` ignores only the unmaintained zbus 5 family). Project files: contributing guide, code of conduct, security policy, CODEOWNERS, issue and PR templates, Dependabot
+
+### Fixed
+- Snapshot restore no longer panics inside the privileged restore when the snapshot path is not valid UTF-8 (it called `to_str().unwrap()`)
 
 ## [0.4.3] — 2026-10-14
 
@@ -180,7 +189,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Staged apply, zram/swapfile/sysctl management, doctor, snapshots
 - Packaging stubs (Arch PKGBUILD, Fedora spec, Debian)
 
-[Unreleased]: https://github.com/asafelobotomy/XZram/compare/v0.4.3...HEAD
+[Unreleased]: https://github.com/asafelobotomy/XZram/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/asafelobotomy/XZram/compare/v0.4.3...v0.5.0
 [0.4.3]: https://github.com/asafelobotomy/XZram/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/asafelobotomy/XZram/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/asafelobotomy/XZram/compare/v0.4.0...v0.4.1
