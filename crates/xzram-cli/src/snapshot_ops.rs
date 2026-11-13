@@ -56,11 +56,10 @@ pub(crate) fn run_snapshot_create_dbus(
         "CreateSnapshot",
         &(trigger.as_str(), label.unwrap_or("")),
     )?;
-    let map: std::collections::HashMap<String, zbus::zvariant::OwnedValue> =
-        reply.body().deserialize()?;
+    let map: std::collections::HashMap<String, zbus::OwnedVariant> = reply.body().deserialize()?;
     let json = map
         .get("json")
-        .and_then(|v| v.downcast_ref::<zbus::zvariant::Str>().ok())
+        .and_then(|v| v.downcast_ref::<zbus::Str>().ok())
         .map(|s| s.to_string())
         .ok_or_else(|| anyhow::anyhow!("invalid CreateSnapshot response"))?;
     Ok(serde_json::from_str(&json)?)

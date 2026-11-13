@@ -1,7 +1,7 @@
 use std::fmt;
 
-use zbus::blocking::{Connection, Proxy};
 use zbus::message::Message;
+use zbus::{Connection, Proxy};
 
 const SERVICE: &str = "io.github.XZram1";
 const OBJECT_PATH: &str = "/io/github/XZram";
@@ -59,42 +59,47 @@ fn classify(err: &zbus::Error) -> CallFailure {
 /// retry) or an "outcome unknown" error (must never be retried automatically).
 pub fn call_classified<B>(proxy: &Proxy<'_>, method: &str, body: &B) -> anyhow::Result<Message>
 where
-    B: serde::ser::Serialize + zbus::zvariant::DynamicType,
+    B: serde::ser::Serialize + zbus::DynamicType,
 {
-    proxy
-        .call_method(method, body)
-        .map_err(|e| match classify(&e) {
-            CallFailure::Unavailable => ServiceUnavailable(e.to_string()).into(),
-            CallFailure::OutcomeUnknown => anyhow::anyhow!(
-                "xzramd stopped responding during {method} ({e}); the operation may or may not \
+    zbus::block_on(proxy.call_method(method, body)).map_err(|e| match classify(&e) {
+        CallFailure::Unavailable => ServiceUnavailable(e.to_string()).into(),
+        CallFailure::OutcomeUnknown => anyhow::anyhow!(
+            "xzramd stopped responding during {method} ({e}); the operation may or may not \
              have been applied — check `xzram status` before retrying"
-            ),
-            CallFailure::Failed => anyhow::Error::new(e),
-        })
+        ),
+        CallFailure::Failed => anyhow::Error::new(e),
+    })
 }
 
 /// Connect to the system bus and build a Manager proxy. Failures here happen before any
 /// request is sent, so they are reported as `ServiceUnavailable`.
 pub fn manager_proxy() -> anyhow::Result<(Connection, Proxy<'static>)> {
-    let conn = Connection::system().map_err(|e| ServiceUnavailable(e.to_string()))?;
-    let proxy = Proxy::new(&conn, SERVICE, OBJECT_PATH, INTERFACE)
-        .map_err(|e| ServiceUnavailable(e.to_string()))?;
-    Ok((conn, proxy))
+    zbus::block_on(async {
+        let conn = Connection::system()
+            .await
+            .map_err(|e| ServiceUnavailable(e.to_string()))?;
+        let proxy = Proxy::new(&conn, SERVICE, OBJECT_PATH, INTERFACE)
+            .await
+            .map_err(|e| ServiceUnavailable(e.to_string()))?;
+        Ok((conn, proxy))
+    })
 }
 
 pub fn is_available() -> bool {
-    Connection::system()
-        .and_then(|conn| {
-            conn.call_method(
+    zbus::block_on(async {
+        let conn = Connection::system().await?;
+        let reply = conn
+            .call_method(
                 Some("org.freedesktop.DBus"),
                 "/org/freedesktop/DBus",
                 Some("org.freedesktop.DBus"),
                 "NameHasOwner",
                 &(SERVICE,),
             )
-            .and_then(|reply| reply.body().deserialize::<bool>())
-        })
-        .unwrap_or(false)
+            .await?;
+        reply.body().deserialize::<bool>()
+    })
+    .unwrap_or(false)
 }
 
 /// `keep` from a `snapshot.prune` payload, validated to fit the D-Bus `u32` argument.
@@ -117,10 +122,9 @@ fn print_messages(reply: &Message) -> anyhow::Result<()> {
 }
 
 fn print_json_field(reply: &Message) -> anyhow::Result<()> {
-    let map: std::collections::HashMap<String, zbus::zvariant::OwnedValue> =
-        reply.body().deserialize()?;
+    let map: std::collections::HashMap<String, zbus::OwnedVariant> = reply.body().deserialize()?;
     if let Some(json) = map.get("json") {
-        if let Ok(zbus::zvariant::Value::Str(json_str)) = json.downcast_ref() {
+        if let Ok(zbus::Variant::Str(json_str)) = json.downcast_ref() {
             println!("{json_str}");
         }
     }

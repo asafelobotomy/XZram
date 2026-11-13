@@ -20,14 +20,14 @@ use xzram::sysctl::SysctlValues;
 use xzram::validation;
 use zbus::interface;
 use zbus::message::Header;
-use zbus::zvariant::OwnedValue;
+use zbus::OwnedVariant;
 
 use auth::authorize;
 use util::{json_map, validate_staged_pending};
 
 pub use serve::serve;
 
-type JsonReply = HashMap<String, OwnedValue>;
+type JsonReply = HashMap<String, OwnedVariant>;
 
 pub struct Manager {
     connection: zbus::Connection,
