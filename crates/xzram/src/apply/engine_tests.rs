@@ -191,6 +191,11 @@ fn oomd_and_mm_drop_ins_written_and_rolled_back() {
 
 #[test]
 fn apply_at_boot_writes_generator_config_only() {
+    // The zram-generator backend needs systemctl (absent in some distro CI containers).
+    if which::which("systemctl").is_err() {
+        eprintln!("skipped: no systemctl, so no zram-generator backend");
+        return;
+    }
     let _guard = test_lock();
     let data = tempfile::tempdir().unwrap();
     let etc = tempfile::tempdir().unwrap();
