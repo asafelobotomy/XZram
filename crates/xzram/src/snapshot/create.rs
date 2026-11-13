@@ -169,7 +169,7 @@ pub(crate) fn capture_system_state() -> Result<CapturedState> {
     }
 
     Ok(CapturedState {
-        state_hash: format!("{:x}", hash.finalize()),
+        state_hash: hash.finalize().iter().map(|b| format!("{b:02x}")).collect(),
         artifacts,
         swapfiles,
         zram_devices,
