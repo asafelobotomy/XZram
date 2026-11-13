@@ -19,7 +19,7 @@ serde_json.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 xzram = { path = "../xzram" }
-zbus = { version = "5", features = ["tokio"] }
+zbus = { version = "6.2.1", features = ["tokio"] }
 
 [dev-dependencies]
 assert_cmd = "2"

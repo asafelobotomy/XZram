@@ -6,12 +6,10 @@ use xzram::snapshot::SnapshotTrigger;
 use xzram::swapfile_btrfs;
 use xzram::validation;
 
-pub(crate) fn json_map<T: serde::Serialize>(
-    value: &T,
-) -> HashMap<String, zbus::zvariant::OwnedValue> {
+pub(crate) fn json_map<T: serde::Serialize>(value: &T) -> HashMap<String, zbus::OwnedVariant> {
     let json = serde_json::to_string(value).unwrap_or_else(|_| "{}".into());
     let mut map = HashMap::new();
-    let owned: zbus::zvariant::OwnedValue = zbus::zvariant::Value::from(json)
+    let owned: zbus::OwnedVariant = zbus::Variant::from(json)
         .try_into()
         .expect("json string is a valid D-Bus value");
     map.insert("json".into(), owned);
@@ -42,7 +40,7 @@ pub(crate) async fn prepare_swapfile_btrfs(
     gate: OwnedMutexGuard<()>,
     path: &str,
     mkdir_parents: bool,
-) -> zbus::fdo::Result<HashMap<String, zbus::zvariant::OwnedValue>> {
+) -> zbus::fdo::Result<HashMap<String, zbus::OwnedVariant>> {
     validation::validate_swapfile_prepare_path(path)
         .map_err(|e| zbus::fdo::Error::InvalidArgs(e.to_string()))?;
     let payload = serde_json::json!({
