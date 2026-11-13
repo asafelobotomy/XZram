@@ -1,3 +1,16 @@
+xzram (0.6.0-1) unstable; urgency=medium
+
+  * doctor: headline counts warnings; saturated zram spilling to disk swap
+    is an error when memory pressure shows stalls (#28)
+  * defaults recommend: ratio-based size for a saturated zram; larger
+    conservative defaults for 11 GiB RAM and up (#28, #13)
+  * Memory guard before restarting zram; --at-boot and --force (#28)
+  * New: xzram swap drain-overflow (#28)
+  * btrfs: never place a swapfile in a snapshotted subvolume (#31)
+  * status shows memory and IO pressure
+
+ -- XZram contributors <xzram@example.com>  Fri, 13 Nov 2026 12:00:00 +0000
+
 xzram (0.5.0-1) unstable; urgency=medium
 
   * uQ Settings: a "Memory and swap" page (optional, needs uq)

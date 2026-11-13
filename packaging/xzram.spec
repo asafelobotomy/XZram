@@ -1,5 +1,5 @@
 Name:           xzram
-Version:        0.5.0
+Version:        0.6.0
 Release:        1%{?dist}
 Summary:        Cross-distro Linux swap management
 
@@ -84,6 +84,9 @@ done
 %systemd_postun xzramd.service
 
 %changelog
+* Fri Nov 13 2026 XZram contributors <xzram@example.com> - 0.6.0-1
+- Saturated zram, memory guard, drain-overflow, btrfs swapfile placement
+
 * Thu Nov 12 2026 XZram contributors <xzram@example.com> - 0.5.0-1
 - uQ Settings: a "Memory and swap" page (optional, needs uq)
 - Snapshot restore no longer panics on non-UTF-8 snapshot paths

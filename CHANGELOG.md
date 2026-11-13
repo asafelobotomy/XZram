@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-11-13
+
 ### Added
 - `xzram apply --at-boot` / `--force`, and the same flags on `zram set` / `zram disable`: restarting zram (which swaps its stored data back into RAM) is now memory-checked first. Below `MemAvailable` ≥ stored data (`mm_stat` orig_data_size) + max(512 MiB, 5% of RAM) it is refused with "not enough free memory" and nothing changes; `--at-boot` writes the generator config only (takes effect at the next boot), `--force` restarts anyway. D-Bus: `ApplyWithOptions(b at_boot, b force)` and `ApplyZramWithOptions(s config, b at_boot, b force)`; `ApplyNowZram` and `Apply` are memory-checked too (#28)
 - `xzram swap drain-overflow [--dry-run] [--force]`: opt-in swapoff + swapon (same priority) of disk swap below zram's priority, so overflow moves back into a grown zram; same memory guard (zram free capacity counted at the measured ratio). New polkit action `io.github.xzram.swap.drain` (helper `swap.drain-overflow`, pkexec only) (#28)
