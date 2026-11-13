@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `xzram apply --at-boot` / `--force`, and the same flags on `zram set` / `zram disable`: restarting zram (which swaps its stored data back into RAM) is now memory-checked first. Below `MemAvailable` ≥ stored data (`mm_stat` orig_data_size) + max(512 MiB, 5% of RAM) it is refused with "not enough free memory" and nothing changes; `--at-boot` writes the generator config only (takes effect at the next boot), `--force` restarts anyway. D-Bus: `ApplyWithOptions(b at_boot, b force)` and `ApplyZramWithOptions(s config, b at_boot, b force)`; `ApplyNowZram` and `Apply` are memory-checked too (#28)
+- `xzram swap drain-overflow [--dry-run] [--force]`: opt-in swapoff + swapon (same priority) of disk swap below zram's priority, so overflow moves back into a grown zram; same memory guard (zram free capacity counted at the measured ratio). New polkit action `io.github.xzram.swap.drain` (helper `swap.drain-overflow`, pkexec only) (#28)
+- `xzram status` shows memory and I/O PSI (`pressure` in `--json`) (#13)
+- uQ page: when a zram change is refused for lack of memory, **Apply at next restart** saves it for the next boot (`ApplyZramWithOptions` with `at_boot = true`, never forced)
+- Doctor `swapfile_blocks_snapshots` (error): an active swapfile in the btrfs root subvolume, `/home`, or a snapper-configured subvolume makes every snapshot of it fail ("cannot snapshot subvolume with active swapfile"); recommend lists it as a host fix with the `@swap` subvolume steps
+
+### Changed
+- Doctor headline reflects warnings: "System healthy", "Healthy, 1 warning" or "Issues found: 1 error, 2 warnings". The JSON report keeps `healthy` (errors only, exit code 3) and adds `errors`, `warnings` and `summary`; the GUI dashboard chip and Doctor tab use them (#28)
+- Doctor `zram_near_full` only counts disk swap below zram's priority as overflow, and becomes an error when the overflow is significant (≥ max(256 MiB, 10% of the device)) and memory PSI shows stalls (full avg60 ≥ 5%, some avg60 ≥ 20% or some avg300 ≥ 10%) (#28)
+- `defaults recommend` grows a saturated zram (≥ 90% full with disk overflow) instead of reporting "already matches": a ratio-based `min(ram * m, 65536)` sized so a full device costs at most ~50% of RAM at the measured compression ratio, or the High tier without a ratio; never smaller than the current device (#13, #28)
+- Conservative zram defaults: 12–31 GiB RAM (MemTotal ≥ 11 GiB) now `min(ram, 16384)` (was `min(ram / 2, 4096)`), ≥ 32 GiB `min(ram / 2, 16384)` (was `min(ram / 2, 8192)`); Low/High tiers adjusted to match (see docs/RECOMMENDATIONS.md). 4–11 GiB, constrained and performance profiles are unchanged (#13, #28)
+- Size formulas are evaluated with a small expression parser (`+ - * /`, parentheses, `min`/`max`, decimals), so sizes like `ram * 1.5` are compared correctly when deciding whether to grow
+
+### Fixed
+- Creating a swapfile (directly or via `defaults apply`) inside a snapshotted btrfs subvolume is refused with the steps to move swap to a dedicated `@swap` subvolume; recommend no longer stages or grows the overflow swapfile there. Previously `/swap/swapfile` could be created in a plain directory inside `@`, after which snapper timelines and snap-pac snapshots failed with ETXTBSY
+- Doctor `btrfs_swapfile_nodatacow` (and recommend's matching prepare step) no longer fires for an active swapfile whose parent lacks +C, e.g. one made by `btrfs filesystem mkswapfile` in a fresh `@swap` subvolume: btrfs only activates NOCOW swapfiles, and XZram sets +C on the parent itself before recreating one
+
 ## [0.5.0] — 2026-11-12
 
 ### Added

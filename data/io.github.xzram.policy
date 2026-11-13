@@ -108,6 +108,19 @@
     <annotate key="org.freedesktop.policykit.exec.argv1">swap.activate</annotate>
   </action>
 
+  <action id="io.github.xzram.swap.drain">
+    <description>Move overflow swap back into ZRAM</description>
+    <message>Authentication is required to move swapped-out data from disk swap back into ZRAM (swapoff and swapon of lower-priority disk swap)</message>
+    <icon_name>io.github.XZram</icon_name>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/libexec/xzram-helper</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">swap.drain-overflow</annotate>
+  </action>
+
   <action id="io.github.xzram.sysctl.set">
     <description>Set kernel memory tuning parameters</description>
     <message>Authentication is required to change kernel memory parameters</message>

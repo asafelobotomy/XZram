@@ -1,24 +1,19 @@
 //! Core recommendation builder (testable without live detect/status).
 
-use crate::apply::{PendingConfig, SwapfileResizeConfig, ZramConfig};
+use crate::apply::{PendingConfig, ZramConfig};
 use crate::checks;
 use crate::detect::{DetectionReport, ZramBackend};
 use crate::status::{self, StatusReport};
 use crate::sysctl::{self, SysctlValues};
 
 use super::engine_notes::{advisory_items, note_item};
-use super::overflow::{
-    available_bytes_near, decide_overflow_swapfile_scaled, has_active_disk_swap,
-    probe_configured_disk_swap,
-};
+use super::engine_overflow::stage_overflow;
+use super::overflow::{has_active_disk_swap, probe_configured_disk_swap};
 use super::profile::{build_recommended_zram, pick_profile, profile_reference};
 use super::scales::{build_size_scales, RecommendScales, RecommendSizeScale};
 use super::staging::{sysctl_needs_update, zram_for_staging, zram_needs_update};
-use super::types::{
-    OverflowDecision, RecommendProfile, RecommendationItem, RecommendedDefaults, SystemContext,
-    OVERFLOW_FREE_SPACE_MARGIN_MB, OVERFLOW_SWAPFILE_HIGH_MAX_MB, OVERFLOW_SWAPFILE_MAX_MB,
-    OVERFLOW_SWAPFILE_PATH,
-};
+use super::types::{RecommendProfile, RecommendationItem, RecommendedDefaults, SystemContext};
+use super::zram_saturation::{grow_for_saturation, SaturationOutcome};
 
 /// Optional overrides for overflow probing (tests inject free space / disk-swap flags).
 #[derive(Debug, Clone, Default)]
@@ -26,6 +21,8 @@ pub(crate) struct OverflowInputs {
     pub configured_disk_swap: bool,
     pub configured_paths: Vec<String>,
     pub available_bytes: Option<u64>,
+    /// Snapshot conflict for a swapfile at the overflow path (btrfs root subvolume, ...).
+    pub placement: Option<crate::btrfs_subvol::SwapfilePlacement>,
 }
 
 pub(crate) fn recommend_from_context_scaled(
@@ -167,8 +164,23 @@ fn stage_zram(
     hibernate_blocks_zram: bool,
     zram_scale: RecommendSizeScale,
 ) {
-    let recommended_zram = build_recommended_zram(profile, detection, status, zram_scale);
+    let mut recommended_zram = build_recommended_zram(profile, detection, status, zram_scale);
     let ram_mb = status.memory.mem_total_kb / 1024;
+    let saturation = if hibernate_blocks_zram {
+        SaturationOutcome::None
+    } else {
+        grow_for_saturation(
+            &mut recommended_zram,
+            status,
+            current_zram,
+            profile,
+            zram_scale,
+        )
+    };
+    let grow_reason = match &saturation {
+        SaturationOutcome::Grow(reason) => Some(reason.clone()),
+        _ => None,
+    };
 
     if hibernate_blocks_zram {
         items.push(note_item(
@@ -192,16 +204,37 @@ fn stage_zram(
             .as_deref()
             .map(|r| format!(", resident-limit {r}"))
             .unwrap_or_default();
-        items.push(RecommendationItem {
-            category: "zram".into(),
-            summary: format!("Configure ZRAM ({profile:?}, {algo}, priority {pri})"),
-            detail: format!(
+        let detail = match &grow_reason {
+            Some(reason) => format!(
+                "Device {} with size formula '{size}'{resident}: {reason}. Applying restarts the \
+                 device and moves its data back into RAM first; 'xzram apply' checks free memory \
+                 and 'xzram apply --at-boot' defers the restart to the next boot",
+                staged_zram.device
+            ),
+            None => format!(
                 "Device {} with size formula '{size}'{resident} based on {} RAM",
                 staged_zram.device,
                 status::format_bytes(status.memory.mem_total_kb * 1024)
             ),
+        };
+        let summary = if grow_reason.is_some() {
+            format!("Grow saturated ZRAM ({algo}, priority {pri}, size '{size}')")
+        } else {
+            format!("Configure ZRAM ({profile:?}, {algo}, priority {pri})")
+        };
+        items.push(RecommendationItem {
+            category: "zram".into(),
+            summary,
+            detail,
             will_stage: true,
-            reference: Some(profile_reference(profile).unwrap().into()),
+            reference: Some(
+                if grow_reason.is_some() {
+                    "zram-saturation"
+                } else {
+                    profile_reference(profile).unwrap()
+                }
+                .into(),
+            ),
         });
         pending.zram = Some(staged_zram);
     } else if status.zram_devices.is_empty() {
@@ -215,6 +248,14 @@ fn stage_zram(
             "Active ZRAM already matches recommended settings",
             "Current generator config aligns with hardware-based defaults (vendor size is kept when already large enough).",
             profile_reference(profile),
+        ));
+    }
+
+    if let SaturationOutcome::AtLimit(detail) = saturation {
+        items.push(note_item(
+            "ZRAM is saturated but already at its largest recommended size",
+            detail,
+            Some("zram-saturation"),
         ));
     }
 
@@ -252,138 +293,6 @@ fn stage_sysctl(
             "Sysctl values already match tuning defaults",
             "No vm.* changes needed.",
             Some("sysctl-tuning"),
-        ));
-    }
-}
-
-fn stage_overflow(
-    items: &mut Vec<RecommendationItem>,
-    pending: &mut PendingConfig,
-    status: &StatusReport,
-    overflow: Option<&OverflowInputs>,
-    swap_scale: RecommendSizeScale,
-) {
-    // Live probes only; tests inject `overflow` and must not depend on host disks.
-    if overflow.is_none() {
-        push_rotational_warnings(items, status);
-    }
-    let (configured_disk_swap, configured_paths, available_bytes) = match overflow {
-        Some(o) => (
-            o.configured_disk_swap,
-            o.configured_paths.clone(),
-            o.available_bytes,
-        ),
-        None => {
-            let (configured, paths) = probe_configured_disk_swap();
-            (
-                configured,
-                paths,
-                available_bytes_near(OVERFLOW_SWAPFILE_PATH),
-            )
-        }
-    };
-
-    let cap = match swap_scale {
-        RecommendSizeScale::High => OVERFLOW_SWAPFILE_HIGH_MAX_MB,
-        _ => OVERFLOW_SWAPFILE_MAX_MB,
-    };
-
-    match decide_overflow_swapfile_scaled(
-        status,
-        configured_disk_swap,
-        &configured_paths,
-        available_bytes,
-        swap_scale,
-    ) {
-        OverflowDecision::Stage(swapfile) => {
-            items.push(RecommendationItem {
-                category: "swapfile".into(),
-                summary: format!(
-                    "Create overflow swap file ({} MiB, priority {})",
-                    swapfile.size_mb, swapfile.priority
-                ),
-                detail: format!(
-                    "Disk-backed safety net at {} (capped at {} MiB). Btrfs nodatacow is prepared automatically on apply.",
-                    swapfile.path, cap
-                ),
-                will_stage: true,
-                reference: Some("overflow-swapfile".into()),
-            });
-            pending.swapfile = Some(swapfile);
-            items.push(note_item(
-                "Dual-tier swap tradeoff",
-                "Advisory only — Apply defaults stages overflow as a safety net. If swap regularly exceeds ~30% of RAM, zswap may fit better — see docs/RECOMMENDATIONS.md#dual-tier-tradeoff.",
-                Some("dual-tier-tradeoff"),
-            ));
-        }
-        OverflowDecision::SkipConfiguredDiskSwap { paths } => {
-            items.push(note_item(
-                "Configured disk swap already present",
-                format!(
-                    "Overflow swapfile not staged because fstab (or managed inventory) already lists non-zram swap: {}. Enable it with swapon or remove stale entries before adding {}.",
-                    paths.join(", "),
-                    OVERFLOW_SWAPFILE_PATH
-                ),
-                Some("overflow-swapfile"),
-            ));
-        }
-        OverflowDecision::SkipInsufficientSpace {
-            required_mb,
-            available_mb,
-        } => {
-            items.push(note_item(
-                "Insufficient free disk space for overflow swapfile",
-                format!(
-                    "Need about {required_mb} MiB free near {} (including {} MiB margin); about {available_mb} MiB available. Free space or choose a smaller swapfile manually.",
-                    OVERFLOW_SWAPFILE_PATH, OVERFLOW_FREE_SPACE_MARGIN_MB
-                ),
-                Some("overflow-swapfile"),
-            ));
-        }
-        OverflowDecision::Grow {
-            path,
-            from_mb,
-            to_mb,
-        } => {
-            items.push(RecommendationItem {
-                category: "swapfile".into(),
-                summary: format!("Grow overflow swap file ({from_mb} MiB -> {to_mb} MiB)"),
-                detail: format!(
-                    "{path} is much smaller than the recommended safety net (capped at {cap} MiB); once zram fills, the system has nowhere to page out. Resized in place on apply."
-                ),
-                will_stage: true,
-                reference: Some("overflow-swapfile".into()),
-            });
-            pending.swapfile_resize = Some(SwapfileResizeConfig {
-                path,
-                size_mb: to_mb,
-            });
-        }
-        OverflowDecision::SkipActiveDiskSwap | OverflowDecision::SkipZeroSize => {}
-    }
-}
-
-/// Disk swap should live on the fastest device; flag swap on (or headed for) an HDD.
-fn push_rotational_warnings(items: &mut Vec<RecommendationItem>, status: &StatusReport) {
-    use crate::placement::{is_rotational_path, is_rotational_swap};
-    let mut slow: Vec<String> = status
-        .swaps
-        .iter()
-        .filter(|s| !s.name.contains("zram"))
-        .filter(|s| is_rotational_swap(&s.name) == Some(true))
-        .map(|s| s.name.clone())
-        .collect();
-    if !has_active_disk_swap(status) && is_rotational_path(OVERFLOW_SWAPFILE_PATH) == Some(true) {
-        slow.push(OVERFLOW_SWAPFILE_PATH.into());
-    }
-    if !slow.is_empty() {
-        items.push(note_item(
-            "Disk swap is on a rotational drive (HDD)",
-            format!(
-                "{} sits on spinning media; paging there stalls the desktop. Move disk swap to an SSD/NVMe filesystem.",
-                slow.join(", ")
-            ),
-            Some("overflow-swapfile"),
         ));
     }
 }

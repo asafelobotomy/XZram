@@ -14,6 +14,8 @@ pub trait ZramBackendTrait: SwapBackend {
     fn show(&self) -> Result<Option<ZramConfig>>;
     fn configure(&self, config: &ZramConfig) -> Result<()>;
     fn disable(&self) -> Result<()>;
+    /// Persist "zram off" without touching running devices (takes effect at next boot).
+    fn disable_at_boot(&self) -> Result<()>;
     fn apply(&self) -> Result<()>;
 }
 

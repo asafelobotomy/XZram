@@ -76,7 +76,8 @@ pub(super) fn check_btrfs_swapfile_nodatacow(issues: &mut Vec<DoctorIssue>) {
         let Ok(status) = crate::swapfile_btrfs::check_nodatacow(path) else {
             continue;
         };
-        if !status.on_btrfs || status.ready {
+        let active = crate::swapfile_btrfs::path_is_active_swap(path);
+        if !crate::swapfile_btrfs::nodatacow_needs_fix(&status, active) {
             continue;
         }
         issues.push(DoctorIssue {
@@ -145,48 +146,79 @@ pub(super) fn check_zram_zswap_conflict(
     });
 }
 
-/// Warns when a zram swap device is nearly full and disk-backed swap is already
-/// absorbing overflow — the point at which zram-only tuning stops helping.
+/// Overflow at least this large (and a tenth of the zram device) counts as significant.
+const SIGNIFICANT_OVERFLOW_BYTES: u64 = 256 << 20;
+
+/// Memory stalls that make zram saturation an error rather than a warning.
+fn pressure_is_high(psi: &crate::oom::MemoryPressure) -> bool {
+    psi.full_avg60 >= 5.0 || psi.some_avg60 >= 20.0 || psi.some_avg300 >= 10.0
+}
+
+/// zram nearly full while lower-priority disk swap absorbs overflow: the point at which
+/// the zram size, not RAM, pushes pages to disk. An error when the overflow is significant
+/// and memory PSI shows the stalls it causes.
 pub(super) fn check_zram_capacity(
     issues: &mut Vec<DoctorIssue>,
-    swaps: &[crate::status::SwapEntry],
+    status: &crate::status::StatusReport,
+    psi: Option<crate::oom::MemoryPressure>,
 ) {
-    const NEAR_FULL_RATIO: f64 = 0.9;
+    let Some(sat) = crate::saturation::detect(status) else {
+        return;
+    };
+    let significant = sat.overflow_bytes >= SIGNIFICANT_OVERFLOW_BYTES.max(sat.size_bytes / 10);
+    let stalled = psi.filter(pressure_is_high);
+    let (severity, message) = match stalled {
+        Some(p) if significant => (
+            IssueSeverity::Error,
+            format!(
+                "{}, and memory is stalling (PSI some avg60 {:.1}%, full avg60 {:.1}%)",
+                sat.describe(),
+                p.some_avg60,
+                p.full_avg60
+            ),
+        ),
+        _ => (IssueSeverity::Warning, sat.describe()),
+    };
+    issues.push(DoctorIssue {
+        severity,
+        code: "zram_near_full".into(),
+        message,
+        suggestion: Some(
+            "'xzram defaults recommend' proposes a larger, ratio-based zram size; stage it with \
+             'xzram defaults apply' (or 'xzram zram set --size ...'). 'xzram apply --at-boot' \
+             defers the device restart to the next boot, and 'xzram swap drain-overflow' moves \
+             the overflow back afterwards. If this is sustained, consider a zswap-based setup"
+                .into(),
+        ),
+        action: None,
+    });
+}
 
-    for zram_swap in swaps.iter().filter(|s| s.name.contains("zram")) {
-        if zram_swap.size_bytes == 0 {
-            continue;
-        }
-        let ratio = zram_swap.used_bytes as f64 / zram_swap.size_bytes as f64;
-        if ratio < NEAR_FULL_RATIO {
-            continue;
-        }
-
-        let disk_overflow = swaps
-            .iter()
-            .any(|s| !s.name.contains("zram") && s.used_bytes > 0);
-        if !disk_overflow {
-            continue;
-        }
-
+/// Active swapfiles in a snapshotted btrfs subvolume (each one breaks every snapshot).
+pub(super) fn check_swapfile_snapshots(
+    issues: &mut Vec<DoctorIssue>,
+    placements: &[crate::btrfs_subvol::SwapfilePlacement],
+) {
+    for placement in placements {
         issues.push(DoctorIssue {
-            severity: IssueSeverity::Warning,
-            code: "zram_near_full".into(),
-            message: format!(
-                "{} is {:.0}% full ({} / {}) and disk swap is already absorbing overflow",
-                zram_swap.name,
-                ratio * 100.0,
-                crate::status::format_bytes(zram_swap.used_bytes),
-                crate::status::format_bytes(zram_swap.size_bytes),
-            ),
-            suggestion: Some(
-                "Increase zram size (xzram zram set --size ...) or, if this is sustained, \
-                 consider a zswap-based setup instead of zram-only tuning"
-                    .into(),
-            ),
+            severity: IssueSeverity::Error,
+            code: "swapfile_blocks_snapshots".into(),
+            message: placement.message(),
+            suggestion: Some(placement.fix()),
             action: None,
         });
     }
+}
+
+/// Live probe for [`check_swapfile_snapshots`]: active swapfiles from `/proc/swaps`.
+pub(super) fn probe_swapfile_placements(
+    swaps: &[crate::status::SwapEntry],
+) -> Vec<crate::btrfs_subvol::SwapfilePlacement> {
+    swaps
+        .iter()
+        .filter(|s| s.swap_type == "file")
+        .filter_map(|s| crate::btrfs_subvol::swapfile_placement(&s.name))
+        .collect()
 }
 
 #[cfg(test)]
@@ -229,51 +261,71 @@ mod tests {
         assert!(!issues.iter().any(|i| i.code == "btrfs_root"));
     }
 
-    fn swap_entry(
-        name: &str,
-        size_bytes: u64,
-        used_bytes: u64,
-        priority: i32,
-    ) -> crate::status::SwapEntry {
-        crate::status::SwapEntry {
-            name: name.into(),
-            swap_type: "partition".into(),
-            size_bytes,
-            used_bytes,
-            priority,
-        }
+    fn sat_status(zram_used: u64, disk_used: u64) -> crate::status::StatusReport {
+        crate::saturation::tests::status_28(zram_used, disk_used)
     }
+
+    const GIB: u64 = 1 << 30;
 
     #[test]
     fn zram_near_full_warns_when_disk_swap_absorbs_overflow() {
-        let swaps = vec![
-            swap_entry("/dev/zram0", 1000, 950, 100),
-            swap_entry("/swap/swapfile", 2000, 500, 10),
-        ];
         let mut issues = Vec::new();
-        check_zram_capacity(&mut issues, &swaps);
-        assert!(issues.iter().any(|i| i.code == "zram_near_full"));
+        check_zram_capacity(&mut issues, &sat_status(4 * GIB, 700 << 20), None);
+        assert_eq!(issues.len(), 1);
+        assert_eq!(issues[0].code, "zram_near_full");
+        assert_eq!(issues[0].severity, IssueSeverity::Warning);
     }
 
     #[test]
-    fn zram_near_full_silent_when_disk_swap_untouched() {
-        let swaps = vec![
-            swap_entry("/dev/zram0", 1000, 950, 100),
-            swap_entry("/swap/swapfile", 2000, 0, 10),
-        ];
+    fn zram_near_full_is_an_error_with_overflow_and_stalls() {
+        let stalled = crate::oom::MemoryPressure {
+            some_avg60: 28.0,
+            ..Default::default()
+        };
         let mut issues = Vec::new();
-        check_zram_capacity(&mut issues, &swaps);
-        assert!(!issues.iter().any(|i| i.code == "zram_near_full"));
+        check_zram_capacity(&mut issues, &sat_status(4 * GIB, 700 << 20), Some(stalled));
+        assert_eq!(issues[0].severity, IssueSeverity::Error);
+        assert!(
+            issues[0].message.contains("stalling"),
+            "{}",
+            issues[0].message
+        );
+        // Tiny overflow stays a warning even under pressure.
+        let mut issues = Vec::new();
+        check_zram_capacity(&mut issues, &sat_status(4 * GIB, 10 << 20), Some(stalled));
+        assert_eq!(issues[0].severity, IssueSeverity::Warning);
+        // Calm PSI: warning.
+        let mut issues = Vec::new();
+        let calm = crate::oom::MemoryPressure::default();
+        check_zram_capacity(&mut issues, &sat_status(4 * GIB, 2 * GIB), Some(calm));
+        assert_eq!(issues[0].severity, IssueSeverity::Warning);
     }
 
     #[test]
-    fn zram_near_full_silent_when_zram_has_headroom() {
-        let swaps = vec![
-            swap_entry("/dev/zram0", 1000, 400, 100),
-            swap_entry("/swap/swapfile", 2000, 500, 10),
-        ];
+    fn zram_near_full_silent_without_overflow_or_with_headroom() {
         let mut issues = Vec::new();
-        check_zram_capacity(&mut issues, &swaps);
-        assert!(!issues.iter().any(|i| i.code == "zram_near_full"));
+        check_zram_capacity(&mut issues, &sat_status(4 * GIB, 0), None);
+        check_zram_capacity(&mut issues, &sat_status(GIB, 500 << 20), None);
+        assert!(issues.is_empty());
+    }
+
+    #[test]
+    fn swapfile_in_root_subvolume_is_an_error() {
+        let placement = crate::btrfs_subvol::SwapfilePlacement {
+            path: "/swap/swapfile".into(),
+            subvolume: "/".into(),
+            conflict: crate::btrfs_subvol::SnapshotConflict::RootSubvolume,
+            device: None,
+        };
+        let mut issues = Vec::new();
+        check_swapfile_snapshots(&mut issues, &[]);
+        assert!(issues.is_empty());
+        check_swapfile_snapshots(&mut issues, &[placement]);
+        assert_eq!(issues[0].code, "swapfile_blocks_snapshots");
+        assert_eq!(issues[0].severity, IssueSeverity::Error);
+        assert!(issues[0]
+            .message
+            .contains("cannot snapshot subvolume with active swapfile"));
+        assert!(issues[0].suggestion.as_deref().unwrap().contains("@swap"));
     }
 }

@@ -167,14 +167,21 @@ void DoctorWidget::setDoctorJson(const QString &json) {
     const bool healthy = JsonLoader::optionalBool(root, QStringLiteral("healthy"), true);
     const QJsonArray issues = root.value(QStringLiteral("issues")).toArray();
 
-    if (healthy) {
+    // `summary` reflects warnings too ("Healthy, 1 warning"); older CLIs only send `healthy`.
+    const int warnings = JsonLoader::doctorWarnings(root, issues);
+    const QString summary = root.value(QStringLiteral("summary")).toString();
+    if (healthy && warnings == 0) {
         m_header->setText(tr("System healthy"));
         m_header->setStyleSheet(
             QStringLiteral("background: #d4edda; color: #155724; border-radius: 4px; padding: 6px;"));
-    } else {
-        m_header->setText(tr("%1 issue(s) found").arg(issues.size()));
+    } else if (healthy) {
+        m_header->setText(summary.isEmpty() ? tr("Healthy, %n warning(s)", nullptr, warnings) : summary);
         m_header->setStyleSheet(
             QStringLiteral("background: #fff3cd; color: #856404; border-radius: 4px; padding: 6px;"));
+    } else {
+        m_header->setText(summary.isEmpty() ? tr("%1 issue(s) found").arg(issues.size()) : summary);
+        m_header->setStyleSheet(
+            QStringLiteral("background: #f8d7da; color: #721c24; border-radius: 4px; padding: 6px;"));
     }
 
     m_issuesLayout->takeAt(m_issuesLayout->count() - 1);

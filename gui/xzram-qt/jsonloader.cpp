@@ -81,4 +81,17 @@ bool optionalBool(const QJsonObject &obj, const QString &key, bool defaultValue)
     return value.toBool(defaultValue);
 }
 
+int doctorWarnings(const QJsonObject &report, const QJsonArray &issues) {
+    if (report.contains(QStringLiteral("warnings"))) {
+        return report.value(QStringLiteral("warnings")).toInt();
+    }
+    int count = 0;
+    for (const QJsonValue &issue : issues) {
+        if (issue.toObject().value(QStringLiteral("severity")).toString() == QStringLiteral("warning")) {
+            ++count;
+        }
+    }
+    return count;
+}
+
 } // namespace JsonLoader

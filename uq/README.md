@@ -25,9 +25,13 @@ The page reads and writes through XZram's own system service over D-Bus
 
 - Reads: `GetStatus`, `GetZramConfig`, `GetSysctl` and `ListSwaps`. These need no password.
 - Writes: `ApplyNowZram` (size or compression) and `ApplyNowSysctl` (swappiness). The service
-  asks for an administrator password through polkit, and uQ allows these two calls up to
+  asks for an administrator password through polkit, and uQ allows these calls up to
   120 seconds for that. A change of zram size or compression moves swap in use first, so the
   page asks before it starts.
+- XZram refuses that move when free memory can't take what is stored in zram (the error says
+  "not enough free memory"). The page then offers **Apply at next restart**, which calls
+  `ApplyZramWithOptions(config, at_boot = true, force = false)`: the zram settings are written
+  and take effect at the next boot; nothing running is touched. The page never forces.
 - The page sends the whole current zram configuration back with one field changed. The
   `xzram zram set` command is not used because it resets every flag it isn't given.
 

@@ -22,6 +22,8 @@ pub(crate) struct HostProbes {
     /// Kernel OOM kills in this boot plus the previous one.
     pub recent_oom_kills: u64,
     pub mm: super::mm_fixes::MmProbe,
+    /// Configured swapfiles in a snapshotted btrfs subvolume (they break snapshots).
+    pub swapfiles_blocking_snapshots: Vec<crate::btrfs_subvol::SwapfilePlacement>,
 }
 
 pub(crate) fn probe_host() -> HostProbes {
@@ -33,9 +35,21 @@ pub(crate) fn probe_host() -> HostProbes {
         .map(|file| file.path)
         .filter(|path| crate::validation::validate_swapfile_prepare_path(path).is_ok())
         .filter(|path| {
-            crate::swapfile_btrfs::check_nodatacow(std::path::Path::new(path))
-                .is_ok_and(|s| s.on_btrfs && s.parent_nodatacow == Some(false))
+            let p = std::path::Path::new(path);
+            crate::swapfile_btrfs::check_nodatacow(p).is_ok_and(|s| {
+                s.parent_nodatacow == Some(false)
+                    && crate::swapfile_btrfs::nodatacow_needs_fix(
+                        &s,
+                        crate::swapfile_btrfs::path_is_active_swap(p),
+                    )
+            })
         })
+        .collect();
+    let swapfiles_blocking_snapshots = backend
+        .list()
+        .unwrap_or_default()
+        .iter()
+        .filter_map(|file| crate::btrfs_subvol::swapfile_placement(&file.path))
         .collect();
     let recent_oom_kills = crate::oom::oom_kills_this_boot().unwrap_or(0)
         + crate::oom::oom_kills_previous_boot().unwrap_or(0) as u64;
@@ -45,6 +59,7 @@ pub(crate) fn probe_host() -> HostProbes {
         oom: crate::oom::probe(),
         recent_oom_kills,
         mm: super::mm_fixes::probe_mm(),
+        swapfiles_blocking_snapshots,
     }
 }
 
@@ -94,6 +109,24 @@ pub(crate) fn stage_host_fixes(
         }
     }
 
+    // Moving swap to its own subvolume needs a new mount; advise, never automate.
+    for placement in &probes.swapfiles_blocking_snapshots {
+        let already = report
+            .items
+            .iter()
+            .any(|i| i.detail.contains(&placement.message()));
+        if !already {
+            items.push(note_item(
+                &format!(
+                    "Move {} out of the snapshotted btrfs subvolume",
+                    placement.path
+                ),
+                format!("{}. {}", placement.message(), placement.fix()),
+                Some("btrfs-swap-subvolume"),
+            ));
+        }
+    }
+
     super::oom_fixes::stage_oom_fixes(
         &mut items,
         &mut report.pending,
@@ -104,7 +137,7 @@ pub(crate) fn stage_host_fixes(
 
     super::mm_fixes::stage_mm_fixes(&mut items, &mut report.pending, &probes.mm, staging_blocked);
 
-    if !pending_is_empty(&report.pending) {
+    if !pending_is_empty(&report.pending) || !probes.swapfiles_blocking_snapshots.is_empty() {
         report.items.retain(|i| i.summary != ALREADY_MATCHES);
     }
     report.items.splice(0..0, items);
@@ -199,6 +232,35 @@ mod tests {
         stage_host_fixes(&mut r, &status_with_zram(), &off);
         assert!(!r.pending.disable_zswap);
         assert!(r.items.iter().any(|i| i.summary == ALREADY_MATCHES));
+    }
+
+    #[test]
+    fn swapfile_in_root_subvolume_is_advised_not_staged() {
+        let mut r = report(true);
+        let probes = HostProbes {
+            swapfiles_blocking_snapshots: vec![crate::btrfs_subvol::SwapfilePlacement {
+                path: "/swap/swapfile".into(),
+                subvolume: "/".into(),
+                conflict: crate::btrfs_subvol::SnapshotConflict::RootSubvolume,
+                device: Some("UUID=abc".into()),
+            }],
+            ..Default::default()
+        };
+        stage_host_fixes(&mut r, &status_with_zram(), &probes);
+        assert!(pending_is_empty(&r.pending));
+        let item = r
+            .items
+            .iter()
+            .find(|i| i.reference.as_deref() == Some("btrfs-swap-subvolume"))
+            .expect("advice");
+        assert!(!item.will_stage);
+        assert!(
+            item.detail.contains("cannot snapshot subvolume"),
+            "{}",
+            item.detail
+        );
+        assert!(item.detail.contains("subvol=/@swap"), "{}", item.detail);
+        assert!(r.items.iter().all(|i| i.summary != ALREADY_MATCHES));
     }
 
     #[test]

@@ -169,14 +169,14 @@ mod tests {
     }
 
     #[test]
-    fn conservative_large_ram_caps_at_8192() {
+    fn conservative_large_ram_caps_at_16384() {
         assert_eq!(
             zram_size_formula(
                 RecommendProfile::Conservative,
                 64.0,
                 RecommendSizeScale::Default
             ),
-            "min(ram / 2, 8192)"
+            "min(ram / 2, 16384)"
         );
     }
 

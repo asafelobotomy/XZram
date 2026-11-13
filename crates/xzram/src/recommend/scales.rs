@@ -71,18 +71,45 @@ pub struct RecommendSizeScales {
     pub swapfile: SwapfileSizeScaleOptions,
 }
 
-/// Profile “Recommended” formula (unchanged from prior defaults).
+/// MemTotal (GiB) from which the mid tier applies. A "12 GiB" machine reports ~11.5 GiB
+/// MemTotal once firmware and the kernel have taken their share, so the cut is at 11.
+pub const MID_RAM_GB: f64 = 11.0;
+/// MemTotal (GiB) from which the large tier applies.
+pub const LARGE_RAM_GB: f64 = 32.0;
+
+/// RAM tier for the conservative profile's size formulas.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RamTier {
+    Small,
+    Mid,
+    Large,
+}
+
+fn ram_tier(mem_gb: f64) -> RamTier {
+    if mem_gb >= LARGE_RAM_GB {
+        RamTier::Large
+    } else if mem_gb >= MID_RAM_GB {
+        RamTier::Mid
+    } else {
+        RamTier::Small
+    }
+}
+
+/// Profile “Recommended” formula.
+///
+/// Conservative, 12–31 GiB: `min(ram, 16384)` (`min(ram / 2, 4096)` up to 0.5.0). With
+/// zstd's typical 2.5–3.5x ratio a full device of that size costs about a third of RAM, and
+/// the 4 GiB cap filled under ordinary multi-build developer workloads (issues #13, #28),
+/// sending the overflow to disk while most RAM was still free.
 pub fn zram_size_formula_default(profile: RecommendProfile, mem_gb: f64) -> String {
     match profile {
         RecommendProfile::Performance => "ram".into(),
         RecommendProfile::Constrained => "min(ram, 4096)".into(),
-        RecommendProfile::Conservative => {
-            if mem_gb >= 32.0 {
-                "min(ram / 2, 8192)".into()
-            } else {
-                "min(ram / 2, 4096)".into()
-            }
-        }
+        RecommendProfile::Conservative => match ram_tier(mem_gb) {
+            RamTier::Small => "min(ram / 2, 4096)".into(),
+            RamTier::Mid => "min(ram, 16384)".into(),
+            RamTier::Large => "min(ram / 2, 16384)".into(),
+        },
     }
 }
 
@@ -91,29 +118,23 @@ pub fn zram_size_formula(
     mem_gb: f64,
     scale: RecommendSizeScale,
 ) -> String {
+    use RecommendSizeScale::{Default, High, Low};
     match (profile, scale) {
-        (RecommendProfile::Constrained, RecommendSizeScale::Low) => "min(ram / 2, 2048)".into(),
-        (RecommendProfile::Constrained, RecommendSizeScale::Default) => {
-            zram_size_formula_default(profile, mem_gb)
-        }
-        (RecommendProfile::Constrained, RecommendSizeScale::High) => "min(ram, 8192)".into(),
-
-        (RecommendProfile::Conservative, RecommendSizeScale::Low) if mem_gb >= 32.0 => {
-            "min(ram / 4, 4096)".into()
-        }
-        (RecommendProfile::Conservative, RecommendSizeScale::Low) => "min(ram / 4, 2048)".into(),
-        (RecommendProfile::Conservative, RecommendSizeScale::Default) => {
-            zram_size_formula_default(profile, mem_gb)
-        }
-        (RecommendProfile::Conservative, RecommendSizeScale::High) if mem_gb >= 32.0 => {
-            "min(ram, 16384)".into()
-        }
-        (RecommendProfile::Conservative, RecommendSizeScale::High) => "min(ram, 8192)".into(),
-
-        (RecommendProfile::Performance, RecommendSizeScale::Low) => "min(ram / 2, 4096)".into(),
-        (RecommendProfile::Performance, RecommendSizeScale::Default | RecommendSizeScale::High) => {
-            "ram".into()
-        }
+        (RecommendProfile::Constrained, Low) => "min(ram / 2, 2048)".into(),
+        (RecommendProfile::Constrained, High) => "min(ram, 8192)".into(),
+        (RecommendProfile::Conservative, Low) => match ram_tier(mem_gb) {
+            RamTier::Small => "min(ram / 4, 2048)".into(),
+            RamTier::Mid => "min(ram / 2, 4096)".into(),
+            RamTier::Large => "min(ram / 4, 4096)".into(),
+        },
+        (RecommendProfile::Conservative, High) => match ram_tier(mem_gb) {
+            RamTier::Small => "min(ram, 8192)".into(),
+            RamTier::Mid => "min(ram * 1.5, 24576)".into(),
+            RamTier::Large => "min(ram, 32768)".into(),
+        },
+        (RecommendProfile::Performance, Low) => "min(ram / 2, 4096)".into(),
+        (RecommendProfile::Performance, High) => "ram".into(),
+        (_, Default) => zram_size_formula_default(profile, mem_gb),
     }
 }
 
@@ -175,27 +196,87 @@ pub fn build_size_scales(
 mod tests {
     use super::*;
 
+    fn conservative(mem_gb: f64) -> [String; 3] {
+        [
+            RecommendSizeScale::Low,
+            RecommendSizeScale::Default,
+            RecommendSizeScale::High,
+        ]
+        .map(|s| zram_size_formula(RecommendProfile::Conservative, mem_gb, s))
+    }
+
     #[test]
-    fn conservative_tiers() {
+    fn conservative_tiers_per_ram_size() {
         assert_eq!(
-            zram_size_formula(RecommendProfile::Conservative, 8.0, RecommendSizeScale::Low),
-            "min(ram / 4, 2048)"
+            conservative(8.0),
+            ["min(ram / 4, 2048)", "min(ram / 2, 4096)", "min(ram, 8192)"]
         );
+        // 12 GiB machines report ~11.5 GiB MemTotal; 15.5 GiB is the #28 machine.
+        for mem_gb in [11.5, 15.5, 31.2] {
+            assert_eq!(
+                conservative(mem_gb),
+                [
+                    "min(ram / 2, 4096)",
+                    "min(ram, 16384)",
+                    "min(ram * 1.5, 24576)"
+                ],
+                "{mem_gb} GiB"
+            );
+        }
         assert_eq!(
-            zram_size_formula(
-                RecommendProfile::Conservative,
-                8.0,
+            conservative(64.0),
+            [
+                "min(ram / 4, 4096)",
+                "min(ram / 2, 16384)",
+                "min(ram, 32768)"
+            ]
+        );
+    }
+
+    #[test]
+    fn conservative_sizes_grow_with_ram_and_scale() {
+        let mib = |gb: f64, scale| {
+            let ram_mb = (gb * 1024.0) as u64;
+            let f = zram_size_formula(RecommendProfile::Conservative, gb, scale);
+            eval_zram_size_mb(&f, ram_mb).unwrap()
+        };
+        let mut last_default = 0;
+        for gb in [4.0, 8.0, 11.5, 15.5, 24.0, 31.2, 32.0, 64.0, 128.0] {
+            let (low, def, high) = (
+                mib(gb, RecommendSizeScale::Low),
+                mib(gb, RecommendSizeScale::Default),
+                mib(gb, RecommendSizeScale::High),
+            );
+            assert!(low <= def && def <= high, "{gb} GiB: {low} {def} {high}");
+            assert!(def >= last_default, "default shrank at {gb} GiB");
+            last_default = def;
+        }
+        assert_eq!(mib(15.5, RecommendSizeScale::Default), 15_872);
+        assert_eq!(mib(64.0, RecommendSizeScale::Default), 16_384);
+    }
+
+    #[test]
+    fn other_profiles_unchanged() {
+        let f = |p, gb, s| zram_size_formula(p, gb, s);
+        assert_eq!(
+            f(
+                RecommendProfile::Constrained,
+                2.0,
                 RecommendSizeScale::Default
             ),
-            "min(ram / 2, 4096)"
+            "min(ram, 4096)"
         );
         assert_eq!(
-            zram_size_formula(
-                RecommendProfile::Conservative,
-                8.0,
-                RecommendSizeScale::High
+            f(
+                RecommendProfile::Performance,
+                16.0,
+                RecommendSizeScale::Default
             ),
-            "min(ram, 8192)"
+            "ram"
+        );
+        assert_eq!(
+            f(RecommendProfile::Performance, 16.0, RecommendSizeScale::Low),
+            "min(ram / 2, 4096)"
         );
     }
 

@@ -27,6 +27,17 @@ pub struct NodatacowStatus {
     pub message: String,
 }
 
+/// Whether a missing-nodatacow finding for `status` needs action. An active swapfile on
+/// btrfs is proven NOCOW (the kernel refuses swapon otherwise, e.g. one made by `btrfs
+/// filesystem mkswapfile` in a fresh `@swap` subvolume whose root lacks +C), and XZram sets
+/// +C on the parent itself before it ever recreates the file.
+pub fn nodatacow_needs_fix(status: &NodatacowStatus, active_swap: bool) -> bool {
+    if !status.on_btrfs || status.ready {
+        return false;
+    }
+    !(active_swap && status.file_exists && status.file_nodatacow != Some(false))
+}
+
 pub fn check_nodatacow(path: &Path) -> Result<NodatacowStatus> {
     build_status(path, false)
 }
@@ -205,6 +216,34 @@ fn btrfs_mkswapfile_available() -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn active_nocow_swapfile_needs_no_parent_fix() {
+        let status = NodatacowStatus {
+            swapfile_path: "/swap/swapfile".into(),
+            parent_directory: "/swap".into(),
+            filesystem: "btrfs".into(),
+            on_btrfs: true,
+            parent_exists: true,
+            parent_nodatacow: Some(false),
+            file_exists: true,
+            file_nodatacow: None, // lsattr not permitted for users
+            ready: false,
+            message: String::new(),
+        };
+        assert!(nodatacow_needs_fix(&status, false));
+        assert!(!nodatacow_needs_fix(&status, true));
+        let cow_file = NodatacowStatus {
+            file_nodatacow: Some(false),
+            ..status.clone()
+        };
+        assert!(nodatacow_needs_fix(&cow_file, true));
+        let ready = NodatacowStatus {
+            ready: true,
+            ..status
+        };
+        assert!(!nodatacow_needs_fix(&ready, false));
+    }
 
     #[test]
     fn lsattr_detects_nodatacow_flag() {

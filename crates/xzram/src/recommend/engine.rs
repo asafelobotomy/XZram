@@ -98,6 +98,7 @@ mod tests {
                 configured_disk_swap: false,
                 configured_paths: vec![],
                 available_bytes: Some(100 * 1024 * 1024 * 1024),
+                placement: None,
             }),
             RecommendScales::default(),
         );
@@ -150,6 +151,7 @@ mod tests {
                 configured_disk_swap: false,
                 configured_paths: vec![],
                 available_bytes: Some(100 * 1024 * 1024 * 1024),
+                placement: None,
             }),
             RecommendScales::default(),
         );
@@ -171,13 +173,14 @@ mod tests {
         let matching_sysctl = crate::sysctl::recommended_defaults();
         let report = recommend_from_context_scaled(
             &base_detection(true, false),
-            &base_status(16 * 1024 * 1024),
+            &base_status(8 * 1024 * 1024),
             Some(matching_sysctl),
             Some(current_zram),
             Some(OverflowInputs {
                 configured_disk_swap: true,
                 configured_paths: vec!["/swapfile".into()],
                 available_bytes: Some(100 * 1024 * 1024 * 1024),
+                placement: None,
             }),
             RecommendScales::default(),
         );
@@ -197,6 +200,7 @@ mod tests {
                 configured_disk_swap: true,
                 configured_paths: vec!["/swapfile".into()],
                 available_bytes: Some(100 * 1024 * 1024 * 1024),
+                placement: None,
             }),
             RecommendScales {
                 zram: RecommendSizeScale::High,
@@ -206,5 +210,70 @@ mod tests {
         let staged = report.pending.zram.expect("zram should stage");
         assert_eq!(staged.zram_size.as_deref(), Some("min(ram, 8192)"));
         assert_eq!(report.size_scales.zram.selected, RecommendSizeScale::High);
+    }
+
+    #[test]
+    fn saturated_zram_is_grown_not_already_matching() {
+        // Issue #28: 15.5 GiB, zram0 at min(ram / 2, 4096) full, 0.7 GiB on the swapfile.
+        let status = crate::saturation::tests::status_28(4 << 30, 700 << 20);
+        let current_zram = ZramConfig {
+            device: "zram0".into(),
+            zram_size: Some("min(ram / 2, 4096)".into()),
+            zram_resident_limit: None,
+            compression_algorithm: Some("zstd".into()),
+            swap_priority: Some(100),
+            fs_type: None,
+            mount_point: None,
+        };
+        let report = recommend_from_context_scaled(
+            &base_detection(true, false),
+            &status,
+            Some(crate::sysctl::recommended_defaults()),
+            Some(current_zram),
+            Some(OverflowInputs::default()),
+            RecommendScales::default(),
+        );
+        let staged = report.pending.zram.expect("saturated zram should grow");
+        assert_eq!(staged.zram_size.as_deref(), Some("min(ram * 1.5, 65536)"));
+        let item = report.items.iter().find(|i| i.category == "zram").unwrap();
+        assert!(
+            item.summary.starts_with("Grow saturated ZRAM"),
+            "{}",
+            item.summary
+        );
+        assert!(item.detail.contains("100% full"), "{}", item.detail);
+        assert!(item.detail.contains("--at-boot"), "{}", item.detail);
+        assert!(report
+            .items
+            .iter()
+            .all(|i| !i.summary.contains("already matches recommended")));
+    }
+
+    #[test]
+    fn overflow_not_staged_inside_snapshotted_subvolume() {
+        let report = recommend_from_context_scaled(
+            &base_detection(true, false),
+            &base_status(16 * 1024 * 1024),
+            None,
+            None,
+            Some(OverflowInputs {
+                available_bytes: Some(100 * 1024 * 1024 * 1024),
+                placement: Some(crate::btrfs_subvol::SwapfilePlacement {
+                    path: "/swap/swapfile".into(),
+                    subvolume: "/".into(),
+                    conflict: crate::btrfs_subvol::SnapshotConflict::RootSubvolume,
+                    device: None,
+                }),
+                ..Default::default()
+            }),
+            RecommendScales::default(),
+        );
+        assert!(report.pending.swapfile.is_none());
+        let note = report
+            .items
+            .iter()
+            .find(|i| i.reference.as_deref() == Some("btrfs-swap-subvolume"))
+            .expect("subvolume advice");
+        assert!(note.detail.contains("@swap"), "{}", note.detail);
     }
 }

@@ -197,6 +197,10 @@ test("describes_errors_in_plain_words", () => {
   assert.equal(kind("io.github.XZram1 is not running"), "unavailable");
   assert.equal(kind("org.freedesktop.DBus.Error.AccessDenied: Not authorized"), "denied");
   assert.equal(kind("org.freedesktop.DBus.Error.InvalidArgs: swappiness must be 0-200"), "refused");
+  // The memory refusal is found past the 200-character clip, too.
+  const memory = "io.github.XZram.Error: " + "x".repeat(300) + " validation error: not enough free memory: restarting zram0 ...";
+  assert.equal(kind(memory), "memory");
+  assert.equal(L.describeError(memory, "change the zram settings").message, L.LOW_MEMORY);
   assert.equal(L.describeError("weird", "change swappiness").message, "Couldn't change swappiness.");
   assert.equal(L.describeError("x".repeat(900), "read").raw.length, 201);
   assert.equal(L.isRetryable("no answer within 2 s"), true);
@@ -226,6 +230,11 @@ test("confirms_match_plan", () => {
   assert.match(runZram, /ApplyNowZram/);
   const applyZramCalls = qml.match(/"ApplyNowZram"/g) || [];
   assert.equal(applyZramCalls.length, 1, "ApplyNowZram is only called from runZram, after Confirm");
+  // The next-restart write is only offered after a refusal for lack of memory, and only
+  // ever with at_boot = true (it never restarts anything).
+  const atBoot = qml.match(/function runZramAtBoot\(\) \{[\s\S]*?\n    \}/)[0];
+  assert.match(atBoot, /"ApplyZramWithOptions", \[json, true, false\]/);
+  assert.equal((qml.match(/"ApplyZramWithOptions"/g) || []).length, 1);
   assert.match(qml, /onConfirmed: page\.runZram\(\)/);
 });
 
@@ -236,9 +245,9 @@ test("dbus_writes_allowlisted", () => {
   assert.equal(d.interface, "io.github.XZram.Manager");
   assert.equal(d.bus, "system");
   const reads = ["GetStatus", "GetZramConfig", "GetSysctl", "ListSwaps"];
-  const writes = ["ApplyNowZram", "ApplyNowSysctl"];
+  const writes = ["ApplyNowZram", "ApplyZramWithOptions", "ApplyNowSysctl"];
   assert.deepEqual([...d.methods].sort(), [...reads, ...writes].sort());
-  assert.deepEqual(d.timeout_ms, { ApplyNowZram: 120000, ApplyNowSysctl: 120000 });
+  assert.deepEqual(d.timeout_ms, { ApplyNowZram: 120000, ApplyZramWithOptions: 120000, ApplyNowSysctl: 120000 });
   assert.equal(d.properties, undefined);
   // The staging and swap-file methods are never reachable from the page.
   for (const m of d.methods) assert.doesNotMatch(m, /Swapfile|Configure|Disable|^Apply$|Rollback|Snapshot/);
@@ -272,12 +281,15 @@ test("page_strings_are_plain", () => {
   assert.ok(checked > 10);
   // Texts built in logic.js.
   for (const s of Object.values(plain(L.CONFIRMS))) assert.doesNotMatch(s, JARGON);
+  assert.doesNotMatch(L.LOW_MEMORY, JARGON);
+  assert.doesNotMatch(L.AT_BOOT_DONE, JARGON);
   assert.doesNotMatch(L.STILL_WORKING, JARGON);
   for (const e of [
     "no answer within 2 s",
     "ServiceUnknown",
     "AccessDenied",
     "InvalidArgs",
+    "not enough free memory",
     "other",
   ])
     assert.doesNotMatch(L.describeError(e, "change swappiness").message, JARGON);

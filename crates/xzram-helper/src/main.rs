@@ -8,8 +8,8 @@ use serde::Deserialize;
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 use xzram::apply::{
-    self, apply, apply_pending, clear_pending, stage, stage_then_apply,
-    stage_with_optional_prepare, ApplyRequest, PendingConfig,
+    self, apply, apply_pending, apply_pending_with, clear_pending, stage, stage_then_apply,
+    stage_then_apply_with, stage_with_optional_prepare, ApplyOptions, ApplyRequest, PendingConfig,
 };
 use xzram::migrate::migrate_from_zram_tools;
 use xzram::snapshot::{self, SnapshotTrigger};
@@ -60,6 +60,15 @@ fn caller_snapshot_trigger(raw: &str) -> xzram::Result<SnapshotTrigger> {
         )),
         t => Ok(t),
     }
+}
+
+/// `apply` payload: optional pending to stage first, plus apply options.
+#[derive(serde::Serialize, Deserialize)]
+struct ApplyBundle {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pending: Option<PendingConfig>,
+    #[serde(default)]
+    options: ApplyOptions,
 }
 
 fn parse_value(payload: &str) -> xzram::Result<serde_json::Value> {
@@ -129,9 +138,14 @@ fn run(action: &str, payload: &str) -> xzram::Result<()> {
                 apply_pending()?
             } else {
                 let value = parse_value(payload)?;
-                // `{pending}` bundle (stage + apply in one prompt), or a legacy ApplyRequest.
-                if let Some(pending) = value.get("pending") {
-                    stage_then_apply(&from_value_strict::<PendingConfig>(pending)?)?
+                // `{pending?, options?}` bundle (stage + apply in one prompt; options carry
+                // `at_boot` / `force`), or a legacy ApplyRequest.
+                if value.get("pending").is_some() || value.get("options").is_some() {
+                    let bundle: ApplyBundle = from_value_strict(&value)?;
+                    match bundle.pending {
+                        Some(pending) => stage_then_apply_with(&pending, bundle.options)?,
+                        None => apply_pending_with(bundle.options)?,
+                    }
                 } else {
                     let request: ApplyRequest = from_value_strict(&value)?;
                     apply(&request)?
@@ -213,6 +227,18 @@ fn run(action: &str, payload: &str) -> xzram::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn apply_bundle_parses_options_with_or_without_pending() {
+        let v: serde_json::Value =
+            serde_json::from_str(r#"{"options":{"at_boot":true,"force":false}}"#).unwrap();
+        let b: ApplyBundle = from_value_strict(&v).unwrap();
+        assert!(b.pending.is_none() && b.options.at_boot);
+        let v = serde_json::json!({ "pending": PendingConfig::default() });
+        let b: ApplyBundle = from_value_strict(&v).unwrap();
+        assert!(b.pending.is_some());
+        assert_eq!(b.options, ApplyOptions::default());
+    }
 
     #[test]
     fn snapshot_create_rejects_pre_apply_trigger() {

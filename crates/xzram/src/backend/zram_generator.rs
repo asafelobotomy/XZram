@@ -128,6 +128,12 @@ impl ZramBackendTrait for ZramGeneratorBackend {
         }
     }
 
+    fn disable_at_boot(&self) -> Result<()> {
+        // Same empty /etc override as `disable`, but running devices are left alone.
+        crate::fsutil::atomic_write(&self.write_path(), b"", 0o644)?;
+        Ok(())
+    }
+
     fn apply(&self) -> Result<()> {
         if std::env::var_os("XZRAM_ETC_ROOT").is_some() {
             return Ok(());
@@ -180,6 +186,21 @@ mod tests {
         assert!(path.starts_with(etc.path()));
         assert!(path.ends_with(std::path::Path::new("systemd/zram-generator.conf")));
         std::env::remove_var("XZRAM_ETC_ROOT");
+    }
+
+    #[test]
+    fn disable_at_boot_writes_override_only() {
+        let _guard = crate::test_env_lock();
+        let etc = tempfile::tempdir().unwrap();
+        std::env::set_var("XZRAM_ETC_ROOT", etc.path());
+        let conf = etc.path().join("systemd/zram-generator.conf");
+        fs::create_dir_all(conf.parent().unwrap()).unwrap();
+        fs::write(&conf, "[zram0]\nzram-size = ram / 2\n").unwrap();
+        let result = ZramGeneratorBackend.disable_at_boot();
+        let content = fs::read_to_string(&conf).unwrap();
+        std::env::remove_var("XZRAM_ETC_ROOT");
+        result.unwrap();
+        assert!(content.is_empty());
     }
 
     #[test]

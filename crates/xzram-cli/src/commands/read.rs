@@ -3,15 +3,23 @@ use xzram::detect;
 use xzram::doctor;
 use xzram::status;
 
-use crate::print::{print_detect, print_doctor, print_status};
+use crate::print::{print_detect, print_doctor, print_pressure, print_status};
 
 pub(crate) fn status(json: bool) -> anyhow::Result<()> {
     debug!("collecting status report");
     let report = status::status()?;
+    let pressure = status::pressure();
     if json {
-        println!("{}", serde_json::to_string_pretty(&report)?);
+        // `pressure` is added next to the library report's fields (xzramd's GetStatus
+        // does not carry it).
+        let mut value = serde_json::to_value(&report)?;
+        if let Some(obj) = value.as_object_mut() {
+            obj.insert("pressure".into(), serde_json::to_value(pressure)?);
+        }
+        println!("{}", serde_json::to_string_pretty(&value)?);
     } else {
         print_status(&report);
+        print_pressure(&pressure);
     }
     Ok(())
 }

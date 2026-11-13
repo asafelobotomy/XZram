@@ -218,6 +218,25 @@ fn parse_meminfo() -> Result<MemoryInfo> {
     })
 }
 
+/// Memory and I/O pressure (PSI), shown by `xzram status`; `None` without PSI support.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
+pub struct PressureReport {
+    pub memory: Option<crate::oom::MemoryPressure>,
+    pub io: Option<crate::oom::MemoryPressure>,
+}
+
+pub fn pressure() -> PressureReport {
+    let read = |name: &str| {
+        std::fs::read_to_string(format!("/proc/pressure/{name}"))
+            .ok()
+            .and_then(|t| crate::oom::parse_psi_memory(&t))
+    };
+    PressureReport {
+        memory: read("memory"),
+        io: read("io"),
+    }
+}
+
 pub fn format_bytes(bytes: u64) -> String {
     const UNITS: &[&str] = &["B", "KiB", "MiB", "GiB", "TiB"];
     let mut size = bytes as f64;

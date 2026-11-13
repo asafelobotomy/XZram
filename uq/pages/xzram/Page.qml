@@ -33,6 +33,8 @@ Item {
     property bool busySwappiness: false
     property bool moreAvailable: true
     property var pendingChanges: null
+    /// The zram settings refused for lack of free memory, offered for the next restart.
+    property string deferredJson
     /// Shared with delayed callbacks: set when the page is destroyed, so they do nothing.
     readonly property var life: ({ gone: false })
     Component.onDestruction: life.gone = true
@@ -125,6 +127,7 @@ Item {
             return;
         }
         page.problem = "";
+        page.deferredJson = "";
         page.pendingChanges = changes;
         confirm.question = Logic.CONFIRMS[built.kind];
         confirm.open();
@@ -150,9 +153,24 @@ Item {
             }
             page.ctx.dbus.call("ApplyNowZram", [built.json], Logic.guarded(life, reply => {
                 page.busyZram = false;
+                const lowMemory = reply && reply.error && Logic.describeError(reply.error, "").kind === "memory";
+                page.deferredJson = lowMemory ? built.json : "";
                 page.finishWrite(reply, "change the zram settings",
                     built.kind === "zram-size" ? "Size changed." : "Compression changed.");
             }));
+        }));
+    }
+
+    /// After a refusal for lack of memory: save the same settings for the next restart.
+    function runZramAtBoot() {
+        const json = page.deferredJson;
+        page.deferredJson = "";
+        if (json === "" || !page.ctx)
+            return;
+        page.busyZram = true;
+        page.ctx.dbus.call("ApplyZramWithOptions", [json, true, false], Logic.guarded(page.life, reply => {
+            page.busyZram = false;
+            page.finishWrite(reply, "save the zram settings", Logic.AT_BOOT_DONE);
         }));
     }
 
@@ -171,6 +189,7 @@ Item {
             return;
         }
         page.problem = "";
+        page.deferredJson = "";
         page.busySwappiness = true;
         const life = page.life;
         const chosen = spin.value;
@@ -283,6 +302,12 @@ Item {
                 color: page.errorColor
                 wrapMode: Text.Wrap
                 Layout.fillWidth: true
+            }
+            QQC2.Button {
+                objectName: "atBootButton"
+                visible: page.deferredJson !== "" && !page.busyZram
+                text: "Apply at next restart"
+                onClicked: page.runZramAtBoot()
             }
             UqLabel {
                 objectName: "noticeLabel"

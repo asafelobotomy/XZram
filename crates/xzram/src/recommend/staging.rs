@@ -9,33 +9,7 @@ fn normalize_size_formula(formula: &str) -> String {
         .to_lowercase()
 }
 
-/// Evaluate common zram-generator size formulas to MiB for a given RAM size.
-pub fn eval_zram_size_mb(formula: &str, ram_mb: u64) -> Option<u64> {
-    let f = normalize_size_formula(formula);
-    match f.as_str() {
-        "ram" => Some(ram_mb),
-        "ram/2" => Some(ram_mb / 2),
-        "ram/4" => Some(ram_mb / 4),
-        "min(ram,16384)" => Some(ram_mb.min(16384)),
-        "min(ram,8192)" => Some(ram_mb.min(8192)),
-        "min(ram,4096)" => Some(ram_mb.min(4096)),
-        "min(ram,2048)" => Some(ram_mb.min(2048)),
-        "min(ram/2,8192)" => Some((ram_mb / 2).min(8192)),
-        "min(ram/2,4096)" => Some((ram_mb / 2).min(4096)),
-        "min(ram/2,2048)" => Some((ram_mb / 2).min(2048)),
-        "min(ram/4,4096)" => Some((ram_mb / 4).min(4096)),
-        "min(ram/4,2048)" => Some((ram_mb / 4).min(2048)),
-        _ => {
-            if let Some(pct) = f.strip_prefix("ram/100*") {
-                return pct
-                    .parse::<u64>()
-                    .ok()
-                    .map(|p| ram_mb.saturating_mul(p) / 100);
-            }
-            f.parse::<u64>().ok()
-        }
-    }
-}
+pub use super::size_expr::eval_zram_size_mb;
 
 fn zram_size_needs_update(current: Option<&str>, recommended: &str, ram_mb: u64) -> bool {
     let Some(current) = current else {

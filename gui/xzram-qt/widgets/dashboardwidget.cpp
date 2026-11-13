@@ -93,18 +93,23 @@ void DashboardWidget::clearState() {
     m_zramCard->setText(tr("No active ZRAM devices"));
     m_swapTable->setRowCount(0);
     m_detectStrip->setText(tr("Detection: unavailable"));
-    updateHealthChip(true, 0);
+    updateHealthChip(true, 0, 0, QString());
 }
 
-void DashboardWidget::updateHealthChip(bool healthy, int issueCount) {
-    if (healthy) {
+void DashboardWidget::updateHealthChip(bool healthy, int issueCount, int warnings, const QString &summary) {
+    if (healthy && warnings == 0) {
         m_healthChip->setText(tr("System healthy"));
         m_healthChip->setStyleSheet(
             QStringLiteral("background-color: #d4edda; color: #155724; border-radius: 4px; padding: 4px;"));
-    } else if (issueCount > 0) {
-        m_healthChip->setText(tr("%1 issue(s) found").arg(issueCount));
+    } else if (healthy) {
+        // Healthy (no errors) but with warnings, e.g. zram full and spilling to disk.
+        m_healthChip->setText(summary.isEmpty() ? tr("Healthy, %n warning(s)", nullptr, warnings) : summary);
         m_healthChip->setStyleSheet(
             QStringLiteral("background-color: #fff3cd; color: #856404; border-radius: 4px; padding: 4px;"));
+    } else if (issueCount > 0) {
+        m_healthChip->setText(summary.isEmpty() ? tr("%1 issue(s) found").arg(issueCount) : summary);
+        m_healthChip->setStyleSheet(
+            QStringLiteral("background-color: #f8d7da; color: #721c24; border-radius: 4px; padding: 4px;"));
     } else {
         m_healthChip->setText(tr("Issues detected"));
         m_healthChip->setStyleSheet(
@@ -221,7 +226,8 @@ void DashboardWidget::setDoctorJson(const QString &json) {
     }
     const bool healthy = JsonLoader::optionalBool(root, QStringLiteral("healthy"), true);
     const QJsonArray issues = root.value(QStringLiteral("issues")).toArray();
-    updateHealthChip(healthy, issues.size());
+    updateHealthChip(healthy, issues.size(), JsonLoader::doctorWarnings(root, issues),
+                     root.value(QStringLiteral("summary")).toString());
 }
 
 void DashboardWidget::setDetectionJson(const QString &json) {

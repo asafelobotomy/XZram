@@ -64,7 +64,10 @@ pub enum Commands {
         command: DaemonCommands,
     },
     /// Apply pending configuration changes
-    Apply,
+    Apply {
+        #[command(flatten)]
+        zram: ZramRestartArgs,
+    },
     /// Recommended system defaults
     Defaults {
         #[command(subcommand)]
@@ -77,6 +80,27 @@ pub enum Commands {
         #[command(subcommand)]
         command: SnapshotCommands,
     },
+}
+
+/// How a zram change reaches the running device. Restarting zram swaps its data back into
+/// RAM first, so it is refused when `MemAvailable` cannot take it (plus a margin).
+#[derive(clap::Args, Debug, Clone, Copy, Default)]
+pub struct ZramRestartArgs {
+    /// Write the zram configuration only; the running device changes at the next boot
+    #[arg(long, conflicts_with = "force")]
+    pub at_boot: bool,
+    /// Restart zram even when free memory cannot take its stored data
+    #[arg(long)]
+    pub force: bool,
+}
+
+impl ZramRestartArgs {
+    pub fn options(self) -> xzram::apply::ApplyOptions {
+        xzram::apply::ApplyOptions {
+            at_boot: self.at_boot,
+            force: self.force,
+        }
+    }
 }
 
 #[derive(Subcommand)]
@@ -189,12 +213,17 @@ pub enum ZramCommands {
         /// Apply immediately instead of staging
         #[arg(long)]
         now: bool,
+        /// With --now: memory check bypass / write-only-for-next-boot (see `xzram apply`)
+        #[command(flatten)]
+        restart: ZramRestartArgs,
     },
     /// Disable zram
     Disable {
         /// Apply immediately instead of staging
         #[arg(long)]
         now: bool,
+        #[command(flatten)]
+        restart: ZramRestartArgs,
     },
     /// Migrate from legacy zram-tools configuration
     Migrate {
@@ -260,6 +289,15 @@ pub enum SwapCommands {
     On { device: String },
     /// Deactivate swap
     Off { device: String },
+    /// Move overflow pages from lower-priority disk swap back into zram (swapoff + swapon)
+    DrainOverflow {
+        /// Drain even when free memory and zram capacity look too small
+        #[arg(long)]
+        force: bool,
+        /// Only show the plan and the memory check
+        #[arg(long)]
+        dry_run: bool,
+    },
 }
 
 #[derive(Subcommand)]

@@ -35,6 +35,12 @@ var CONFIRMS = {
 
 var STILL_WORKING = "Still working. Check again in a moment.";
 
+/// XZram refuses to restart compressed memory when RAM can't take back what is stored in it
+/// (its refusal always contains this phrase). The page then offers to apply at next restart.
+var MEMORY_REFUSAL = "not enough free memory";
+var LOW_MEMORY = "Not changed. There isn't enough free memory right now to move what's in compressed memory back. Try again with fewer apps open, or apply it at the next restart.";
+var AT_BOOT_DONE = "Saved. It takes effect at the next restart.";
+
 function clip(value) {
     var s = String(value === undefined || value === null ? "" : value);
     return s.length > MAX_TEXT ? s.slice(0, MAX_TEXT) + "…" : s;
@@ -339,11 +345,14 @@ function buildSysctl(swappiness) {
 
 /// Sorts an `{error}` from a call into a kind and a plain sentence:
 /// `unavailable` (the service didn't answer), `denied`, `pending` (a deadline passed, the work
-/// may still be going), `refused` (XZram rejected the value) or `other`.
+/// may still be going), `memory` (not enough free memory to restart compressed memory now),
+/// `refused` (XZram rejected the value) or `other`.
 /// `what` finishes "Couldn't …", for example "change the zram size".
 function describeError(error, what) {
     var raw = clip(error);
     var low = raw.toLowerCase();
+    if (String(error === undefined || error === null ? "" : error).toLowerCase().indexOf(MEMORY_REFUSAL) >= 0)
+        return { kind: "memory", message: LOW_MEMORY, raw: raw };
     if (low.indexOf("no answer within") >= 0 || low.indexOf("timeout") >= 0 || low.indexOf("timed out") >= 0 || low.indexOf("deadline") >= 0)
         return { kind: "pending", message: STILL_WORKING, raw: raw };
     if (low.indexOf("is not running") >= 0 || low.indexOf("serviceunknown") >= 0 || low.indexOf("was not provided") >= 0 || low.indexOf("could not be activated") >= 0 || low.indexOf("activation") >= 0 || low.indexOf("no such name") >= 0)
