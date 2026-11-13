@@ -210,6 +210,31 @@ pub fn ensure_swapfile_placement(path: &str) -> Result<()> {
     }
 }
 
+/// First of `paths` that is missing (per `exists`) and would be created in a snapshotted
+/// subvolume (per `probe`). Existing files are not this check's concern; doctor reports them.
+fn first_new_conflict<'a>(
+    paths: impl IntoIterator<Item = &'a str>,
+    exists: impl Fn(&str) -> bool,
+    probe: impl Fn(&str) -> Option<SwapfilePlacement>,
+) -> Option<SwapfilePlacement> {
+    paths.into_iter().filter(|p| !exists(p)).find_map(probe)
+}
+
+/// Snapshot restore: refuse up front, before anything changes, when it would recreate a
+/// missing swapfile where it blocks btrfs snapshots.
+pub fn ensure_restore_swapfiles_placement<'a>(
+    paths: impl IntoIterator<Item = &'a str>,
+) -> Result<()> {
+    match first_new_conflict(paths, |p| Path::new(p).exists(), swapfile_placement) {
+        None => Ok(()),
+        Some(placement) => Err(XzramError::Validation(format!(
+            "{}. Restoring this snapshot would recreate it there; nothing was changed. {}",
+            placement.message(),
+            placement.fix()
+        ))),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -278,6 +303,21 @@ mod tests {
         );
         // Unknown subvolume (stat failed): no claim either way.
         assert!(placement_for("/x", None, &snapper).is_none());
+    }
+
+    #[test]
+    fn restore_check_only_flags_missing_swapfiles_in_snapshotted_subvolumes() {
+        let probe = |p: &str| {
+            let sub = subvolume_root_with(Path::new(p), fake_stat);
+            placement_for(p, sub.as_deref(), &[])
+        };
+        let paths = ["/srv/swap/swapfile", "/swap/swapfile"];
+        // Both missing: the one in `/` (subvolume @) is refused, the nested subvolume is fine.
+        let hit = first_new_conflict(paths, |_| false, probe).unwrap();
+        assert_eq!(hit.path, "/swap/swapfile");
+        assert_eq!(hit.conflict, SnapshotConflict::RootSubvolume);
+        // Already present (restore leaves it alone; doctor reports it): no refusal.
+        assert!(first_new_conflict(paths, |p| p == "/swap/swapfile", probe).is_none());
     }
 
     #[test]

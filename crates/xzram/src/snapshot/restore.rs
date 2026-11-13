@@ -37,6 +37,9 @@ pub fn restore_snapshot(id: &str) -> Result<ApplyResult> {
     let extra = extra_swapfiles(&meta, hermetic)?;
 
     if !hermetic {
+        // A recreated swapfile in a snapshotted btrfs subvolume blocks its snapshots (#31).
+        let paths = meta.swapfiles.iter().map(|s| s.path.as_str());
+        crate::btrfs_subvol::ensure_restore_swapfiles_placement(paths)?;
         swapoff_managed_swaps(&meta, &extra)?;
     }
 
