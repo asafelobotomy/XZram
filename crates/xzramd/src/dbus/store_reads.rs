@@ -8,7 +8,7 @@ use super::auth::authorize;
 use super::util::json_map;
 use super::Manager;
 
-type JsonReply = std::collections::HashMap<String, zbus::zvariant::OwnedValue>;
+type JsonReply = std::collections::HashMap<String, zbus::OwnedVariant>;
 
 pub(super) async fn get_pending(mgr: &Manager, hdr: Header<'_>) -> zbus::fdo::Result<JsonReply> {
     authorize(&mgr.connection, &hdr, "io.github.xzram.store.read").await?;

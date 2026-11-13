@@ -18,7 +18,7 @@ pub(crate) async fn authorize(
             &subject,
             action_id,
             &HashMap::new(),
-            CheckAuthorizationFlags::AllowUserInteraction.into(),
+            CheckAuthorizationFlags::ALLOW_USER_INTERACTION,
             "",
         )
         .await

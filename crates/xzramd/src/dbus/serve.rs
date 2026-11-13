@@ -7,7 +7,7 @@ pub async fn serve() -> anyhow::Result<()> {
     // `Connection` (for polkit authorize() calls), so the interface can't be handed to
     // `Builder::serve_at()` ahead of `build()`. Requesting the name via `Builder::name()`
     // instead would race method calls arriving before the object server is set up.
-    let connection = zbus::connection::Builder::system()?.build().await?;
+    let connection = zbus::connection::Builder::system().build().await?;
 
     connection
         .object_server()
