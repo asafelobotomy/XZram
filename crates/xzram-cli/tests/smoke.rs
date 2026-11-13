@@ -78,3 +78,39 @@ fn doctor_exit_code_is_0_or_3() {
         serde_json::from_slice(&output.stdout).expect("doctor prints JSON report");
     assert_eq!(report["healthy"].as_bool(), Some(code == 0));
 }
+
+#[test]
+fn apply_offers_at_boot_and_force() {
+    Command::new(cargo_bin("xzram"))
+        .args(["apply", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("--at-boot").and(predicate::str::contains("--force")));
+}
+
+#[test]
+fn at_boot_and_force_conflict() {
+    Command::new(cargo_bin("xzram"))
+        .args(["apply", "--at-boot", "--force"])
+        .assert()
+        .code(2);
+}
+
+#[test]
+fn zram_set_force_needs_now() {
+    // Rejected before any privileged call.
+    Command::new(cargo_bin("xzram"))
+        .args(["zram", "set", "--size", "ram", "--force"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("--now"));
+}
+
+#[test]
+fn drain_overflow_is_listed() {
+    Command::new(cargo_bin("xzram"))
+        .args(["swap", "drain-overflow", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("--dry-run"));
+}

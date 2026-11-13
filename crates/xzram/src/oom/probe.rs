@@ -158,11 +158,19 @@ pub fn oom_kills_previous_boot() -> Option<usize> {
     Some(String::from_utf8_lossy(&output.stdout).lines().count())
 }
 
-/// Memory PSI averages (percent of wall time stalled).
-#[derive(Debug, Clone, Copy, Default, PartialEq)]
+/// PSI averages (percent of wall time stalled) from `/proc/pressure/{memory,io}`.
+#[derive(Debug, Clone, Copy, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct MemoryPressure {
+    #[serde(default)]
+    pub some_avg10: f64,
+    #[serde(default)]
+    pub some_avg60: f64,
     pub some_avg300: f64,
+    #[serde(default)]
+    pub full_avg10: f64,
     pub full_avg60: f64,
+    #[serde(default)]
+    pub full_avg300: f64,
 }
 
 pub fn parse_psi_memory(text: &str) -> Option<MemoryPressure> {
@@ -173,8 +181,12 @@ pub fn parse_psi_memory(text: &str) -> Option<MemoryPressure> {
             .and_then(|v| v.parse().ok())
     };
     Some(MemoryPressure {
+        some_avg10: field("some", "avg10=")?,
+        some_avg60: field("some", "avg60=")?,
         some_avg300: field("some", "avg300=")?,
+        full_avg10: field("full", "avg10=")?,
         full_avg60: field("full", "avg60=")?,
+        full_avg300: field("full", "avg300=")?,
     })
 }
 
@@ -198,8 +210,12 @@ mod tests {
         assert_eq!(
             parse_psi_memory(psi),
             Some(MemoryPressure {
+                some_avg10: 0.0,
+                some_avg60: 1.50,
                 some_avg300: 12.25,
+                full_avg10: 0.0,
                 full_avg60: 6.10,
+                full_avg300: 0.80,
             })
         );
         assert_eq!(parse_psi_memory("garbage"), None);

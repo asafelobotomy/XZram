@@ -1,4 +1,4 @@
-mod apply_rollback;
+pub(crate) mod apply_rollback;
 mod defaults;
 mod read;
 mod snapshot;
@@ -27,7 +27,7 @@ pub(crate) fn run(cli: Cli) -> anyhow::Result<u8> {
             DaemonCommands::Start => apply_rollback::daemon_start()?,
         },
         Commands::Defaults { command } => defaults::run(command, cli.json, cli.dbus)?,
-        Commands::Apply => apply_rollback::apply(cli.dbus)?,
+        Commands::Apply { zram } => apply_rollback::apply(cli.dbus, zram.options())?,
         Commands::Rollback => apply_rollback::rollback(cli.dbus)?,
         Commands::Snapshot { command } => snapshot::run(command, cli.json, cli.dbus)?,
     }

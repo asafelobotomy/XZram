@@ -4,7 +4,7 @@
 //! payload re-serialized from the validated struct — never the caller's raw string — so
 //! the helper only ever sees fields the daemon understood and checked.
 
-use xzram::apply::{SwapfileConfig, SwapfileResizeConfig, ZramConfig};
+use xzram::apply::{ApplyOptions, SwapfileConfig, SwapfileResizeConfig, ZramConfig};
 use xzram::sysctl::{self, SysctlValues};
 use xzram::validation;
 use zbus::message::Header;
@@ -25,12 +25,42 @@ pub(super) async fn apply_now_zram(
     hdr: Header<'_>,
     config_json: &str,
 ) -> zbus::fdo::Result<()> {
-    authorize(&mgr.connection, &hdr, "io.github.xzram.zram.configure").await?;
+    apply_zram_with_options(mgr, hdr, config_json, false, false).await
+}
+
+/// `zram.configure` helper payload: the bare config, or `{config, options}` when an option
+/// is set (keeps plain calls working with helpers that predate options).
+fn zram_configure_payload(config_json: &str, opts: ApplyOptions) -> zbus::fdo::Result<String> {
     let config: ZramConfig = validation::from_json_strict(config_json).map_err(invalid)?;
     validation::validate_zram_config(&config).map_err(invalid)?;
-    let payload = to_payload(&config)?;
+    if opts == ApplyOptions::default() {
+        return to_payload(&config);
+    }
+    to_payload(&serde_json::json!({ "config": config, "options": opts }))
+}
+
+pub(super) async fn apply_zram_with_options(
+    mgr: &Manager,
+    hdr: Header<'_>,
+    config_json: &str,
+    at_boot: bool,
+    force: bool,
+) -> zbus::fdo::Result<()> {
+    authorize(&mgr.connection, &hdr, "io.github.xzram.zram.configure").await?;
+    let payload = zram_configure_payload(config_json, ApplyOptions { at_boot, force })?;
     crate::privileged::run_helper(mgr.lock_gate().await, "zram.configure", &payload).await?;
     Ok(())
+}
+
+pub(super) async fn apply_with_options(
+    mgr: &Manager,
+    hdr: Header<'_>,
+    at_boot: bool,
+    force: bool,
+) -> zbus::fdo::Result<Vec<String>> {
+    authorize(&mgr.connection, &hdr, "io.github.xzram.apply").await?;
+    let payload = to_payload(&serde_json::json!({ "options": ApplyOptions { at_boot, force } }))?;
+    crate::privileged::run_helper(mgr.lock_gate().await, "apply", &payload).await
 }
 
 pub(super) async fn apply_now_zram_disable(
@@ -125,6 +155,24 @@ pub(super) async fn apply_now_sysctl(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn zram_payload_wraps_only_with_options() {
+        let json = r#"{"device":"zram0","zram_size":"ram","zram_resident_limit":null,
+            "compression_algorithm":"zstd","swap_priority":100,"fs_type":null,"mount_point":null}"#;
+        let plain = zram_configure_payload(json, ApplyOptions::default()).unwrap();
+        assert!(plain.starts_with(r#"{"device":"zram0""#), "{plain}");
+        let opts = ApplyOptions {
+            at_boot: true,
+            force: false,
+        };
+        let wrapped = zram_configure_payload(json, opts).unwrap();
+        assert!(
+            wrapped.contains(r#""options":{"at_boot":true,"force":false}"#),
+            "{wrapped}"
+        );
+        assert!(zram_configure_payload(r#"{"device":"zram0","x":1}"#, opts).is_err());
+    }
 
     #[test]
     fn swapfile_create_payload_rejects_non_bool_flags() {

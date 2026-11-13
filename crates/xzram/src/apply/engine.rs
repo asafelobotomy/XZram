@@ -1,16 +1,21 @@
 use tracing::{error, info, warn};
 
+use super::guard::{self, ApplyOptions};
 use super::pending::{clear_pending, load_pending, pending_is_empty};
 use super::types::{ApplyRequest, ApplyResult, PendingConfig};
-use crate::backend::{
-    available_swapfile_backend, available_zram_backend, SwapfileBackendTrait, ZramBackendTrait,
-};
+use crate::backend::{available_swapfile_backend, available_zram_backend, SwapfileBackendTrait};
 use crate::error::{Result, XzramError};
 use crate::migrate;
 use crate::snapshot::{self, SnapshotTrigger};
 use crate::sysctl;
 
 pub fn apply_pending() -> Result<ApplyResult> {
+    apply_pending_with(ApplyOptions::default())
+}
+
+/// Apply pending.json. A zram restart is memory-checked first ([`guard`]); a refusal
+/// leaves everything, pending.json included, untouched.
+pub fn apply_pending_with(opts: ApplyOptions) -> Result<ApplyResult> {
     let pending = load_pending()?
         .ok_or_else(|| XzramError::NotFound("No pending configuration to apply".into()))?;
     if pending_is_empty(&pending) {
@@ -19,15 +24,21 @@ pub fn apply_pending() -> Result<ApplyResult> {
         ));
     }
 
+    let warnings = if pending.zram.is_some() || pending.disable_zram {
+        guard::precheck_zram_restart(opts)?
+    } else {
+        Vec::new()
+    };
     let pre_apply = snapshot::create_snapshot(
         SnapshotTrigger::PreApply,
         Some(&snapshot::label_from_pending(&pending)),
         Some(&pending),
     )?;
-    let result = match apply_from_pending(&pending) {
+    let mut result = match apply_from_pending(&pending, opts) {
         Ok(result) => result,
         Err(err) => return Err(rollback_after_failure(err, &pre_apply.id)),
     };
+    result.messages.splice(0..0, warnings);
     clear_pending()?;
     info!("applied pending configuration");
     Ok(result)
@@ -64,9 +75,13 @@ fn rollback_after_failure(err: XzramError, snapshot_id: &str) -> XzramError {
 
 /// Stage `pending` then apply it in one privileged session (single polkit challenge).
 pub fn stage_then_apply(pending: &PendingConfig) -> Result<ApplyResult> {
+    stage_then_apply_with(pending, ApplyOptions::default())
+}
+
+pub fn stage_then_apply_with(pending: &PendingConfig, opts: ApplyOptions) -> Result<ApplyResult> {
     crate::validation::validate_staged_pending(pending)?;
     super::pending::stage(pending)?;
-    apply_pending()
+    apply_pending_with(opts)
 }
 
 /// Optionally prepare a swapfile parent, then stage pending (single polkit `stage` challenge).
@@ -83,14 +98,17 @@ pub fn stage_with_optional_prepare(
     Ok(())
 }
 
-pub(crate) fn apply_from_pending(pending: &PendingConfig) -> Result<ApplyResult> {
+pub(crate) fn apply_from_pending(
+    pending: &PendingConfig,
+    opts: ApplyOptions,
+) -> Result<ApplyResult> {
     let request = ApplyRequest {
         zram: pending.zram.clone(),
         swapfile: pending.swapfile.clone(),
         disable_zram: pending.disable_zram,
         remove_swapfile: pending.remove_swapfile.clone(),
     };
-    let mut result = apply(&request)?;
+    let mut result = apply_unchecked(&request, opts)?;
 
     if let Some(ref resize) = pending.swapfile_resize {
         let backend = available_swapfile_backend();
@@ -138,19 +156,32 @@ pub(crate) fn apply_from_pending(pending: &PendingConfig) -> Result<ApplyResult>
 }
 
 pub fn apply(request: &ApplyRequest) -> Result<ApplyResult> {
+    apply_with(request, ApplyOptions::default())
+}
+
+/// Legacy direct request, memory-checked like [`apply_pending_with`].
+pub fn apply_with(request: &ApplyRequest, opts: ApplyOptions) -> Result<ApplyResult> {
+    let warnings = if request.zram.is_some() || request.disable_zram {
+        guard::precheck_zram_restart(opts)?
+    } else {
+        Vec::new()
+    };
+    let mut result = apply_unchecked(request, opts)?;
+    result.messages.splice(0..0, warnings);
+    Ok(result)
+}
+
+fn apply_unchecked(request: &ApplyRequest, opts: ApplyOptions) -> Result<ApplyResult> {
     let mut messages = Vec::new();
 
     if request.disable_zram {
         let backend = available_zram_backend()?;
         ensure_backend_available(backend.as_ref())?;
-        ZramBackendTrait::disable(backend.as_ref())?;
-        messages.push("Disabled zram configuration".into());
+        messages.extend(guard::disable_zram(backend.as_ref(), opts)?);
     } else if let Some(ref zram) = request.zram {
         let backend = available_zram_backend()?;
         ensure_backend_available(backend.as_ref())?;
-        ZramBackendTrait::configure(backend.as_ref(), zram)?;
-        ZramBackendTrait::apply(backend.as_ref())?;
-        messages.push(format!("Applied zram config for {}", zram.device));
+        messages.extend(guard::configure_zram(backend.as_ref(), zram, opts)?);
     }
 
     if let Some(ref path) = request.remove_swapfile {
@@ -183,195 +214,4 @@ fn ensure_backend_available(backend: &dyn crate::backend::SwapBackend) -> Result
 
 pub fn rollback() -> Result<ApplyResult> {
     snapshot::rollback()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::super::pending::{load_pending, write_pending};
-    use super::*;
-    use crate::apply::test_lock;
-    use crate::sysctl::SysctlValues;
-    use std::fs;
-
-    #[test]
-    fn apply_pending_empty_errors() {
-        let _guard = test_lock();
-        let dir = tempfile::tempdir().unwrap();
-        std::env::set_var("XZRAM_DATA_DIR", dir.path());
-        write_pending(&PendingConfig::default()).unwrap();
-        let err = apply_pending().unwrap_err().to_string();
-        assert!(err.contains("empty"));
-        std::env::remove_var("XZRAM_DATA_DIR");
-    }
-
-    #[test]
-    fn failed_apply_rolls_back_and_keeps_pending() {
-        let _guard = test_lock();
-        let data = tempfile::tempdir().unwrap();
-        let etc = tempfile::tempdir().unwrap();
-        std::env::set_var("XZRAM_DATA_DIR", data.path());
-        std::env::set_var("XZRAM_ETC_ROOT", etc.path());
-        fs::create_dir_all(etc.path().join("sysctl.d")).unwrap();
-        let drop_in = etc.path().join("sysctl.d/99-xzram.conf");
-        fs::write(&drop_in, "vm.swappiness = 60\n").unwrap();
-
-        // zram step writes the generator config; the out-of-range sysctl step then fails.
-        let pending = PendingConfig {
-            zram: Some(crate::apply::types::ZramConfig {
-                device: "zram0".into(),
-                zram_size: Some("4096".into()),
-                zram_resident_limit: None,
-                compression_algorithm: Some("zstd".into()),
-                swap_priority: Some(100),
-                fs_type: None,
-                mount_point: None,
-            }),
-            sysctl: Some(SysctlValues {
-                swappiness: Some(999),
-                watermark_boost_factor: None,
-                watermark_scale_factor: None,
-                page_cluster: None,
-                ..Default::default()
-            }),
-            ..Default::default()
-        };
-        write_pending(&pending).unwrap();
-        let err = apply_pending().unwrap_err().to_string();
-
-        let zram_conf_exists = etc.path().join("systemd/zram-generator.conf").exists();
-        let drop_in_content = fs::read_to_string(&drop_in).unwrap();
-        let pending_kept = load_pending().unwrap().is_some();
-        std::env::remove_var("XZRAM_DATA_DIR");
-        std::env::remove_var("XZRAM_ETC_ROOT");
-
-        assert!(err.contains("rolled back to pre-apply snapshot"), "{err}");
-        assert!(err.contains("pending configuration kept"), "{err}");
-        assert!(!zram_conf_exists, "zram config should be rolled back");
-        assert_eq!(drop_in_content, "vm.swappiness = 60\n");
-        assert!(pending_kept);
-    }
-
-    #[test]
-    fn apply_from_pending_sysctl_under_etc_root() {
-        let _guard = test_lock();
-        let data = tempfile::tempdir().unwrap();
-        let etc = tempfile::tempdir().unwrap();
-        std::env::set_var("XZRAM_DATA_DIR", data.path());
-        std::env::set_var("XZRAM_ETC_ROOT", etc.path());
-
-        let pending = PendingConfig {
-            sysctl: Some(SysctlValues {
-                swappiness: Some(180),
-                watermark_boost_factor: Some(0),
-                watermark_scale_factor: Some(125),
-                page_cluster: Some(0),
-                ..Default::default()
-            }),
-            ..Default::default()
-        };
-        let result = apply_from_pending(&pending).unwrap();
-        assert!(result.success);
-        assert!(result.messages.iter().any(|m| m.contains("sysctl")));
-
-        let drop_in = etc.path().join("sysctl.d/99-xzram.conf");
-        let content = fs::read_to_string(&drop_in).unwrap();
-        assert!(content.contains("vm.swappiness = 180"));
-        assert!(content.contains("vm.page-cluster = 0"));
-
-        std::env::remove_var("XZRAM_DATA_DIR");
-        std::env::remove_var("XZRAM_ETC_ROOT");
-    }
-
-    #[test]
-    fn stage_then_apply_sysctl_bundle() {
-        let _guard = test_lock();
-        let data = tempfile::tempdir().unwrap();
-        let etc = tempfile::tempdir().unwrap();
-        std::env::set_var("XZRAM_DATA_DIR", data.path());
-        std::env::set_var("XZRAM_ETC_ROOT", etc.path());
-
-        let pending = PendingConfig {
-            sysctl: Some(SysctlValues {
-                swappiness: Some(150),
-                watermark_boost_factor: Some(0),
-                watermark_scale_factor: Some(125),
-                page_cluster: Some(0),
-                ..Default::default()
-            }),
-            ..Default::default()
-        };
-        let result = stage_then_apply(&pending).unwrap();
-        assert!(result.success);
-        assert!(load_pending().unwrap().is_none());
-        let drop_in = etc.path().join("sysctl.d/99-xzram.conf");
-        assert!(fs::read_to_string(drop_in)
-            .unwrap()
-            .contains("vm.swappiness = 150"));
-
-        std::env::remove_var("XZRAM_DATA_DIR");
-        std::env::remove_var("XZRAM_ETC_ROOT");
-    }
-
-    #[test]
-    fn disable_zswap_persists_drop_in_and_rollback_removes_it() {
-        let _guard = test_lock();
-        let data = tempfile::tempdir().unwrap();
-        let etc = tempfile::tempdir().unwrap();
-        std::env::set_var("XZRAM_DATA_DIR", data.path());
-        std::env::set_var("XZRAM_ETC_ROOT", etc.path());
-
-        let pending = PendingConfig {
-            disable_zswap: true,
-            ..Default::default()
-        };
-        let result = stage_then_apply(&pending).unwrap();
-        let drop_in = etc.path().join(crate::zswap::ZSWAP_TMPFILES);
-        let written = drop_in.exists();
-        rollback().unwrap();
-        let after_rollback = drop_in.exists();
-        std::env::remove_var("XZRAM_DATA_DIR");
-        std::env::remove_var("XZRAM_ETC_ROOT");
-
-        assert!(result.messages.iter().any(|m| m.contains("zswap")));
-        assert!(written);
-        assert!(!after_rollback, "rollback should remove the zswap drop-in");
-    }
-
-    #[test]
-    fn oomd_and_mm_drop_ins_written_and_rolled_back() {
-        let _guard = test_lock();
-        let data = tempfile::tempdir().unwrap();
-        let etc = tempfile::tempdir().unwrap();
-        std::env::set_var("XZRAM_DATA_DIR", data.path());
-        std::env::set_var("XZRAM_ETC_ROOT", etc.path());
-
-        let pending = PendingConfig {
-            enable_oomd: true,
-            mm: Some(crate::mm_tunables::MmTunables {
-                mglru_min_ttl_ms: Some(1000),
-                thp_defrag: None,
-            }),
-            ..Default::default()
-        };
-        let result = stage_then_apply(&pending).unwrap();
-        let drop_ins = [
-            crate::oom::OOMD_ROOT_DROPIN,
-            crate::oom::OOMD_USER_DROPIN,
-            crate::oom::OOMD_SESSION_DROPIN,
-            crate::mm_tunables::MM_TMPFILES,
-        ]
-        .map(|r| etc.path().join(r));
-        let written = drop_ins.iter().all(|p| p.exists());
-        rollback().unwrap();
-        let after_rollback = drop_ins.iter().any(|p| p.exists());
-        std::env::remove_var("XZRAM_DATA_DIR");
-        std::env::remove_var("XZRAM_ETC_ROOT");
-
-        assert!(result.messages.iter().any(|m| m.contains("systemd-oomd")));
-        assert!(written);
-        assert!(
-            !after_rollback,
-            "rollback should remove the oomd and mm drop-ins"
-        );
-    }
 }

@@ -159,24 +159,38 @@ usual RPM workflow). Packages: `xzram` (CLI/daemon) and `xzram-gui` (Qt).
 ## CLI reference
 
 ```
-xzram status              # all swap devices, zram stats, priorities
-xzram doctor              # detect zswap conflict, hibernation issues
+xzram status              # all swap devices, zram stats, priorities, memory/io PSI
+xzram doctor              # health checks; headline "System healthy" / "Healthy, N warnings" / "Issues found: ..."
 xzram detect              # distro, backend, installed packages
 
 xzram zram show|set|disable|migrate
+xzram zram set --size 'min(ram, 16384)' --now   # restart zram now (memory-checked)
+xzram zram set --size 'min(ram, 16384)' --at-boot  # write config; takes effect at next boot
 xzram swapfile list|create|resize|remove
 xzram swap list|on|off    # list includes fstab partitions
+xzram swap drain-overflow [--dry-run] [--force]  # move disk-swap overflow back into zram
 xzram sysctl show|set
 xzram defaults recommend|stage|apply
 xzram pending show|clear  # inspect/clear staged config
 xzram daemon start        # enable and start xzramd (pkexec)
 xzram apply               # apply staged configuration
+xzram apply --at-boot     # same, but zram changes wait for the next boot (no swapoff now)
+xzram apply --force       # restart zram even if free memory can't take its stored data
 xzram snapshot list       # list configuration snapshots
 xzram snapshot restore last-apply
 xzram rollback            # alias: restore last pre-apply snapshot
 
 Global flags: --json, --dbus, --now (on write commands)
 ```
+
+Changing zram (size, algorithm, disable) restarts the device, which first moves everything
+stored in it back into RAM. `apply`, `zram set --now` and `zram disable --now` refuse
+("not enough free memory", nothing changed) when `MemAvailable` is below the stored data
+plus a margin; use `--at-boot` to defer the change to the next boot or `--force` to go
+ahead. `xzram swap drain-overflow` is opt-in and uses the same check. On btrfs, swapfiles
+are refused inside a snapshotted subvolume (the root subvolume, `/home`, or any snapper
+config): btrfs cannot snapshot a subvolume with an active swapfile. See
+[docs/RECOMMENDATIONS.md](docs/RECOMMENDATIONS.md) (§ zram-saturation, § btrfs-swap-subvolume).
 
 ### Exit codes
 
@@ -185,7 +199,7 @@ Global flags: --json, --dbus, --now (on write commands)
 | `0` | Success |
 | `1` | Error (operation failed, authorization cancelled/denied, D-Bus failure, ...) |
 | `2` | Usage error (invalid arguments) |
-| `3` | `xzram doctor` completed but reported the system as **unhealthy** (the report is still printed; with `--json` it is valid JSON) |
+| `3` | `xzram doctor` completed but reported the system as **unhealthy**, i.e. at least one error (the report is still printed; with `--json` it is valid JSON with `healthy`, `errors`, `warnings` and `summary`). Warnings alone keep exit `0` |
 
 With `--dbus`, a privileged command falls back to pkexec only when xzramd cannot be
 reached *before* the request is sent. If xzramd stops responding mid-call, the command

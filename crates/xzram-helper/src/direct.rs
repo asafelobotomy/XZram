@@ -7,7 +7,7 @@
 use std::path::Path;
 
 use serde::Deserialize;
-use xzram::apply::{self, SwapfileConfig, ZramConfig};
+use xzram::apply::{self, guard, ApplyOptions, SwapfileConfig, ZramConfig};
 use xzram::backend::{available_swapfile_backend, ensure_zram_backend, SwapfileBackendTrait};
 use xzram::snapshot::{self, SnapshotTrigger};
 use xzram::sysctl::{self, SysctlValues};
@@ -35,23 +35,84 @@ fn swapfile_backend() -> Result<Box<dyn SwapfileBackendTrait>> {
     Ok(backend)
 }
 
+fn is_empty(payload: &str) -> bool {
+    let t = payload.trim();
+    t.is_empty() || t == "{}"
+}
+
+fn print_lines<'a>(lines: impl IntoIterator<Item = &'a String>) {
+    for line in lines {
+        println!("{line}");
+    }
+}
+
+/// `{}` or `{"options": {"at_boot": bool, "force": bool}}`.
+pub fn parse_options(payload: &str) -> Result<ApplyOptions> {
+    if is_empty(payload) {
+        return Ok(ApplyOptions::default());
+    }
+    #[derive(Deserialize, serde::Serialize)]
+    struct Wrapper {
+        options: ApplyOptions,
+    }
+    Ok(validation::from_json_strict::<Wrapper>(payload)?.options)
+}
+
+/// A bare `ZramConfig`, or `{"config": ZramConfig, "options": ApplyOptions}`.
+fn parse_zram_configure(payload: &str) -> Result<(ZramConfig, ApplyOptions)> {
+    let value: serde_json::Value = parse(payload)?;
+    if value.get("config").is_some() {
+        #[derive(Deserialize, serde::Serialize)]
+        struct Wrapper {
+            config: ZramConfig,
+            #[serde(default)]
+            options: ApplyOptions,
+        }
+        let w: Wrapper = validation::from_value_strict(&value)?;
+        return Ok((w.config, w.options));
+    }
+    Ok((
+        validation::from_value_strict(&value)?,
+        ApplyOptions::default(),
+    ))
+}
+
 /// Run a direct action. Returns `Ok(false)` when `action` is not a direct action.
 pub fn run(action: &str, payload: &str) -> Result<bool> {
     match action {
         "zram.configure" => {
-            let config: ZramConfig = validation::from_json_strict(payload)?;
+            let (config, opts) = parse_zram_configure(payload)?;
             validation::validate_zram_config(&config)?;
             let backend = ensure_zram_backend()?;
+            // Memory check before the snapshot: a refusal changes nothing.
+            let warnings = guard::precheck_zram_restart(opts)?;
             pre_change_snapshot(action)?;
-            backend.configure(&config)?;
-            backend.apply()?;
+            let messages = guard::configure_zram(backend.as_ref(), &config, opts)?;
+            print_lines(warnings.iter().chain(&messages));
             println!("ZRAM configured");
         }
         "zram.disable" => {
+            let opts = parse_options(payload)?;
             let backend = ensure_zram_backend()?;
+            let warnings = guard::precheck_zram_restart(opts)?;
             pre_change_snapshot(action)?;
-            backend.disable()?;
+            let messages = guard::disable_zram(backend.as_ref(), opts)?;
+            print_lines(warnings.iter().chain(&messages));
             println!("ZRAM disabled");
+        }
+        "swap.drain-overflow" => {
+            #[derive(Deserialize, serde::Serialize)]
+            struct DrainPayload {
+                #[serde(default)]
+                force: bool,
+            }
+            let p: DrainPayload = if is_empty(payload) {
+                DrainPayload { force: false }
+            } else {
+                validation::from_json_strict(payload)?
+            };
+            // Only swapoff/swapon; no configuration changes, so no snapshot.
+            print_lines(&apply::drain_overflow(p.force)?);
         }
         "swapfile.create" => {
             let value: serde_json::Value = parse(payload)?;
@@ -126,4 +187,36 @@ pub fn run(action: &str, payload: &str) -> Result<bool> {
         _ => return Ok(false),
     }
     Ok(true)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn zram_configure_accepts_bare_and_wrapped_payloads() {
+        let bare = r#"{"device":"zram0","zram_size":"ram","zram_resident_limit":null,
+            "compression_algorithm":"zstd","swap_priority":100,"fs_type":null,"mount_point":null}"#;
+        let (config, opts) = parse_zram_configure(bare).unwrap();
+        assert_eq!(config.zram_size.as_deref(), Some("ram"));
+        assert_eq!(opts, ApplyOptions::default());
+
+        let wrapped = format!(r#"{{"config":{bare},"options":{{"at_boot":true}}}}"#);
+        let (_, opts) = parse_zram_configure(&wrapped).unwrap();
+        assert!(opts.at_boot && !opts.force);
+
+        let unknown = format!(r#"{{"config":{bare},"options":{{"later":true}}}}"#);
+        assert!(parse_zram_configure(&unknown).is_err());
+    }
+
+    #[test]
+    fn options_payloads() {
+        assert_eq!(parse_options("{}").unwrap(), ApplyOptions::default());
+        assert!(
+            parse_options(r#"{"options":{"force":true}}"#)
+                .unwrap()
+                .force
+        );
+        assert!(parse_options(r#"{"force":true}"#).is_err());
+    }
 }

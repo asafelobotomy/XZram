@@ -29,8 +29,10 @@ label = "Active swap"
 keywords = ["swap file", "swap partition", "swap devices", "memory"]
 
 # No `bus_name`: xzramd is started on demand by the bus, so the page shows while xzram is
-# installed. Reads are open to every user. The two Apply methods ask for an administrator
+# installed. Reads are open to every user. The Apply methods ask for an administrator
 # password (a polkit prompt), which takes longer than the default 2 seconds.
+# ApplyZramWithOptions is only called with at_boot = true, after ApplyNowZram was refused
+# for lack of free memory: it writes the zram settings for the next restart.
 [requires]
 bins = ["xzram"]
 
@@ -39,5 +41,5 @@ name = "io.github.XZram1"
 path = "/io/github/XZram"
 interface = "io.github.XZram.Manager"
 bus = "system"
-methods = ["GetStatus", "GetZramConfig", "GetSysctl", "ListSwaps", "ApplyNowZram", "ApplyNowSysctl"]
-timeout_ms = { ApplyNowZram = 120000, ApplyNowSysctl = 120000 }
+methods = ["GetStatus", "GetZramConfig", "GetSysctl", "ListSwaps", "ApplyNowZram", "ApplyZramWithOptions", "ApplyNowSysctl"]
+timeout_ms = { ApplyNowZram = 120000, ApplyZramWithOptions = 120000, ApplyNowSysctl = 120000 }

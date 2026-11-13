@@ -127,6 +127,19 @@ fn print_json_field(reply: &Message) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// `(at_boot, force)` from a payload's `options` object, if it has one.
+fn parse_options(payload: &str) -> anyhow::Result<Option<(bool, bool)>> {
+    let trimmed = payload.trim();
+    if trimmed.is_empty() || trimmed == "{}" {
+        return Ok(None);
+    }
+    let value: serde_json::Value = serde_json::from_str(trimmed)?;
+    Ok(value.get("options").map(|o| {
+        let flag = |k: &str| o.get(k).and_then(|v| v.as_bool()).unwrap_or(false);
+        (flag("at_boot"), flag("force"))
+    }))
+}
+
 pub fn call(action: &str, payload: &str) -> anyhow::Result<()> {
     let (_conn, proxy) = manager_proxy()?;
     let call = |method: &str| call_classified(&proxy, method, &());
@@ -138,7 +151,14 @@ pub fn call(action: &str, payload: &str) -> anyhow::Result<()> {
         "pending.clear" => {
             call("ClearPending")?;
         }
-        "apply" => print_messages(&call("Apply")?)?,
+        "apply" => match parse_options(payload)? {
+            Some((at_boot, force)) => print_messages(&call_classified(
+                &proxy,
+                "ApplyWithOptions",
+                &(at_boot, force),
+            )?)?,
+            None => print_messages(&call("Apply")?)?,
+        },
         "rollback" => print_messages(&call("Rollback")?)?,
         "snapshot.restore" => {
             let parsed: serde_json::Value = serde_json::from_str(payload)?;
@@ -169,7 +189,17 @@ pub fn call(action: &str, payload: &str) -> anyhow::Result<()> {
             )?)?;
         }
         "zram.configure" => {
-            call_classified(&proxy, "ApplyNowZram", &(payload,))?;
+            let parsed: serde_json::Value = serde_json::from_str(payload)?;
+            match parsed.get("config") {
+                Some(config) => {
+                    let (at_boot, force) = parse_options(payload)?.unwrap_or((false, false));
+                    let config = config.to_string();
+                    call_classified(&proxy, "ApplyZramWithOptions", &(config, at_boot, force))?;
+                }
+                None => {
+                    call_classified(&proxy, "ApplyNowZram", &(payload,))?;
+                }
+            }
             println!("ZRAM configured");
         }
         "zram.disable" => {
@@ -210,9 +240,9 @@ pub fn call(action: &str, payload: &str) -> anyhow::Result<()> {
         "zram.migrate" => {
             call("MigrateZram")?;
         }
-        "swap.activate" => {
+        "swap.activate" | "swap.drain-overflow" => {
             // Rejected before any request is sent, so pkexec fallback is safe.
-            return Err(ServiceUnavailable("swap.activate not supported via D-Bus".into()).into());
+            return Err(ServiceUnavailable(format!("{action} not supported via D-Bus")).into());
         }
         other => anyhow::bail!("unsupported D-Bus action: {other}"),
     }
@@ -263,6 +293,16 @@ mod tests {
             classify_error_name("io.github.XZram.Error.Failed"),
             CallFailure::Failed
         );
+    }
+
+    #[test]
+    fn parses_apply_options() {
+        assert_eq!(parse_options("{}").unwrap(), None);
+        assert_eq!(
+            parse_options(r#"{"options":{"at_boot":true,"force":false}}"#).unwrap(),
+            Some((true, false))
+        );
+        assert_eq!(parse_options(r#"{"device":"zram0"}"#).unwrap(), None);
     }
 
     #[test]

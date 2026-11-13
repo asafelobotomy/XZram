@@ -1,4 +1,4 @@
-use xzram::apply::{PendingConfig, ZramConfig};
+use xzram::apply::{ApplyOptions, PendingConfig, ZramConfig};
 use xzram::backend::available_zram_backend;
 use xzram::config::default_zram_config;
 
@@ -25,6 +25,7 @@ pub(crate) fn run(command: ZramCommands, json: bool, dbus: bool) -> anyhow::Resu
             algorithm,
             priority,
             now,
+            restart,
         } => {
             let defaults = default_zram_config();
             let config = ZramConfig {
@@ -48,16 +49,31 @@ pub(crate) fn run(command: ZramCommands, json: bool, dbus: bool) -> anyhow::Resu
                 zram: Some(config.clone()),
                 ..Default::default()
             };
-            if now {
-                run_privileged(dbus, "zram.configure", &serde_json::to_string(&config)?)?;
+            let opts = restart.options();
+            if now || opts.at_boot {
+                // --at-boot writes the generator config now; the device changes at boot.
+                let payload = if opts == ApplyOptions::default() {
+                    serde_json::to_string(&config)?
+                } else {
+                    serde_json::to_string(
+                        &serde_json::json!({ "config": config, "options": opts }),
+                    )?
+                };
+                run_privileged(dbus, "zram.configure", &payload)?;
+            } else if opts.force {
+                anyhow::bail!("--force only applies with --now (or to 'xzram apply')");
             } else {
                 run_privileged(dbus, "stage", &serde_json::to_string(&pending)?)?;
                 println!("Staged zram configuration; run 'xzram apply' to apply");
             }
         }
-        ZramCommands::Disable { now } => {
-            if now {
-                run_privileged(dbus, "zram.disable", "{}")?;
+        ZramCommands::Disable { now, restart } => {
+            let opts = restart.options();
+            if now || opts.at_boot {
+                let payload = crate::commands::apply_rollback::options_payload(opts)?;
+                run_privileged(dbus, "zram.disable", &payload)?;
+            } else if opts.force {
+                anyhow::bail!("--force only applies with --now (or to 'xzram apply')");
             } else {
                 let pending = PendingConfig {
                     disable_zram: true,

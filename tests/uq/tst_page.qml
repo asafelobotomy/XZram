@@ -31,6 +31,7 @@ Item {
             GetSysctl: reply({ swappiness: 60 }),
             ListSwaps: reply(swapsDoc),
             ApplyNowZram: { value: null },
+            ApplyZramWithOptions: { value: null },
             ApplyNowSysctl: { value: null }
         };
     }
@@ -57,7 +58,7 @@ Item {
     }
 
     function writes() {
-        return fake.calls.filter(c => c[0] === "call" && c[1].indexOf("ApplyNow") === 0);
+        return fake.calls.filter(c => c[0] === "call" && c[1].indexOf("Apply") === 0);
     }
 
     TestCase {
@@ -151,6 +152,26 @@ Item {
             compare(part("rawDetail").visible, false);
             part("advancedButton").clicked();
             verify(part("rawDetail").visible);
+        }
+
+        function test_low_memory_offers_the_next_restart() {
+            fake.dbus.ApplyNowZram = { error: "io.github.XZram.Error.Failed: xzram-helper: validation error: not enough free memory: restarting zram0 brings about 3.5 GiB back into RAM" };
+            compare(part("atBootButton").visible, false);
+            const box = part("sizeBox");
+            box.currentIndex = 3;
+            box.activated(3);
+            part("confirmDialog").accept();
+            tryVerify(() => part("atBootButton").visible);
+            verify(part("problemLabel").text.indexOf("next restart") >= 0);
+            part("atBootButton").clicked();
+            tryVerify(() => root.writes().length === 2);
+            const call = root.writes()[1];
+            compare(call[1], "ApplyZramWithOptions");
+            compare(JSON.parse(call[2][0]).zram_size, "ram");
+            compare(call[2][1], true, "at the next boot only");
+            compare(call[2][2], false, "never forced");
+            tryVerify(() => part("noticeLabel").text === "Saved. It takes effect at the next restart.");
+            compare(part("atBootButton").visible, false);
         }
 
         function test_swappiness_applies_on_apply_only() {

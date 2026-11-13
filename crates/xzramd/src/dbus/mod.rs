@@ -50,6 +50,12 @@ impl Manager {
     async fn lock_gate(&self) -> OwnedMutexGuard<()> {
         self.gate.clone().lock_owned().await
     }
+
+    /// Stage `pending` under the store gate (callers authorize and validate first).
+    async fn stage_locked(&self, pending: &PendingConfig) -> zbus::fdo::Result<()> {
+        let _guard = self.gate.lock().await;
+        stage(pending).map_err(|e| zbus::fdo::Error::Failed(e.to_string()))
+    }
 }
 
 #[interface(name = "io.github.XZram.Manager")]
@@ -133,9 +139,7 @@ impl Manager {
             zram: Some(config),
             ..Default::default()
         };
-        let _guard = self.gate.lock().await;
-        stage(&pending).map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
-        Ok(())
+        self.stage_locked(&pending).await
     }
 
     async fn disable_zram(&self, #[zbus(header)] hdr: Header<'_>) -> zbus::fdo::Result<()> {
@@ -144,9 +148,7 @@ impl Manager {
             disable_zram: true,
             ..Default::default()
         };
-        let _guard = self.gate.lock().await;
-        stage(&pending).map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
-        Ok(())
+        self.stage_locked(&pending).await
     }
 
     async fn create_swapfile(
@@ -168,9 +170,7 @@ impl Manager {
             swapfile: Some(config),
             ..Default::default()
         };
-        let _guard = self.gate.lock().await;
-        stage(&pending).map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
-        Ok(())
+        self.stage_locked(&pending).await
     }
 
     async fn remove_swapfile(
@@ -185,9 +185,7 @@ impl Manager {
             remove_swapfile: Some(path.into()),
             ..Default::default()
         };
-        let _guard = self.gate.lock().await;
-        stage(&pending).map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
-        Ok(())
+        self.stage_locked(&pending).await
     }
 
     async fn resize_swapfile(
@@ -206,9 +204,7 @@ impl Manager {
             }),
             ..Default::default()
         };
-        let _guard = self.gate.lock().await;
-        stage(&pending).map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
-        Ok(())
+        self.stage_locked(&pending).await
     }
 
     async fn set_sysctl(
@@ -224,14 +220,23 @@ impl Manager {
             ..Default::default()
         };
         validate_staged_pending(&pending)?;
-        let _guard = self.gate.lock().await;
-        stage(&pending).map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
-        Ok(())
+        self.stage_locked(&pending).await
     }
 
     async fn apply(&self, #[zbus(header)] hdr: Header<'_>) -> zbus::fdo::Result<Vec<String>> {
         authorize(&self.connection, &hdr, "io.github.xzram.apply").await?;
         crate::privileged::run_helper(self.lock_gate().await, "apply", "{}").await
+    }
+
+    /// Apply with `at_boot` (zram restart deferred to the next boot) / `force` (skip the
+    /// memory check before restarting zram).
+    async fn apply_with_options(
+        &self,
+        #[zbus(header)] hdr: Header<'_>,
+        at_boot: bool,
+        force: bool,
+    ) -> zbus::fdo::Result<Vec<String>> {
+        apply_now::apply_with_options(self, hdr, at_boot, force).await
     }
 
     async fn rollback(&self, #[zbus(header)] hdr: Header<'_>) -> zbus::fdo::Result<Vec<String>> {
@@ -314,9 +319,7 @@ impl Manager {
         let pending =
             migrate_from_zram_tools().map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
         validate_staged_pending(&pending)?;
-        let _guard = self.gate.lock().await;
-        stage(&pending).map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
-        Ok(())
+        self.stage_locked(&pending).await
     }
 
     async fn stage_action(
@@ -328,9 +331,7 @@ impl Manager {
         let pending: PendingConfig = xzram::validation::from_json_strict(pending_json)
             .map_err(|e| zbus::fdo::Error::InvalidArgs(e.to_string()))?;
         validate_staged_pending(&pending)?;
-        let _guard = self.gate.lock().await;
-        stage(&pending).map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
-        Ok(())
+        self.stage_locked(&pending).await
     }
 
     async fn apply_now_zram(
@@ -339,6 +340,16 @@ impl Manager {
         config_json: &str,
     ) -> zbus::fdo::Result<()> {
         apply_now::apply_now_zram(self, hdr, config_json).await
+    }
+
+    async fn apply_zram_with_options(
+        &self,
+        #[zbus(header)] hdr: Header<'_>,
+        config_json: &str,
+        at_boot: bool,
+        force: bool,
+    ) -> zbus::fdo::Result<()> {
+        apply_now::apply_zram_with_options(self, hdr, config_json, at_boot, force).await
     }
 
     async fn apply_now_zram_disable(

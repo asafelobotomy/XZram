@@ -7,7 +7,7 @@ _xzram() {
     local commands="status detect doctor zram swapfile swap sysctl pending daemon defaults apply rollback snapshot"
     local zram_cmds="show set disable migrate"
     local swapfile_cmds="list create resize remove check prepare"
-    local swap_cmds="list on off"
+    local swap_cmds="list on off drain-overflow"
     local sysctl_cmds="show set"
     local pending_cmds="show clear"
     local daemon_cmds="start"
@@ -20,12 +20,14 @@ _xzram() {
                 2) COMPREPLY=($(compgen -W "$zram_cmds" -- "$cur")) ;;
                 3)
                     if [[ ${words[2]} == "set" ]]; then
-                        COMPREPLY=($(compgen -W "--device --size --algorithm --priority --now" -- "$cur"))
-                    elif [[ ${words[2]} == "disable" || ${words[2]} == "migrate" ]]; then
+                        COMPREPLY=($(compgen -W "--device --size --algorithm --priority --now --at-boot --force" -- "$cur"))
+                    elif [[ ${words[2]} == "disable" ]]; then
+                        COMPREPLY=($(compgen -W "--now --at-boot --force" -- "$cur"))
+                    elif [[ ${words[2]} == "migrate" ]]; then
                         COMPREPLY=($(compgen -W "--now" -- "$cur"))
                     fi
                     ;;
-                *) COMPREPLY=($(compgen -W "--device --size --algorithm --priority --now --json" -- "$cur")) ;;
+                *) COMPREPLY=($(compgen -W "--device --size --algorithm --priority --now --at-boot --force --json" -- "$cur")) ;;
             esac
             ;;
         swapfile)
@@ -39,7 +41,15 @@ _xzram() {
         swap)
             case $cword in
                 2) COMPREPLY=($(compgen -W "$swap_cmds" -- "$cur")) ;;
+                *)
+                    if [[ ${words[2]} == "drain-overflow" ]]; then
+                        COMPREPLY=($(compgen -W "--force --dry-run --json --dbus" -- "$cur"))
+                    fi
+                    ;;
             esac
+            ;;
+        apply)
+            COMPREPLY=($(compgen -W "--at-boot --force --json --dbus" -- "$cur"))
             ;;
         sysctl)
             case $cword in

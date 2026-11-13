@@ -1,6 +1,7 @@
 mod engine;
 mod engine_build;
 mod engine_notes;
+mod engine_overflow;
 mod host_fixes;
 mod link;
 mod link_sanitize;
@@ -10,8 +11,10 @@ mod oom_fixes;
 mod overflow;
 mod profile;
 pub mod scales;
+mod size_expr;
 mod staging;
 mod types;
+mod zram_saturation;
 
 pub use engine::{
     recommend, recommend_with_scales, stage_recommended, stage_recommended_with_scales,

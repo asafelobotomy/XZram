@@ -24,7 +24,7 @@ signals:
 
 private:
     void clearState();
-    void updateHealthChip(bool healthy, int issueCount);
+    void updateHealthChip(bool healthy, int issueCount, int warnings, const QString &summary);
 
     QLabel *m_memLabel;
     QProgressBar *m_memBar;

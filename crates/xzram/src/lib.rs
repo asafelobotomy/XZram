@@ -1,5 +1,6 @@
 pub mod apply;
 pub mod backend;
+pub mod btrfs_subvol;
 pub mod checks;
 pub mod config;
 pub mod detect;
@@ -11,6 +12,7 @@ pub mod mm_tunables;
 pub mod oom;
 pub mod placement;
 pub mod recommend;
+pub mod saturation;
 pub mod snapshot;
 pub mod status;
 pub mod swap_partition;

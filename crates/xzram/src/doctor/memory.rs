@@ -307,6 +307,7 @@ mod tests {
             Some(MemoryPressure {
                 some_avg300: 15.0,
                 full_avg60: 2.0,
+                ..Default::default()
             }),
         );
         check_memory_pressure(
@@ -314,6 +315,7 @@ mod tests {
             Some(MemoryPressure {
                 some_avg300: 40.0,
                 full_avg60: 25.0,
+                ..Default::default()
             }),
         );
         assert_eq!(

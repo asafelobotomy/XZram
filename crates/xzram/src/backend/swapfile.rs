@@ -69,6 +69,8 @@ impl SwapfileBackendTrait for SwapfileBackend {
 
         // Validation includes the root-owned-ancestor check (ensure_secure_swap_location).
         let path = Path::new(&config.path);
+        // A swapfile in a snapshotted btrfs subvolume makes every snapshot of it fail.
+        crate::btrfs_subvol::ensure_swapfile_placement(&config.path)?;
         // Builds at a staging sibling and renames into place; refuses active swap.
         swapfile_btrfs::create_allocated_swapfile(path, config.size_mb)?;
 

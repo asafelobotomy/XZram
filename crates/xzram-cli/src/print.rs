@@ -57,6 +57,20 @@ pub(crate) fn print_status(report: &status::StatusReport) {
     }
 }
 
+pub(crate) fn print_pressure(p: &status::PressureReport) {
+    if p.memory.is_none() && p.io.is_none() {
+        return;
+    }
+    println!("\n=== Pressure (PSI, % of time stalled: avg10 / avg60 / avg300) ===");
+    for (name, psi) in [("memory", p.memory), ("io", p.io)] {
+        let Some(v) = psi else { continue };
+        println!(
+            "  {name:<6}  some {:.1} / {:.1} / {:.1}   full {:.1} / {:.1} / {:.1}",
+            v.some_avg10, v.some_avg60, v.some_avg300, v.full_avg10, v.full_avg60, v.full_avg300
+        );
+    }
+}
+
 pub(crate) fn print_detect(report: &detect::DetectionReport) {
     println!("Distro:       {}", report.distro.id);
     if let Some(ref name) = report.distro.pretty_name {
@@ -83,11 +97,7 @@ pub(crate) fn print_detect(report: &detect::DetectionReport) {
 }
 
 pub(crate) fn print_doctor(report: &doctor::DoctorReport) {
-    if report.healthy {
-        println!("System healthy");
-    } else {
-        println!("Issues found:");
-    }
+    println!("{}", report.summary);
     for issue in &report.issues {
         let icon = match issue.severity {
             doctor::IssueSeverity::Info => "INFO",
