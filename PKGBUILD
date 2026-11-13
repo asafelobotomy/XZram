@@ -49,7 +49,7 @@ package_xzram() {
 }
 
 package_xzram-gui() {
-  depends=('xzram' 'qt6-base')
+  depends=('xzram' 'qt6-base' 'hicolor-icon-theme')
   pkgdesc="Qt6 GUI for XZram swap management"
 
   cd "$pkgbase-$pkgver"
