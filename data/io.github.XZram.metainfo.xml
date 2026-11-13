@@ -14,6 +14,11 @@
   <project_license>GPL-3.0-or-later</project_license>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.6.0" date="2026-11-13">
+      <description>
+        <p>Grows a saturated zram instead of reporting it healthy, checks free memory before resizing zram (or defers to the next boot), adds drain-overflow, larger conservative zram defaults for 11 GiB and up, and refuses to put a swapfile in a snapshotted btrfs subvolume.</p>
+      </description>
+    </release>
     <release version="0.5.0" date="2026-11-12">
       <description>
         <p>Adds a Memory and swap page for uQ Settings. Snapshot restore no longer crashes on snapshot paths that are not valid UTF-8, and dependencies are updated for security advisories.</p>
