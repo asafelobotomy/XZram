@@ -78,6 +78,10 @@ pub fn create_snapshot(
         let mut index = load_index()?;
         index.insert(0, meta.clone());
         write_index_unlocked(&index)?;
+        // Every apply adds one; keep the store bounded (failing to prune isn't fatal).
+        if let Err(e) = super::index::prune_unlocked(super::types::DEFAULT_KEEP) {
+            tracing::warn!(error = %e, "could not prune old snapshots");
+        }
 
         info!(id = %meta.id, trigger = %trigger.as_str(), "created snapshot");
         Ok(meta)
@@ -137,9 +141,10 @@ pub(crate) fn capture_system_state() -> Result<CapturedState> {
     });
 
     let backend = available_swapfile_backend();
+    // An unreadable fstab must fail the snapshot: an empty list here would make a later
+    // restore delete every current swapfile as "not in the snapshot".
     let mut swapfiles = backend
-        .list()
-        .unwrap_or_default()
+        .list()?
         .into_iter()
         .map(|sf| SnapshotSwapfile {
             path: sf.path.clone(),

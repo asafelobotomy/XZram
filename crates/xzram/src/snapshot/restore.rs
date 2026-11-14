@@ -1,19 +1,16 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use tracing::info;
+use tracing::{info, warn};
 
-use super::fstab::{extra_swapfiles, merge_swap_entries, swapfile_entries};
+use super::fstab::{extra_swapfiles, merge_swap_entries};
 use super::index::{get_snapshot, latest_pre_apply_id};
 use super::paths::{etc_path, snapshots_root, FSTAB, SYSCTL_FILE, ZRAMSWAP_FILE, ZRAM_CONF};
+use super::restore_steps as steps;
 use super::types::SnapshotMeta;
-use crate::apply::commands::{
-    deactivate_swap_path, deactivate_zram_device, restart_zram_setup_unit, run_command,
-    run_systemctl, stop_zram_setup_unit,
-};
+use crate::apply::commands::{run_command, run_systemctl};
 use crate::apply::types::ApplyResult;
 use crate::error::{Result, XzramError};
-use crate::swapfile_btrfs;
 
 /// When `XZRAM_ETC_ROOT` is set, restore only mutates files under the fake etc root.
 fn hermetic_etc() -> bool {
@@ -28,52 +25,133 @@ pub fn restore_snapshot(id: &str) -> Result<ApplyResult> {
             "snapshot directory missing: {id}"
         )));
     }
-
-    let mut messages = Vec::new();
     let hermetic = hermetic_etc();
 
     // Decide which swapfiles to remove *before* touching /etc: once fstab is restored it
     // only lists the snapshot's swapfiles, hiding any created since.
     let extra = extra_swapfiles(&meta, hermetic)?;
 
+    // Refusals happen here, before anything changes.
     if !hermetic {
         // A recreated swapfile in a snapshotted btrfs subvolume blocks its snapshots (#31).
         let paths = meta.swapfiles.iter().map(|s| s.path.as_str());
         crate::btrfs_subvol::ensure_restore_swapfiles_placement(paths)?;
-        swapoff_managed_swaps(&meta, &extra)?;
+        // Swapping everything off brings it all into RAM (the #28 stall `apply` refuses).
+        steps::ensure_restore_memory(&meta, &extra)?;
     }
 
-    restore_etc_file(
-        &dir,
-        "zram-generator.conf",
-        etc_path(ZRAM_CONF),
-        meta.artifacts.zram_generator_conf.present,
-        &mut messages,
-        "zram-generator.conf",
-    )?;
+    let mut messages = Vec::new();
+    if let Err(err) = restore_into_system(&meta, &dir, &extra, hermetic, &mut messages) {
+        if hermetic {
+            return Err(err);
+        }
+        // Past swapoff, a failed step would otherwise leave the machine with no swap.
+        let notes = steps::reactivate_swap_after_failure();
+        warn!(error = %err, ?notes, "snapshot restore failed; re-enabled swap");
+        let note = if notes.is_empty() {
+            "swap was turned back on from the configuration now on disk".to_string()
+        } else {
+            format!(
+                "tried to turn swap back on from the configuration now on disk: {}",
+                notes.join("; ")
+            )
+        };
+        return Err(err.with_note(&note));
+    }
 
-    restore_fstab(&dir, meta.artifacts.fstab.present, &mut messages)?;
+    info!(id = %meta.id, hermetic, "restored snapshot");
+    Ok(ApplyResult {
+        success: true,
+        messages,
+    })
+}
 
-    restore_etc_file(
-        &dir,
-        "99-xzram.conf",
-        etc_path(SYSCTL_FILE),
-        meta.artifacts.sysctl.present,
-        &mut messages,
-        "sysctl configuration",
-    )?;
+/// Everything from swapoff on. An error here is answered by re-enabling swap.
+fn restore_into_system(
+    meta: &SnapshotMeta,
+    dir: &Path,
+    extra: &[String],
+    hermetic: bool,
+    messages: &mut Vec<String>,
+) -> Result<()> {
+    if !hermetic {
+        steps::swapoff_managed_swaps(meta, extra)?;
+    }
+    restore_etc_files(meta, dir, messages)?;
 
-    restore_etc_file(
-        &dir,
-        "zramswap",
-        etc_path(ZRAMSWAP_FILE),
-        meta.artifacts.zramswap.present,
-        &mut messages,
-        "zram-tools configuration",
-    )?;
+    if hermetic {
+        for path in extra {
+            messages.push(format!(
+                "Would remove swapfile {path} (not in snapshot; skipped in hermetic restore)"
+            ));
+        }
+        return Ok(());
+    }
 
+    steps::remove_extra_swapfiles(extra, messages)?;
+    steps::recreate_missing_swapfiles(meta, messages)?;
+
+    run_systemctl(&["daemon-reload"])?;
+    messages.push("Reloaded systemd".into());
+
+    if meta.artifacts.zram_generator_conf.present {
+        let backup = dir.join("zram-generator.conf");
+        if backup.exists() {
+            steps::restart_zram_units_from_config(&backup)?;
+            messages.push("Restarted zram units".into());
+        }
+    } else if let Some(vendor) = crate::detect::find_zram_generator_config() {
+        // No /etc config in the snapshot: the /etc file is gone, so the vendor or runtime
+        // config is in effect again. Start what it defines instead of leaving zram off.
+        steps::restart_zram_units_from_config(Path::new(&vendor))?;
+        messages.push(format!("Restarted zram units from {vendor}"));
+    } else {
+        steps::stop_all_zram_units()?;
+        messages.push("Stopped zram units (no zram configuration in snapshot)".into());
+    }
+
+    if meta.artifacts.sysctl.present || etc_path(SYSCTL_FILE).exists() {
+        match run_command("sysctl", &["--system"]) {
+            Ok(_) => messages.push("Reloaded sysctl".into()),
+            Err(e) => messages.push(format!("Could not reload sysctl: {e}")),
+        }
+    }
+
+    steps::swapon_from_fstab(messages)?;
+    crate::zswap::restore_runtime(meta.zswap_enabled, messages)?;
+    crate::oom::restore_runtime(meta.oomd_enabled, messages);
+    crate::mm_tunables::restore_runtime(meta.mm_runtime.as_ref(), messages);
+    Ok(())
+}
+
+fn restore_etc_files(meta: &SnapshotMeta, dir: &Path, messages: &mut Vec<String>) -> Result<()> {
     use crate::oom::{OOMD_ROOT_DROPIN as ROOT, OOMD_SESSION_DROPIN as SESSION};
     let a = &meta.artifacts;
+    restore_etc_file(
+        dir,
+        "zram-generator.conf",
+        etc_path(ZRAM_CONF),
+        a.zram_generator_conf.present,
+        messages,
+        "zram-generator.conf",
+    )?;
+    restore_fstab(dir, a.fstab.present, messages)?;
+    restore_etc_file(
+        dir,
+        "99-xzram.conf",
+        etc_path(SYSCTL_FILE),
+        a.sysctl.present,
+        messages,
+        "sysctl configuration",
+    )?;
+    restore_etc_file(
+        dir,
+        "zramswap",
+        etc_path(ZRAMSWAP_FILE),
+        a.zramswap.present,
+        messages,
+        "zram-tools configuration",
+    )?;
     let drop_ins = [
         (&a.zswap, crate::zswap::ZSWAP_TMPFILES, "zswap drop-in"),
         (&a.oomd_root, ROOT, "systemd-oomd root policy"),
@@ -91,80 +169,21 @@ pub fn restore_snapshot(id: &str) -> Result<ApplyResult> {
     ];
     for (artifact, relative, label) in drop_ins {
         let filename = super::paths::snapshot_filename(relative);
-        let target = etc_path(relative);
         restore_etc_file(
-            &dir,
+            dir,
             filename,
-            target,
+            etc_path(relative),
             artifact.present,
-            &mut messages,
+            messages,
             label,
         )?;
     }
-
-    if hermetic {
-        for path in &extra {
-            messages.push(format!(
-                "Would remove swapfile {path} (not in snapshot; skipped in hermetic restore)"
-            ));
-        }
-    } else {
-        remove_extra_swapfiles(&extra, &mut messages)?;
-        recreate_missing_swapfiles(&meta, &mut messages)?;
-
-        run_systemctl(&["daemon-reload"])?;
-        messages.push("Reloaded systemd".into());
-
-        if meta.artifacts.zram_generator_conf.present {
-            let backup = dir.join("zram-generator.conf");
-            if backup.exists() {
-                restart_zram_units_from_config(&backup)?;
-                messages.push("Restarted zram units".into());
-            }
-        } else {
-            for i in 0..8 {
-                stop_zram_setup_unit(&format!("zram{i}"))?;
-            }
-            messages.push("Stopped zram units (absent in snapshot)".into());
-        }
-
-        if meta.artifacts.sysctl.present || etc_path(SYSCTL_FILE).exists() {
-            let _ = run_command("sysctl", &["--system"]);
-            messages.push("Reloaded sysctl".into());
-        }
-
-        swapon_from_fstab(&mut messages)?;
-        crate::zswap::restore_runtime(meta.zswap_enabled, &mut messages)?;
-        crate::oom::restore_runtime(meta.oomd_enabled, &mut messages);
-        crate::mm_tunables::restore_runtime(meta.mm_runtime.as_ref(), &mut messages);
-    }
-
-    info!(id = %meta.id, hermetic, "restored snapshot");
-    Ok(ApplyResult {
-        success: true,
-        messages,
-    })
+    Ok(())
 }
 
 pub fn rollback() -> Result<ApplyResult> {
     let id = latest_pre_apply_id()?;
     restore_snapshot(&id)
-}
-
-fn swapoff_managed_swaps(meta: &SnapshotMeta, extra: &[String]) -> Result<()> {
-    for swap in &meta.swapfiles {
-        deactivate_swap_path(&swap.path)?;
-    }
-    for path in extra {
-        deactivate_swap_path(path)?;
-    }
-    for device in &meta.zram_devices {
-        deactivate_zram_device(&device.name)?;
-    }
-    for i in 0..8 {
-        deactivate_zram_device(&format!("zram{i}"))?;
-    }
-    Ok(())
 }
 
 fn restore_etc_file(
@@ -213,56 +232,6 @@ fn restore_fstab(snapshot_dir: &Path, was_present: bool, messages: &mut Vec<Stri
     }
     crate::fsutil::atomic_write(&target, merged.as_bytes(), 0o644)?;
     messages.push("Restored swap entries in /etc/fstab".into());
-    Ok(())
-}
-
-fn remove_extra_swapfiles(extra: &[String], messages: &mut Vec<String>) -> Result<()> {
-    for path in extra {
-        deactivate_swap_path(path)?;
-        if Path::new(path).exists() {
-            fs::remove_file(path)?;
-            messages.push(format!("Removed swapfile {path} (not in snapshot)"));
-        }
-    }
-    Ok(())
-}
-
-fn recreate_missing_swapfiles(meta: &SnapshotMeta, messages: &mut Vec<String>) -> Result<()> {
-    for sf in &meta.swapfiles {
-        let path = Path::new(&sf.path);
-        if path.exists() {
-            continue;
-        }
-        swapfile_btrfs::create_allocated_swapfile(path, sf.size_mb)?;
-        swapfile_btrfs::chmod_swapfile_nofollow(path)?;
-        crate::backend::swapfile::restorecon_if_present(path);
-        messages.push(format!(
-            "Recreated swapfile {} ({} MiB)",
-            sf.path, sf.size_mb
-        ));
-    }
-    Ok(())
-}
-
-fn swapon_from_fstab(messages: &mut Vec<String>) -> Result<()> {
-    let fstab = etc_path(FSTAB);
-    if !fstab.exists() {
-        return Ok(());
-    }
-    let content = fs::read_to_string(fstab)?;
-    for (device, options) in swapfile_entries(&content) {
-        let priority = crate::backend::swapfile::parse_fstab_priority(&options);
-        let _ = run_command("swapon", &["-p", &priority.to_string(), "--", &device]);
-    }
-    messages.push("Activated swapfiles from fstab".into());
-    Ok(())
-}
-
-fn restart_zram_units_from_config(path: &Path) -> Result<()> {
-    let conf = crate::config::parse_zram_generator_conf(path)?;
-    for device in &conf.devices {
-        restart_zram_setup_unit(&device.name)?;
-    }
     Ok(())
 }
 

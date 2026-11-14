@@ -5,6 +5,7 @@ pub(crate) mod fstab;
 pub mod index;
 pub mod paths;
 pub mod restore;
+mod restore_steps;
 pub mod types;
 
 pub use create::*;

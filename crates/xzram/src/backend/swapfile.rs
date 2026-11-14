@@ -16,7 +16,12 @@ pub struct SwapfileBackend;
 
 impl SwapfileBackend {
     fn parse_fstab_swapfiles(&self) -> Result<Vec<SwapfileConfig>> {
-        let content = fs::read_to_string(fstab_path())?;
+        // No fstab means no swapfiles in it; any other read error is an error.
+        let content = match fs::read_to_string(fstab_path()) {
+            Ok(c) => c,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
+            Err(e) => return Err(e.into()),
+        };
         Ok(fstab::parse_swap_entries(&content)
             .into_iter()
             .filter(|e| e.spec.starts_with('/') && !e.spec.starts_with("/dev/"))
