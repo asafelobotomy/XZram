@@ -18,12 +18,15 @@ fn zram_size_needs_update(current: Option<&str>, recommended: &str, ram_mb: u64)
     if normalize_size_formula(current) == normalize_size_formula(recommended) {
         return false;
     }
-    !matches!(
+    // Replace only a size known to be smaller. One the evaluator can't read (zram-generator
+    // also accepts `^`, `%` and functions we don't model) is kept: replacing it could shrink
+    // a larger custom device, and recommend never shrinks.
+    matches!(
         (
             eval_zram_size_mb(current, ram_mb),
             eval_zram_size_mb(recommended, ram_mb),
         ),
-        (Some(c), Some(r)) if c >= r
+        (Some(c), Some(r)) if c < r
     )
 }
 
@@ -145,6 +148,24 @@ mod tests {
             16 * 1024
         ));
         assert!(!zram_needs_update(Some(&current), &recommended, 16 * 1024));
+    }
+
+    #[test]
+    fn unevaluable_custom_size_is_never_replaced() {
+        // `^` passes validation but the evaluator can't compute it.
+        assert!(!zram_size_needs_update(
+            Some("ram ^ 1"),
+            "min(ram, 16384)",
+            16 * 1024
+        ));
+        // A known-smaller size still grows.
+        assert!(zram_size_needs_update(
+            Some("min(ram / 2, 4096)"),
+            "min(ram, 16384)",
+            16 * 1024
+        ));
+        // No size at all still gets one.
+        assert!(zram_size_needs_update(None, "min(ram, 16384)", 16 * 1024));
     }
 
     #[test]

@@ -1,4 +1,3 @@
-use std::fs;
 use std::path::PathBuf;
 
 use crate::apply::ZramConfig;
@@ -33,7 +32,7 @@ impl ZramGeneratorBackend {
     fn read_config(&self) -> Result<ZramGeneratorConf> {
         let path = self.read_path();
         if path.exists() {
-            parse_zram_generator_conf(path.to_str().unwrap_or(FALLBACK_CONFIG_PATH))
+            parse_zram_generator_conf(&path)
         } else {
             Ok(ZramGeneratorConf::default())
         }
@@ -74,20 +73,20 @@ impl ZramBackendTrait for ZramGeneratorBackend {
             swap_priority: config.swap_priority,
             fs_type: config.fs_type.clone(),
             mount_point: config.mount_point.clone(),
+            extra: Vec::new(),
         };
 
-        let mut conf = self.read_config().unwrap_or_default();
+        // A config we can't read must stop the change: writing only this device would
+        // drop every other section in the file.
+        let mut conf = self.read_config()?;
         if let Some(idx) = conf.devices.iter().position(|d| d.name == device.name) {
-            conf.devices[idx] = device;
+            // Keep keys xzram doesn't model (writeback-device, options, ...).
+            conf.devices[idx] = conf.devices[idx].merged_with(device);
         } else {
             conf.devices.push(device);
         }
 
-        let path = self.write_path();
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)?;
-        }
-        write_zram_generator_conf(path.to_str().unwrap_or(FALLBACK_CONFIG_PATH), &conf)
+        write_zram_generator_conf(&self.write_path(), &conf)
     }
 
     fn disable(&self) -> Result<()> {
@@ -170,6 +169,7 @@ mod which {
 mod tests {
     use super::*;
     use crate::backend::SwapBackend;
+    use std::fs;
 
     #[test]
     fn backend_name() {
@@ -216,5 +216,43 @@ mod tests {
         std::env::remove_var("XZRAM_ETC_ROOT");
         result.unwrap();
         assert!(content.is_empty());
+    }
+
+    #[test]
+    fn configure_keeps_other_sections_and_unmodeled_keys() {
+        let _guard = crate::test_env_lock();
+        let etc = tempfile::tempdir().unwrap();
+        std::env::set_var("XZRAM_ETC_ROOT", etc.path());
+        let conf = etc.path().join("systemd/zram-generator.conf");
+        fs::create_dir_all(conf.parent().unwrap()).unwrap();
+        fs::write(
+            &conf,
+            "[zram0]\nzram-size = ram / 2\ncompression-algorithm = zstd(level=3)\n\
+             writeback-device = /dev/sdb2\n\n[zram1]\nzram-size = 512\nfs-type = ext4\n\
+             mount-point = /var/tmp\n",
+        )
+        .unwrap();
+        let result = ZramGeneratorBackend.configure(&ZramConfig {
+            device: "zram0".into(),
+            zram_size: Some("min(ram, 16384)".into()),
+            zram_resident_limit: None,
+            compression_algorithm: Some("zstd".into()),
+            swap_priority: Some(100),
+            fs_type: None,
+            mount_point: None,
+        });
+        let content = fs::read_to_string(&conf).unwrap();
+        std::env::remove_var("XZRAM_ETC_ROOT");
+        result.unwrap();
+        assert!(
+            content.contains("zram-size = min(ram, 16384)\n"),
+            "{content}"
+        );
+        assert!(
+            content.contains("writeback-device = /dev/sdb2\n"),
+            "{content}"
+        );
+        assert!(content.contains("[zram1]\nzram-size = 512\n"), "{content}");
+        assert!(content.contains("mount-point = /var/tmp\n"), "{content}");
     }
 }
