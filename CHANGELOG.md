@@ -29,6 +29,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `defaults recommend` never replaces a zram size it can't evaluate (zram-generator accepts `^`, `%` and functions xzram doesn't model), so it can't shrink a larger custom device
 - The zram-generator config is looked up in systemd's order (`/etc` before `/run`)
 - A zram device counts as swap only when it is in /proc/swaps. An initialised zram ramdisk (e.g. `/tmp`) was counted as swap, so the memory guard could refuse a restart for it. A zram device that disappears mid-scan no longer fails `status`, `doctor` and `recommend`
+- Snapshot restore (and the automatic rollback after a failed apply) checks free memory before swapping off zram and swapfiles, and refuses when RAM can't take their contents. A step failing after swapoff no longer leaves the machine with no swap: swap is turned back on before the error is returned
+- Snapshot restore only deletes "extra" swapfiles that pass the `swapfile remove` checks; others are left in place and reported. A snapshot can no longer record an empty swapfile list because fstab couldn't be read (which would have made a later restore delete every swapfile)
+- Snapshot restore decodes fstab path escapes (`\040`), so a swapfile path with a space is reactivated instead of treated as extra. Failures of `swapon` and `sysctl --system` during restore are reported instead of claimed as success
+- Restoring a snapshot with no `/etc` zram config restarts zram from the vendor config instead of leaving zram off until reboot
+- The snapshot store is pruned to 50 after each new snapshot (it used to grow without limit); the newest `pre_apply` snapshot, which `rollback` needs, is never pruned
 
 ## [0.6.0] — 2026-11-13
 

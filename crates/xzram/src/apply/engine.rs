@@ -60,17 +60,7 @@ fn rollback_after_failure(err: XzramError, snapshot_id: &str) -> XzramError {
             )
         }
     };
-    let note = format!("{outcome}; pending configuration kept for retry");
-    match err {
-        XzramError::Io(e) => XzramError::Io(std::io::Error::new(e.kind(), format!("{e} ({note})"))),
-        XzramError::Parse(m) => XzramError::Parse(format!("{m} ({note})")),
-        XzramError::Config(m) => XzramError::Config(format!("{m} ({note})")),
-        XzramError::Backend(m) => XzramError::Backend(format!("{m} ({note})")),
-        XzramError::NotFound(m) => XzramError::NotFound(format!("{m} ({note})")),
-        XzramError::Permission(m) => XzramError::Permission(format!("{m} ({note})")),
-        XzramError::Validation(m) => XzramError::Validation(format!("{m} ({note})")),
-        XzramError::Command(m) => XzramError::Command(format!("{m} ({note})")),
-    }
+    err.with_note(&format!("{outcome}; pending configuration kept for retry"))
 }
 
 /// Stage `pending` then apply it in one privileged session (single polkit challenge).
