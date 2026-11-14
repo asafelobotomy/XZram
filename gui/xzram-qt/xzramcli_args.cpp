@@ -9,19 +9,40 @@ QStringList jsonArgs(const QString &group, const QString &command) {
     return {group, command, QStringLiteral("--json")};
 }
 
+void appendRestartFlag(QStringList &args, ZramRestart mode) {
+    if (mode == ZramRestart::AtBoot) {
+        args << QStringLiteral("--at-boot");
+    } else if (mode == ZramRestart::Force) {
+        args << QStringLiteral("--force");
+    }
+}
+
 } // namespace
 
-QStringList argsApply() {
-    return {QStringLiteral("apply")};
+bool isZramRestartRefusal(const QString &error) {
+    // crates/xzram/src/apply/guard.rs ZRAM_ALTERNATIVES names both flags.
+    return error.contains(QStringLiteral("--at-boot"))
+           && error.contains(QStringLiteral("--force"));
+}
+
+QStringList argsApply(ZramRestart mode) {
+    QStringList args{QStringLiteral("apply")};
+    appendRestartFlag(args, mode);
+    return args;
 }
 
 QStringList argsClearPending() {
     return {QStringLiteral("pending"), QStringLiteral("clear")};
 }
 
-QStringList argsDefaultsApply(const QString &zramScale, const QString &swapScale) {
-    return {QStringLiteral("defaults"), QStringLiteral("apply"), QStringLiteral("--yes"),
-            QStringLiteral("--zram-scale"), zramScale, QStringLiteral("--swap-scale"), swapScale};
+QStringList argsDefaultsApply(const QString &zramScale, const QString &swapScale,
+                              ZramRestart mode) {
+    QStringList args{QStringLiteral("defaults"),   QStringLiteral("apply"),
+                     QStringLiteral("--yes"),      QStringLiteral("--zram-scale"),
+                     zramScale,                    QStringLiteral("--swap-scale"),
+                     swapScale};
+    appendRestartFlag(args, mode);
+    return args;
 }
 
 QStringList argsDefaultsStage(const QString &zramScale, const QString &swapScale) {

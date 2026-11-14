@@ -44,6 +44,7 @@ pub(crate) fn run(command: DefaultsCommands, json: bool, dbus: bool) -> anyhow::
             yes,
             zram_scale,
             swap_scale,
+            zram,
         } => {
             let scales = parse_scales(&zram_scale, &swap_scale)?;
             let report = recommend::recommend_with_scales(scales)?;
@@ -61,7 +62,10 @@ pub(crate) fn run(command: DefaultsCommands, json: bool, dbus: bool) -> anyhow::
             run_privileged(
                 dbus,
                 "apply",
-                &serde_json::json!({ "pending": report.pending }).to_string(),
+                // `options` carries --at-boot / --force, which the memory guard's refusal
+                // tells the user to pass.
+                &serde_json::json!({ "pending": report.pending, "options": zram.options() })
+                    .to_string(),
             )?;
             println!("Recommended defaults applied");
         }

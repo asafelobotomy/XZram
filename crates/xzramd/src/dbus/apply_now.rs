@@ -72,6 +72,20 @@ pub(super) async fn apply_now_zram_disable(
     Ok(())
 }
 
+/// `ApplyNowZramDisable` with the memory guard's escape hatches: `at_boot` writes the
+/// disabled config for the next boot, `force` stops zram even when free memory can't take
+/// its data. Returns the helper's messages (the at-boot note, the force warning).
+pub(super) async fn apply_zram_disable_with_options(
+    mgr: &Manager,
+    hdr: Header<'_>,
+    at_boot: bool,
+    force: bool,
+) -> zbus::fdo::Result<Vec<String>> {
+    authorize(&mgr.connection, &hdr, "io.github.xzram.zram.disable").await?;
+    let payload = to_payload(&serde_json::json!({ "options": ApplyOptions { at_boot, force } }))?;
+    crate::privileged::run_helper(mgr.lock_gate().await, "zram.disable", &payload).await
+}
+
 /// Build the helper payload for `swapfile.create` from the caller's JSON.
 ///
 /// Accepts the optional `prepare` / `mkdir_parents` booleans the CLI sends alongside the

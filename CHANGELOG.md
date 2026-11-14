@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `xzram defaults apply --at-boot` / `--force`: the memory guard's refusal named these flags, but `defaults apply` didn't accept them
+- D-Bus `ApplyZramDisableWithOptions(b at_boot, b force) → as`, so D-Bus clients can get past the memory guard when disabling zram (the CLI no longer falls back to pkexec for this)
+- GUI: when Apply or Apply recommended defaults is refused for lack of free memory, offer **Apply at next boot** or **Restart anyway**; success dialogs show the CLI's messages (the at-boot note, the force warning)
+- `make install-cli-files` / `make install-files`: copy an existing build without building, so a source install builds as the user and runs only the copy as root
+
+### Changed
+- Doctor `swap_nearly_full` is an error when swap is ≥ 98% used and less than 15% of RAM is available (previously a warning at any level, so a system with exhausted swap reported "Healthy")
+- `xzram-helper` refuses unknown fields in every action's payload (stage, zram.migrate, snapshot.*, swapfile.*, swap.activate), not only some
+- A release `xzram-helper` running as root ignores `XZRAM_*` development overrides (except `XZRAM_ERROR_FILE`)
+
+### Fixed
+- `xzram swapfile prepare`, xzramd `PrepareSwapfileBtrfs` and the GUI's Doctor "prepare" button failed with "unknown action: swapfile.prepare": the helper action had been dropped
+- uQ page: a swappiness typed into the box couldn't be applied until Enter was pressed; Apply now uses the typed number
+- README source install: the `DESTDIR` + `sudo cp -a` recipe left `/usr/libexec/xzram-helper` (run as root by pkexec) and `/usr` owned by the building user. Use `make build && sudo make install-cli-files`
+- AUR release workflow: the build job, which runs crate build scripts, no longer holds a write token; uploading to the release is a separate job with no checkout
+- `snapshot create` over pkexec now checks the helper version like every other pkexec action
+
 ## [0.6.0] — 2026-11-13
 
 ### Added

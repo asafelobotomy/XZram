@@ -186,6 +186,16 @@ Item {
             compare(part("noticeLabel").text, "Swappiness set to 90.");
         }
 
+        function test_typed_swappiness_applies_without_enter() {
+            const spin = part("swappinessSpin");
+            spin.contentItem.text = "90";
+            compare(spin.value, 60, "typing alone does not commit the SpinBox");
+            verify(part("applySwappiness").enabled, "Apply follows the typed number");
+            part("applySwappiness").clicked();
+            tryVerify(() => root.writes().length === 1);
+            compare(root.writes()[0][2][0], "{\"swappiness\":90}");
+        }
+
         function test_failed_swappiness_restores() {
             fake.dbus.ApplyNowSysctl = { error: "org.freedesktop.DBus.Error.AccessDenied: Not authorized" };
             const spin = part("swappinessSpin");

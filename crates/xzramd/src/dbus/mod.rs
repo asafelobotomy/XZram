@@ -2,6 +2,7 @@ mod apply_now;
 mod auth;
 mod reads;
 mod serve;
+mod stage;
 mod store_reads;
 mod util;
 
@@ -9,12 +10,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use tokio::sync::{Mutex, OwnedMutexGuard, Semaphore};
-use xzram::apply::{
-    clear_pending, pending_is_empty, stage, PendingConfig, SwapfileConfig, SwapfileResizeConfig,
-    ZramConfig,
-};
+use xzram::apply::{clear_pending, stage, PendingConfig, SwapfileConfig, SwapfileResizeConfig};
 use xzram::migrate::migrate_from_zram_tools;
-use xzram::recommend;
 use xzram::snapshot;
 use xzram::sysctl::SysctlValues;
 use xzram::validation;
@@ -114,15 +111,7 @@ impl Manager {
         &self,
         #[zbus(header)] hdr: Header<'_>,
     ) -> zbus::fdo::Result<JsonReply> {
-        let report = reads::bounded(self, recommend::recommend).await?;
-        if pending_is_empty(&report.pending) {
-            return Ok(json_map(&report));
-        }
-        authorize(&self.connection, &hdr, "io.github.xzram.stage").await?;
-        let _guard = self.gate.lock().await;
-        validate_staged_pending(&report.pending)?;
-        stage(&report.pending).map_err(|e| zbus::fdo::Error::Failed(e.to_string()))?;
-        Ok(json_map(&report))
+        stage::stage_recommended_defaults(self, hdr).await
     }
 
     async fn configure_zram(
@@ -130,16 +119,7 @@ impl Manager {
         #[zbus(header)] hdr: Header<'_>,
         config_json: &str,
     ) -> zbus::fdo::Result<()> {
-        authorize(&self.connection, &hdr, "io.github.xzram.stage").await?;
-        let config: ZramConfig = xzram::validation::from_json_strict(config_json)
-            .map_err(|e| zbus::fdo::Error::InvalidArgs(e.to_string()))?;
-        validation::validate_zram_config(&config)
-            .map_err(|e| zbus::fdo::Error::InvalidArgs(e.to_string()))?;
-        let pending = PendingConfig {
-            zram: Some(config),
-            ..Default::default()
-        };
-        self.stage_locked(&pending).await
+        stage::configure_zram(self, hdr, config_json).await
     }
 
     async fn disable_zram(&self, #[zbus(header)] hdr: Header<'_>) -> zbus::fdo::Result<()> {
@@ -357,6 +337,15 @@ impl Manager {
         #[zbus(header)] hdr: Header<'_>,
     ) -> zbus::fdo::Result<()> {
         apply_now::apply_now_zram_disable(self, hdr).await
+    }
+
+    async fn apply_zram_disable_with_options(
+        &self,
+        #[zbus(header)] hdr: Header<'_>,
+        at_boot: bool,
+        force: bool,
+    ) -> zbus::fdo::Result<Vec<String>> {
+        apply_now::apply_zram_disable_with_options(self, hdr, at_boot, force).await
     }
 
     async fn apply_now_swapfile_create(

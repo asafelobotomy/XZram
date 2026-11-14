@@ -76,6 +76,10 @@ fn unknown_payload_fields_are_refused() {
             "swapfile.create",
             r#"{"path":"/swap/swapfile","size_mb":512,"priority":10,"prepare":false,"x":1}"#,
         ),
+        (
+            "swapfile.prepare",
+            r#"{"path":"/swap/swapfile","mkdir":true}"#,
+        ),
         ("stage", stage.as_str()),
     ];
     for (action, payload) in cases {
@@ -105,4 +109,21 @@ fn known_swapfile_create_fields_still_parse() {
         .assert()
         .failure()
         .stderr(predicate::str::contains("unsupported field").not());
+}
+
+/// Regression: `swapfile.prepare` was dropped from the helper in 321173e, so the command
+/// doctor recommends ("xzram swapfile prepare") always failed with "unknown action".
+#[test]
+fn swapfile_prepare_is_a_known_action() {
+    let dir = tempfile::tempdir().unwrap();
+    let etc = tempfile::tempdir().unwrap();
+    Command::new(cargo_bin("xzram-helper"))
+        .env("XZRAM_DATA_DIR", dir.path())
+        .env("XZRAM_ETC_ROOT", etc.path())
+        .args([
+            "swapfile.prepare",
+            r#"{"path":"/nonexistent-xzram/swapfile","mkdir_parents":false}"#,
+        ])
+        .assert()
+        .stderr(predicate::str::contains("unknown action").not());
 }

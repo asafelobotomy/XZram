@@ -202,10 +202,17 @@ pub fn call(action: &str, payload: &str) -> anyhow::Result<()> {
             }
             println!("ZRAM configured");
         }
-        "zram.disable" => {
-            call("ApplyNowZramDisable")?;
-            println!("ZRAM disabled");
-        }
+        "zram.disable" => match parse_options(payload)? {
+            Some((at_boot, force)) => print_messages(&call_classified(
+                &proxy,
+                "ApplyZramDisableWithOptions",
+                &(at_boot, force),
+            )?)?,
+            None => {
+                call("ApplyNowZramDisable")?;
+                println!("ZRAM disabled");
+            }
+        },
         "swapfile.create" => {
             call_classified(&proxy, "ApplyNowSwapfileCreate", &(payload,))?;
             println!("Swapfile created");

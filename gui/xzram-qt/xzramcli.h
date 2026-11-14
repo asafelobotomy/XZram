@@ -42,9 +42,15 @@ RunResult run(const QStringList &args, int timeoutMs = 30000, int extraOkExitCod
 QString runJson(const QStringList &args, int timeoutMs = 30000, int extraOkExitCode = -1);
 
 // --- Argv builders (xzramcli_args.cpp) ---
-QStringList argsApply();
+/// How an apply reaches a running zram device. Restarting zram moves its data back into RAM,
+/// and the CLI refuses that when free memory can't take it unless told AtBoot or Force.
+enum class ZramRestart { Normal, AtBoot, Force };
+/// True when an apply failed only because of that memory check (the refusal names the flags).
+bool isZramRestartRefusal(const QString &error);
+QStringList argsApply(ZramRestart mode = ZramRestart::Normal);
 QStringList argsClearPending();
-QStringList argsDefaultsApply(const QString &zramScale, const QString &swapScale);
+QStringList argsDefaultsApply(const QString &zramScale, const QString &swapScale,
+                              ZramRestart mode = ZramRestart::Normal);
 QStringList argsDefaultsStage(const QString &zramScale, const QString &swapScale);
 QStringList argsDefaultsRecommend(const QString &zramScale, const QString &swapScale);
 QStringList argsDefaultsOptimizeLinked(const QString &anchor);

@@ -82,7 +82,7 @@ fn is_fresh(modified: SystemTime, since: SystemTime) -> bool {
 
 pub(crate) fn run_privileged(use_dbus: bool, action: &str, payload: &str) -> anyhow::Result<()> {
     // Compound payloads need helper argv that D-Bus methods do not yet forward.
-    let force_pkexec = matches!(action, "apply" | "stage" | "zram.migrate" | "zram.disable")
+    let force_pkexec = matches!(action, "apply" | "stage" | "zram.migrate")
         && payload_needs_helper_passthrough(action, payload);
     if use_dbus && !force_pkexec {
         // xzramd forwards to the same installed helper; check it before going via D-Bus.
@@ -109,8 +109,6 @@ fn payload_needs_helper_passthrough(action: &str, payload: &str) -> bool {
         "apply" => trimmed.contains("\"pending\""),
         "stage" => trimmed.contains("\"prepare_swapfile\""),
         "zram.migrate" => trimmed.contains("\"apply_now\""),
-        // xzramd's ApplyNowZramDisable takes no options.
-        "zram.disable" => trimmed.contains("\"options\""),
         _ => false,
     }
 }
@@ -185,7 +183,8 @@ mod tests {
             "apply",
             r#"{"pending":{}}"#
         ));
-        assert!(payload_needs_helper_passthrough(
+        // zram.disable options go through xzramd's ApplyZramDisableWithOptions.
+        assert!(!payload_needs_helper_passthrough(
             "zram.disable",
             r#"{"options":{"at_boot":true,"force":false}}"#
         ));

@@ -10,6 +10,10 @@ use crate::status::{format_bytes, StatusReport};
 const GIB: u64 = 1024 * 1024 * 1024;
 /// Total swap use at which a further allocation burst can exhaust it.
 const SWAP_NEARLY_FULL_RATIO: f64 = 0.8;
+/// Swap this full, with RAM available below `LOW_AVAILABLE_RATIO` of total, is an error:
+/// nothing is left to absorb the next burst but the OOM killer.
+const SWAP_EXHAUSTED_RATIO: f64 = 0.98;
+const LOW_AVAILABLE_RATIO: f64 = 0.15;
 /// Disk overflow behind zram smaller than min(RAM / 2, this) is flagged.
 const OVERFLOW_SMALL_CAP_BYTES: u64 = 4 * GIB;
 
@@ -133,15 +137,23 @@ pub(super) fn check_swap_headroom(issues: &mut Vec<DoctorIssue>, status: &Status
     if total == 0 || (used as f64) < total as f64 * SWAP_NEARLY_FULL_RATIO {
         return;
     }
+    let mem = &status.memory;
+    let available = mem.mem_available_kb * 1024;
+    let exhausted = used as f64 >= total as f64 * SWAP_EXHAUSTED_RATIO
+        && (available as f64) < (mem.mem_total_kb * 1024) as f64 * LOW_AVAILABLE_RATIO;
+    let pct = used as f64 / total as f64 * 100.0;
+    let (sev, message) = if exhausted {
+        let ram = format_bytes(available);
+        let msg = format!("Swap is exhausted ({pct:.0}% used, {} / {}) and only {ram} of RAM is available; the next burst goes to the OOM killer", format_bytes(used), format_bytes(total));
+        (IssueSeverity::Error, msg)
+    } else {
+        let msg = format!("Swap is {pct:.0}% used ({} / {}); a further burst can exhaust it and trigger OOM kills", format_bytes(used), format_bytes(total));
+        (IssueSeverity::Warning, msg)
+    };
     issues.push(issue(
-        IssueSeverity::Warning,
+        sev,
         "swap_nearly_full",
-        format!(
-            "Swap is {:.0}% used ({} / {}); a further burst can exhaust it and trigger OOM kills",
-            used as f64 / total as f64 * 100.0,
-            format_bytes(used),
-            format_bytes(total)
-        ),
+        message,
         "Grow disk overflow swap ('xzram defaults apply --swap-scale high') or reduce memory use",
     ));
 }
@@ -335,6 +347,22 @@ mod tests {
             &status(&[("/dev/zram0", 100, 100), ("/swap/swapfile", 100, 70)]),
         );
         assert_eq!(codes(&issues), ["swap_nearly_full"]);
+        assert_eq!(
+            issues[0].severity,
+            IssueSeverity::Warning,
+            "8 of 16 GiB RAM free"
+        );
+        // Full swap and little RAM left (this was "Healthy" on a 15.5 GiB host): an error.
+        let mut full = status(&[("/dev/zram0", 100, 100), ("/swap/swapfile", 100, 99)]);
+        full.memory.mem_available_kb = 2 * 1024 * 1024;
+        issues.clear();
+        check_swap_headroom(&mut issues, &full);
+        assert_eq!(issues[0].severity, IssueSeverity::Error);
+        assert!(
+            issues[0].message.contains("exhausted"),
+            "{}",
+            issues[0].message
+        );
     }
 
     #[test]
