@@ -181,6 +181,8 @@ Item {
     }
 
     function applySwappiness() {
+        // Commit what is in the box: a typed number only becomes `value` on Enter.
+        spin.value = spin.shownValue;
         const built = Logic.buildSysctl(spin.value);
         page.notice = "";
         if (!built.ok) {
@@ -400,11 +402,18 @@ Item {
                     editable: true
                     value: Math.max(0, page.swappiness)
                     enabled: page.swappiness >= 0 && !page.busySwappiness
+                    // The number in the box, typed or not. SpinBox only commits typing on
+                    // Enter or focus loss (`live` needs Qt 6.6), and Apply must not wait.
+                    readonly property int shownValue: {
+                        const n = parseInt(contentItem && contentItem.text !== undefined
+                                           ? contentItem.text : "", 10);
+                        return isNaN(n) || n < from || n > to ? value : n;
+                    }
                 }
                 QQC2.Button {
                     objectName: "applySwappiness"
                     text: "Apply"
-                    enabled: page.swappiness >= 0 && spin.value !== page.swappiness && !page.busySwappiness
+                    enabled: page.swappiness >= 0 && spin.shownValue !== page.swappiness && !page.busySwappiness
                     onClicked: page.applySwappiness()
                 }
                 UqLabel {

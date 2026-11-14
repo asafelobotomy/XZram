@@ -153,6 +153,25 @@ pub fn run(action: &str, payload: &str) -> Result<bool> {
             backend.resize(&p.path, p.size_mb)?;
             println!("Swapfile resized: {}", p.path);
         }
+        "swapfile.prepare" => {
+            // `xzram swapfile prepare`, xzramd PrepareSwapfileBtrfs and the doctor/GUI fix
+            // for a copy-on-write swap directory. Creates the directory if asked and sets
+            // nodatacow (+C) on it; no swap state changes, so no snapshot.
+            #[derive(Deserialize, serde::Serialize)]
+            struct PreparePayload {
+                path: String,
+                #[serde(default)]
+                mkdir_parents: bool,
+            }
+            let p: PreparePayload = parse(payload)?;
+            validation::validate_swapfile_prepare_path(&p.path)?;
+            let status =
+                xzram::swapfile_btrfs::prepare_nodatacow(Path::new(&p.path), p.mkdir_parents)?;
+            println!(
+                "Prepared {} for a swapfile ({})",
+                status.parent_directory, status.message
+            );
+        }
         "swapfile.remove" => {
             #[derive(Deserialize, serde::Serialize)]
             struct RemovePayload {

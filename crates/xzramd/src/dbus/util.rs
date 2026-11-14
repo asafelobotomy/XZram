@@ -50,16 +50,15 @@ pub(crate) async fn prepare_swapfile_btrfs(
         "mkdir_parents": mkdir_parents,
     })
     .to_string();
-    let lines = crate::privileged::run_helper(gate, "swapfile.prepare", &payload).await?;
-    let raw = lines
-        .iter()
-        .rev()
-        .find(|l| l.starts_with('{'))
-        .ok_or_else(|| {
-            zbus::fdo::Error::Failed("swapfile.prepare returned no status JSON".into())
-        })?;
-    let status: swapfile_btrfs::NodatacowStatus = serde_json::from_str(raw)
-        .map_err(|e| zbus::fdo::Error::Failed(format!("invalid prepare status: {e}")))?;
+    crate::privileged::run_helper(gate, "swapfile.prepare", &payload).await?;
+    // The helper prints a human line; read the resulting state here (xzramd runs as root).
+    let path = path.to_owned();
+    let status = tokio::task::spawn_blocking(move || {
+        swapfile_btrfs::check_nodatacow(std::path::Path::new(&path))
+    })
+    .await
+    .map_err(|e| zbus::fdo::Error::Failed(format!("prepare status task failed: {e}")))?
+    .map_err(|e| zbus::fdo::Error::Failed(format!("prepare status: {e}")))?;
     Ok(json_map(&status))
 }
 

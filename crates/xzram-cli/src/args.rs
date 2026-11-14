@@ -170,6 +170,8 @@ pub enum DefaultsCommands {
         /// Overflow swapfile size tier: low, default, or high
         #[arg(long, default_value = "default", value_parser = ["low", "default", "high"])]
         swap_scale: String,
+        #[command(flatten)]
+        zram: ZramRestartArgs,
     },
     /// Rewrite linked staged fields for a single edited anchor (no polkit)
     OptimizeLinked {

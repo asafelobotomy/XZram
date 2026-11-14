@@ -24,6 +24,10 @@ namespace LinkedOptimize {
 class Runner;
 }
 
+namespace XzramCli {
+enum class ZramRestart;
+}
+
 class MainWindow : public QMainWindow {
     Q_OBJECT
 
@@ -53,6 +57,9 @@ private:
     void updatePendingBanner();
     void updateStatusLabel(bool daemonActive);
     void configureRefreshTimer(int intervalMs);
+    void runApply(XzramCli::ZramRestart mode);
+    void runDefaultsApply(const QString &zramScale, const QString &swapScale,
+                          XzramCli::ZramRestart mode);
     void stageRecommendedDefaults(const QString &zramScale, const QString &swapScale,
                                   const QJsonObject &pending);
     void previewPendingInTabs(const QJsonObject &pending);

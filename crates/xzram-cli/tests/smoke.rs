@@ -114,3 +114,18 @@ fn drain_overflow_is_listed() {
         .success()
         .stdout(predicate::str::contains("--dry-run"));
 }
+
+/// The memory guard's refusal tells users to pass --at-boot or --force; `defaults apply`
+/// has to accept them (it used to be a usage error).
+#[test]
+fn defaults_apply_accepts_zram_restart_flags() {
+    Command::new(cargo_bin("xzram"))
+        .args(["defaults", "apply", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("--at-boot").and(predicate::str::contains("--force")));
+    Command::new(cargo_bin("xzram"))
+        .args(["defaults", "apply", "--at-boot", "--force"])
+        .assert()
+        .code(2);
+}
