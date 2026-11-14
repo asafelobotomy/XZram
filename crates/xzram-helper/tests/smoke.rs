@@ -44,3 +44,65 @@ fn unknown_action_with_payload_fails() {
         .assert()
         .failure();
 }
+
+/// A field this helper doesn't know means the client is newer; refuse instead of
+/// silently dropping it (checked before anything touches the system).
+#[test]
+fn unknown_payload_fields_are_refused() {
+    let dir = tempfile::tempdir().unwrap();
+    let etc = tempfile::tempdir().unwrap();
+    let stage = serde_json::json!({
+        "pending": xzram::apply::PendingConfig::default(),
+        "prepare_swapfile": {"path": "/swap/swapfile"},
+        "extra": 1,
+    })
+    .to_string();
+    let cases = [
+        ("snapshot.delete", r#"{"id":"x","bogus":1}"#),
+        ("snapshot.prune", r#"{"keep":5,"force":true}"#),
+        ("snapshot.restore", r#"{"id":"x","dry_run":true}"#),
+        ("snapshot.create", r#"{"trigger":"manual","pin":true}"#),
+        ("zram.migrate", r#"{"apply_now":false,"extra":1}"#),
+        (
+            "swap.activate",
+            r#"{"action":"on","device":"/dev/zram0","pri":5}"#,
+        ),
+        ("swapfile.remove", r#"{"path":"/swap/swapfile","now":true}"#),
+        (
+            "swapfile.resize",
+            r#"{"path":"/swap/swapfile","size_mb":512,"x":1}"#,
+        ),
+        (
+            "swapfile.create",
+            r#"{"path":"/swap/swapfile","size_mb":512,"priority":10,"prepare":false,"x":1}"#,
+        ),
+        ("stage", stage.as_str()),
+    ];
+    for (action, payload) in cases {
+        Command::new(cargo_bin("xzram-helper"))
+            .env("XZRAM_DATA_DIR", dir.path())
+            .env("XZRAM_ETC_ROOT", etc.path())
+            .args([action, payload])
+            .assert()
+            .failure()
+            .stderr(predicate::str::contains("unsupported field"));
+    }
+}
+
+#[test]
+fn known_swapfile_create_fields_still_parse() {
+    // Gets past parsing (prepare flags flattened alongside the config) and fails later,
+    // on validation or the backend, not on "unsupported field".
+    let dir = tempfile::tempdir().unwrap();
+    let etc = tempfile::tempdir().unwrap();
+    Command::new(cargo_bin("xzram-helper"))
+        .env("XZRAM_DATA_DIR", dir.path())
+        .env("XZRAM_ETC_ROOT", etc.path())
+        .args([
+            "swapfile.create",
+            r#"{"path":"/nonexistent-xzram/swapfile","size_mb":512,"priority":10,"prepare":true,"mkdir_parents":false}"#,
+        ])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("unsupported field").not());
+}

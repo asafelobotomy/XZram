@@ -100,13 +100,13 @@ See [AGENTS.md](AGENTS.md) for agent-oriented bootstrap notes and
 ### From source (recommended for checkouts)
 
 ```bash
-# CLI + daemon + polkit/D-Bus (no Qt)
-make install-cli DESTDIR=/tmp/xzram-install
-sudo cp -a /tmp/xzram-install/* /
+# CLI + daemon + polkit/D-Bus (no Qt): build as your user, copy as root
+make build
+sudo make install-cli-files
 
 # Or full install including xzram-qt (requires cmake + Qt6)
-make install DESTDIR=/tmp/xzram-install
-sudo cp -a /tmp/xzram-install/* /
+make build build-gui
+sudo make install-files
 
 # Optional: enable xzramd for --dbus / other clients (D-Bus activation also starts it on demand)
 sudo systemctl enable --now xzramd
@@ -114,8 +114,10 @@ sudo systemctl enable --now xzramd
 
 `make install-cli` also installs the uQ Settings page to `$(DATADIR)/uq/settings/pages/xzram/`. It does nothing unless uQ is installed.
 
-Prefer `DESTDIR` staging over installing as root into the source tree so
-`build-gui/` does not become root-owned. For reinstall/uninstall helpers see
+The `*-files` targets only copy what is already built, so `target/` and `build-gui/`
+never become root-owned, and `install` gives every installed file root ownership and an
+explicit mode. Don't stage with `DESTDIR` and then `cp -a` the tree onto `/`: that keeps your
+user as the owner of `/usr/libexec/xzram-helper`, which pkexec runs as root. For reinstall/uninstall helpers see
 [`scripts/reinstall-system.sh`](scripts/reinstall-system.sh) and
 [`scripts/uninstall-system.sh`](scripts/uninstall-system.sh). The native GUI uses
 CLI + pkexec and does not require `xzramd`.

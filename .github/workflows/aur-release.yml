@@ -53,12 +53,20 @@ jobs:
     name: Build AUR packages
     runs-on: ubuntu-latest
     timeout-minutes: 90
+    # Read-only: this job runs makepkg, and so every crate build script. The release upload
+    # that needs a write token is the separate attach-release job below.
     permissions:
-      contents: write
+      contents: read
+    outputs:
+      mode: ${{ steps.meta.outputs.mode }}
+      tag: ${{ steps.meta.outputs.tag }}
+      artifact: xzram-aur-${{ steps.meta.outputs.pkgver }}-${{ steps.meta.outputs.mode }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          # Keep the token out of .git/config, which is mounted into the build container.
+          persist-credentials: false
 
       - name: Resolve build mode
         id: meta
@@ -130,15 +138,36 @@ jobs:
             aur-out/*.pkg.tar.zst
             aur-out/*.pkg.tar.xz
           if-no-files-found: error
+          # .SRCINFO is a dotfile; upload-artifact skips those unless asked.
+          include-hidden-files: true
 
-      - name: Attach packages to GitHub Release
-        if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && steps.meta.outputs.mode == 'release')
+  attach-release:
+    name: Attach packages to GitHub Release
+    needs: aur-build
+    if: needs.aur-build.outputs.mode == 'release'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # The only job with a write token. It runs no repository code: no checkout, just
+    # gh downloading this run's artifact and uploading it to the release.
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - name: Download AUR build artifacts
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          ARTIFACT: ${{ needs.aur-build.outputs.artifact }}
+        run: gh run download "$GITHUB_RUN_ID" --name "$ARTIFACT" --dir aur-out
+
+      - name: Upload to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ needs.aur-build.outputs.tag }}
         run: |
           set -euo pipefail
           shopt -s nullglob
-          tag="${{ steps.meta.outputs.tag }}"
           files=(aur-out/*.pkg.tar.zst aur-out/*.pkg.tar.xz)
           # Prefer non-debug packages on the release page.
           upload=()
@@ -151,4 +180,4 @@ jobs:
             cp aur-out/.SRCINFO aur-out/SRCINFO
             upload+=(aur-out/SRCINFO)
           fi
-          gh release upload "$tag" "${upload[@]}" --clobber
+          gh release upload "$TAG" "${upload[@]}" --clobber
