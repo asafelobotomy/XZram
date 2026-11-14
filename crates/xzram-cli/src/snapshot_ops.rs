@@ -4,6 +4,7 @@ use std::time::SystemTime;
 use xzram::snapshot::{self, SnapshotTrigger};
 
 use crate::dbus_client::{call_classified, manager_proxy};
+use crate::helper_version::ensure_helper_supports_client;
 use crate::privileged::{find_helper_for_pkexec, pkexec_failure};
 
 pub(crate) fn resolve_snapshot_id(id: &str) -> anyhow::Result<String> {
@@ -27,6 +28,9 @@ pub(crate) fn run_snapshot_create_pkexec(
         "label": label,
     });
     let helper = find_helper_for_pkexec()?;
+    // Same version gate as every other pkexec action: an older helper must refuse rather
+    // than half-understand this client's payload.
+    ensure_helper_supports_client(&helper)?;
     let spawned_at = SystemTime::now();
     let output = Command::new("pkexec")
         .arg(&helper)

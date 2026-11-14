@@ -1,4 +1,5 @@
 mod direct;
+mod env_guard;
 mod error_sink;
 
 use std::process;
@@ -13,7 +14,7 @@ use xzram::apply::{
 };
 use xzram::migrate::migrate_from_zram_tools;
 use xzram::snapshot::{self, SnapshotTrigger};
-use xzram::validation::from_value_strict;
+use xzram::validation::{from_json_strict, from_value_strict};
 
 use error_sink::ErrorSink;
 
@@ -28,6 +29,7 @@ struct Args {
 }
 
 fn main() {
+    env_guard::scrub_dev_overrides();
     tracing_subscriber::fmt()
         .with_env_filter(
             EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("warn")),
@@ -85,20 +87,23 @@ fn run(action: &str, payload: &str) -> xzram::Result<()> {
         // when the payload carries `prepare_swapfile`; the CLI relies on this to get a
         // single polkit prompt, and the `stage` polkit message says so.
         "stage" => {
-            #[derive(Deserialize)]
+            #[derive(Deserialize, serde::Serialize)]
             struct PrepareSpec {
                 path: String,
                 #[serde(default)]
                 mkdir_parents: bool,
             }
+            #[derive(Deserialize, serde::Serialize)]
+            struct StageWithPrepare {
+                pending: PendingConfig,
+                prepare_swapfile: PrepareSpec,
+            }
             let value = parse_value(payload)?;
             // `{pending, prepare_swapfile}` wrapper, or a bare PendingConfig.
-            if let Some(prepare) = value.get("prepare_swapfile") {
-                let spec: PrepareSpec = serde_json::from_value(prepare.clone())
-                    .map_err(|e| xzram::XzramError::Parse(e.to_string()))?;
-                let pending: PendingConfig =
-                    from_value_strict(value.get("pending").unwrap_or(&serde_json::Value::Null))?;
-                stage_with_optional_prepare(&pending, Some((&spec.path, spec.mkdir_parents)))?;
+            if value.get("prepare_swapfile").is_some() {
+                let w: StageWithPrepare = from_value_strict(&value)?;
+                let spec = w.prepare_swapfile;
+                stage_with_optional_prepare(&w.pending, Some((&spec.path, spec.mkdir_parents)))?;
             } else {
                 let partial: PendingConfig = from_value_strict(&value)?;
                 stage_with_optional_prepare(&partial, None)?;
@@ -110,7 +115,7 @@ fn run(action: &str, payload: &str) -> xzram::Result<()> {
             println!("Pending configuration cleared");
         }
         "zram.migrate" => {
-            #[derive(Deserialize, Default)]
+            #[derive(Deserialize, serde::Serialize, Default)]
             struct MigratePayload {
                 #[serde(default)]
                 apply_now: bool,
@@ -118,8 +123,7 @@ fn run(action: &str, payload: &str) -> xzram::Result<()> {
             let opts: MigratePayload = if payload.trim().is_empty() || payload.trim() == "{}" {
                 MigratePayload::default()
             } else {
-                serde_json::from_str(payload)
-                    .map_err(|e| xzram::XzramError::Parse(e.to_string()))?
+                from_json_strict(payload)?
             };
             let pending = migrate_from_zram_tools()?;
             if opts.apply_now {
@@ -162,14 +166,13 @@ fn run(action: &str, payload: &str) -> xzram::Result<()> {
             }
         }
         "snapshot.create" => {
-            #[derive(Deserialize)]
+            #[derive(Deserialize, serde::Serialize)]
             struct CreatePayload {
                 trigger: String,
                 #[serde(default)]
                 label: Option<String>,
             }
-            let p: CreatePayload = serde_json::from_str(payload)
-                .map_err(|e| xzram::XzramError::Parse(e.to_string()))?;
+            let p: CreatePayload = from_json_strict(payload)?;
             let trigger = caller_snapshot_trigger(&p.trigger)?;
             let meta = snapshot::create_snapshot(trigger, p.label.as_deref(), None)?;
             println!(
@@ -179,34 +182,31 @@ fn run(action: &str, payload: &str) -> xzram::Result<()> {
             );
         }
         "snapshot.restore" => {
-            #[derive(Deserialize)]
+            #[derive(Deserialize, serde::Serialize)]
             struct RestorePayload {
                 id: String,
             }
-            let p: RestorePayload = serde_json::from_str(payload)
-                .map_err(|e| xzram::XzramError::Parse(e.to_string()))?;
+            let p: RestorePayload = from_json_strict(payload)?;
             let result = snapshot::restore_snapshot(&p.id)?;
             for msg in &result.messages {
                 println!("{msg}");
             }
         }
         "snapshot.delete" => {
-            #[derive(Deserialize)]
+            #[derive(Deserialize, serde::Serialize)]
             struct DeletePayload {
                 id: String,
             }
-            let p: DeletePayload = serde_json::from_str(payload)
-                .map_err(|e| xzram::XzramError::Parse(e.to_string()))?;
+            let p: DeletePayload = from_json_strict(payload)?;
             snapshot::delete_snapshot(&p.id)?;
             println!("Deleted snapshot {}", p.id);
         }
         "snapshot.prune" => {
-            #[derive(Deserialize)]
+            #[derive(Deserialize, serde::Serialize)]
             struct PrunePayload {
                 keep: usize,
             }
-            let p: PrunePayload = serde_json::from_str(payload)
-                .map_err(|e| xzram::XzramError::Parse(e.to_string()))?;
+            let p: PrunePayload = from_json_strict(payload)?;
             let removed = snapshot::prune_snapshots(p.keep)?;
             println!("Pruned {removed} snapshot(s)");
         }

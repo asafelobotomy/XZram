@@ -5,7 +5,8 @@ DATADIR ?= $(PREFIX)/share
 SYSTEMDUNITDIR ?= $(PREFIX)/lib/systemd/system
 
 .PHONY: all build build-gui check test test-lib fmt fmt-check clippy lint loc-check \
-	install install-cli install-post gui-smoke clean version-check
+	install install-cli install-files install-cli-files install-post gui-smoke clean \
+	version-check
 
 XZRAM_VERSION := $(shell tr -d '[:space:]' < VERSION)
 
@@ -44,6 +45,15 @@ loc-check:
 # CLI/daemon/polkit/dbus only (no Qt), plus the uQ Settings page (inert without uQ).
 # Polkit/systemd/D-Bus unit files hardcode /usr/libexec; install with PREFIX=/usr.
 install-cli: build
+	$(MAKE) install-cli-files
+
+# The *-files targets only copy already-built files, so a source install can build as the
+# user and run just the copy as root: `make build && sudo make install-cli-files`.
+# `install` sets owner and mode on every file; never copy a user-owned staging tree onto /
+# (`cp -a` would hand that user /usr/libexec/xzram-helper, which pkexec runs as root).
+install-cli-files:
+	@test -x target/release/xzram -a -x target/release/xzram-helper -a -x target/release/xzramd \
+		|| { echo "Build first (as your user): make build"; exit 1; }
 	install -Dm755 target/release/xzram $(DESTDIR)$(BINDIR)/xzram
 	install -Dm755 target/release/xzram-helper $(DESTDIR)$(LIBEXECDIR)/xzram-helper
 	install -Dm755 target/release/xzramd $(DESTDIR)$(LIBEXECDIR)/xzramd
@@ -55,7 +65,12 @@ install-cli: build
 	install -Dm644 -t $(DESTDIR)$(DATADIR)/uq/settings/pages/xzram uq/pages/xzram/*
 
 # Full install including Qt GUI and desktop metadata.
-install: build build-gui install-cli
+install: build build-gui
+	$(MAKE) install-files
+
+install-files: install-cli-files
+	@test -x build-gui/xzram-qt/xzram-qt \
+		|| { echo "Build first (as your user): make build build-gui"; exit 1; }
 	install -Dm755 build-gui/xzram-qt/xzram-qt $(DESTDIR)$(BINDIR)/xzram-qt
 	install -Dm644 data/io.github.XZram.desktop $(DESTDIR)$(DATADIR)/applications/io.github.XZram.desktop
 	install -Dm644 data/io.github.XZram.metainfo.xml $(DESTDIR)$(DATADIR)/metainfo/io.github.XZram.metainfo.xml

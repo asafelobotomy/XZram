@@ -14,8 +14,10 @@ use xzram::sysctl::{self, SysctlValues};
 use xzram::validation;
 use xzram::{Result, XzramError};
 
-fn parse<T: serde::de::DeserializeOwned>(payload: &str) -> Result<T> {
-    serde_json::from_str(payload).map_err(|e| XzramError::Parse(e.to_string()))
+/// Every payload is parsed strictly: a field this helper doesn't know means the client is
+/// newer, and silently dropping it could change what the client asked for.
+fn parse<T: serde::de::DeserializeOwned + serde::Serialize>(payload: &str) -> Result<T> {
+    validation::from_json_strict(payload)
 }
 
 /// Snapshot current state before a direct action mutates it.
@@ -115,28 +117,31 @@ pub fn run(action: &str, payload: &str) -> Result<bool> {
             print_lines(&apply::drain_overflow(p.force)?);
         }
         "swapfile.create" => {
-            let value: serde_json::Value = parse(payload)?;
-            let config: SwapfileConfig = serde_json::from_value(value.clone())
-                .map_err(|e| XzramError::Parse(e.to_string()))?;
-            let config = validation::validate_swapfile_config(&config)?;
-            let flag = |key: &str| value.get(key).and_then(|v| v.as_bool()).unwrap_or(false);
-            let prepare = flag("prepare");
-            if prepare {
+            /// `SwapfileConfig` fields plus the optional prepare flags, all at the top level.
+            #[derive(Deserialize, serde::Serialize)]
+            struct CreatePayload {
+                #[serde(flatten)]
+                config: SwapfileConfig,
+                #[serde(default)]
+                prepare: bool,
+                #[serde(default)]
+                mkdir_parents: bool,
+            }
+            let p: CreatePayload = parse(payload)?;
+            let config = validation::validate_swapfile_config(&p.config)?;
+            if p.prepare {
                 validation::validate_swapfile_prepare_path(&config.path)?;
             }
             let backend = swapfile_backend()?;
             pre_change_snapshot(action)?;
-            if prepare {
-                xzram::swapfile_btrfs::prepare_nodatacow(
-                    Path::new(&config.path),
-                    flag("mkdir_parents"),
-                )?;
+            if p.prepare {
+                xzram::swapfile_btrfs::prepare_nodatacow(Path::new(&config.path), p.mkdir_parents)?;
             }
             backend.create(&config)?;
             println!("Swapfile created: {}", config.path);
         }
         "swapfile.resize" => {
-            #[derive(Deserialize)]
+            #[derive(Deserialize, serde::Serialize)]
             struct ResizePayload {
                 path: String,
                 size_mb: u64,
@@ -149,7 +154,7 @@ pub fn run(action: &str, payload: &str) -> Result<bool> {
             println!("Swapfile resized: {}", p.path);
         }
         "swapfile.remove" => {
-            #[derive(Deserialize)]
+            #[derive(Deserialize, serde::Serialize)]
             struct RemovePayload {
                 path: String,
             }
@@ -161,7 +166,7 @@ pub fn run(action: &str, payload: &str) -> Result<bool> {
             println!("Swapfile removed: {}", p.path);
         }
         "swap.activate" => {
-            #[derive(Deserialize)]
+            #[derive(Deserialize, serde::Serialize)]
             struct SwapPayload {
                 action: String,
                 device: String,
