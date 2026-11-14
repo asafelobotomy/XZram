@@ -40,9 +40,11 @@ pub struct StatusReport {
 }
 
 pub fn status() -> Result<StatusReport> {
+    let swaps = parse_proc_swaps()?;
+    let mounts = std::fs::read_to_string("/proc/self/mountinfo").unwrap_or_default();
     Ok(StatusReport {
-        swaps: parse_proc_swaps()?,
-        zram_devices: parse_zram_devices()?,
+        zram_devices: parse_zram_devices(&swaps, &mounts)?,
+        swaps,
         memory: parse_meminfo()?,
     })
 }
@@ -68,7 +70,10 @@ fn parse_proc_swaps() -> Result<Vec<SwapEntry>> {
     Ok(swaps)
 }
 
-pub fn parse_zram_devices() -> Result<Vec<ZramDevice>> {
+/// zram devices from sysfs. `swaps` (from /proc/swaps) and `mountinfo`
+/// (/proc/self/mountinfo) decide each device's `mount_point`: `[SWAP]` only when it is an
+/// active swap area. A device that disappears mid-scan is skipped.
+pub fn parse_zram_devices(swaps: &[SwapEntry], mountinfo: &str) -> Result<Vec<ZramDevice>> {
     let mut devices = Vec::new();
     let block_dir = std::path::Path::new("/sys/block");
 
@@ -81,11 +86,15 @@ pub fn parse_zram_devices() -> Result<Vec<ZramDevice>> {
         }
 
         let base = entry.path();
-        let algorithm =
-            parse_active_comp_algorithm(&read_sysfs_string(&base.join("comp_algorithm"))?);
-
-        let disk_size = read_sysfs_u64(&base.join("disksize"))?;
-        let mount_point = detect_zram_mount(&name);
+        // Hot-removed (or unreadable) between read_dir and here: skip it, don't fail status.
+        let (Ok(raw_algorithm), Ok(disk_size)) = (
+            read_sysfs_string(&base.join("comp_algorithm")),
+            read_sysfs_u64(&base.join("disksize")),
+        ) else {
+            continue;
+        };
+        let algorithm = parse_active_comp_algorithm(&raw_algorithm);
+        let mount_point = zram_mount_point(&name, swaps, mountinfo);
 
         let (data, compr, total, mem_used_max) = read_mm_stat(&base.join("mm_stat"))?;
 
@@ -154,35 +163,23 @@ pub fn parse_active_comp_algorithm(raw: &str) -> String {
         .to_string()
 }
 
-fn detect_zram_mount(device: &str) -> String {
-    let path = format!("/dev/{device}");
-    let output = std::process::Command::new("swapon")
-        .args(["--show=NAME,TYPE", "--noheadings"])
-        .output();
-
-    if let Ok(output) = output {
-        if output.status.success() {
-            for line in String::from_utf8_lossy(&output.stdout).lines() {
-                let parts: Vec<&str> = line.split_whitespace().collect();
-                if parts.first() == Some(&path.as_str()) {
-                    return if parts.get(1) == Some(&"partition") || parts.get(1) == Some(&"file") {
-                        "[SWAP]".into()
-                    } else {
-                        parts.get(1).unwrap_or(&"").to_string()
-                    };
-                }
-            }
-        }
-    }
-
-    if std::fs::read_to_string(format!("/sys/block/{device}/initstate"))
-        .map(|s| s.trim() == "1")
-        .unwrap_or(false)
-    {
+/// `[SWAP]` when `/dev/<device>` is an active swap area, its mount point when it holds a
+/// mounted filesystem (a zram `/tmp`), else empty. Initialised alone is not swap: counting
+/// a ramdisk as swap made the memory guard refuse restarts it had no reason to.
+fn zram_mount_point(device: &str, swaps: &[SwapEntry], mountinfo: &str) -> String {
+    let dev = format!("/dev/{device}");
+    if swaps.iter().any(|s| s.name == dev) {
         return "[SWAP]".into();
     }
-
-    String::new()
+    // mountinfo: "... <mount point> <options> [optional...] - <fstype> <source> <super opts>"
+    mountinfo
+        .lines()
+        .find_map(|line| {
+            let (left, right) = line.split_once(" - ")?;
+            let source = right.split_whitespace().nth(1)?;
+            (source == dev).then(|| left.split_whitespace().nth(4).map(str::to_string))?
+        })
+        .unwrap_or_default()
 }
 
 fn parse_meminfo() -> Result<MemoryInfo> {
@@ -292,5 +289,22 @@ mod tests {
         assert_eq!(parse_active_comp_algorithm("[lzo-rle] lz4"), "lzo-rle");
         assert_eq!(parse_active_comp_algorithm("zstd lz4"), "zstd");
         assert_eq!(parse_active_comp_algorithm(""), "unknown");
+    }
+
+    #[test]
+    fn zram_is_swap_only_when_swapped_on() {
+        let swaps = vec![SwapEntry {
+            name: "/dev/zram0".into(),
+            swap_type: "partition".into(),
+            size_bytes: 1,
+            used_bytes: 0,
+            priority: 100,
+        }];
+        let mountinfo = "29 1 0:26 / / rw,relatime shared:1 - btrfs /dev/nvme0n1p2 rw\n\
+                         41 29 252:1 / /tmp rw,nosuid,nodev shared:20 - ext4 /dev/zram1 rw\n";
+        assert_eq!(zram_mount_point("zram0", &swaps, mountinfo), "[SWAP]");
+        // An initialised ext4 ramdisk is not swap (it was counted as swap before).
+        assert_eq!(zram_mount_point("zram1", &swaps, mountinfo), "/tmp");
+        assert_eq!(zram_mount_point("zram2", &swaps, mountinfo), "");
     }
 }

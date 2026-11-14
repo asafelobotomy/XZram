@@ -33,18 +33,43 @@ pub fn validate_zram_device_name(name: &str) -> Result<()> {
     Ok(())
 }
 
+/// Write-back safety for a whole generator file. The device being changed is validated
+/// strictly (`validate_zram_config`) by `configure`; the other sections and unmodeled keys
+/// come from the existing file, so here they only have to be safe to render as INI: a
+/// `zramN` section name, `[a-z0-9-]` keys, and values without control characters or a
+/// leading `[`. (Strict checks here made one value xzram doesn't model, such as
+/// `zstd(level=3)`, block every change.)
 pub fn validate_zram_generator_devices(devices: &[crate::config::ZramDeviceSection]) -> Result<()> {
     for device in devices {
-        let config = ZramConfig {
-            device: device.name.clone(),
-            zram_size: device.zram_size.clone(),
-            zram_resident_limit: device.zram_resident_limit.clone(),
-            compression_algorithm: device.compression_algorithm.clone(),
-            swap_priority: device.swap_priority,
-            fs_type: device.fs_type.clone(),
-            mount_point: device.mount_point.clone(),
-        };
-        validate_zram_config(&config)?;
+        validate_zram_device_name(&device.name)?;
+        let modeled = [
+            ("zram-size", device.zram_size.as_deref()),
+            ("zram-resident-limit", device.zram_resident_limit.as_deref()),
+            (
+                "compression-algorithm",
+                device.compression_algorithm.as_deref(),
+            ),
+            ("fs-type", device.fs_type.as_deref()),
+            ("mount-point", device.mount_point.as_deref()),
+        ];
+        let extra = device
+            .extra
+            .iter()
+            .map(|(k, v)| (k.as_str(), Some(v.as_str())));
+        for (key, value) in modeled.into_iter().chain(extra) {
+            let key_ok = !key.is_empty()
+                && key
+                    .bytes()
+                    .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-');
+            let value_ok =
+                value.is_none_or(|v| !v.starts_with('[') && !v.chars().any(|c| c.is_control()));
+            if !key_ok || !value_ok {
+                return Err(XzramError::Validation(format!(
+                    "[{}] {key}: not safe to write to zram-generator.conf",
+                    device.name
+                )));
+            }
+        }
     }
     Ok(())
 }

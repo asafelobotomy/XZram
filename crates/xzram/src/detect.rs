@@ -193,10 +193,12 @@ fn detect_zram_backend() -> Result<ZramBackend> {
     Ok(ZramBackend::None)
 }
 
+/// The zram-generator config in effect: systemd's precedence is /etc over /run over
+/// /usr/local/lib over /usr/lib, and the first one present wins.
 pub fn find_zram_generator_config() -> Option<String> {
     const PATHS: &[&str] = &[
-        "/run/systemd/zram-generator.conf",
         "/etc/systemd/zram-generator.conf",
+        "/run/systemd/zram-generator.conf",
         "/usr/local/lib/systemd/zram-generator.conf",
         "/usr/lib/systemd/zram-generator.conf",
     ];

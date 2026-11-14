@@ -24,6 +24,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - README source install: the `DESTDIR` + `sudo cp -a` recipe left `/usr/libexec/xzram-helper` (run as root by pkexec) and `/usr` owned by the building user. Use `make build && sudo make install-cli-files`
 - AUR release workflow: the build job, which runs crate build scripts, no longer holds a write token; uploading to the release is a separate job with no checkout
 - `snapshot create` over pkexec now checks the helper version like every other pkexec action
+- zram-generator.conf is written atomically (temp file, fsync, rename). A crash or full disk mid-write could leave it empty, which disables zram at the next boot
+- Changing zram keeps the rest of zram-generator.conf: other `[zramN]` sections are no longer dropped when the current file can't be read (the change is refused instead), and keys xzram doesn't model (`writeback-device`, `options`, `host-memory-limit`, ...) are kept on every rewrite. A value xzram doesn't accept elsewhere in the file (e.g. `zstd(level=3)`) no longer blocks every change
+- `defaults recommend` never replaces a zram size it can't evaluate (zram-generator accepts `^`, `%` and functions xzram doesn't model), so it can't shrink a larger custom device
+- The zram-generator config is looked up in systemd's order (`/etc` before `/run`)
+- A zram device counts as swap only when it is in /proc/swaps. An initialised zram ramdisk (e.g. `/tmp`) was counted as swap, so the memory guard could refuse a restart for it. A zram device that disappears mid-scan no longer fails `status`, `doctor` and `recommend`
 
 ## [0.6.0] — 2026-11-13
 
