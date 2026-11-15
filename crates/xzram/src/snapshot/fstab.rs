@@ -7,14 +7,11 @@ use std::time::{Duration, UNIX_EPOCH};
 use super::paths::{etc_path, FSTAB};
 use super::types::SnapshotMeta;
 use crate::error::Result;
+use crate::validation::fstab::{decode_fstab_escapes, parse_swap_entries, parse_swap_line};
 
 /// True for an active (non-comment) fstab entry whose type field is `swap`.
 pub(crate) fn is_swap_line(line: &str) -> bool {
-    let trimmed = line.trim();
-    if trimmed.is_empty() || trimmed.starts_with('#') {
-        return false;
-    }
-    trimmed.split_whitespace().nth(2) == Some("swap")
+    parse_swap_line(line).is_some()
 }
 
 /// True when an fstab/`/proc/swaps` source names a regular file rather than a device.
@@ -22,21 +19,13 @@ pub(crate) fn is_swapfile_source(source: &str) -> bool {
     source.starts_with('/') && !source.starts_with("/dev/")
 }
 
-/// Swapfile entries in `content` as `(path, options)`; skips devices, UUIDs and labels.
+/// Swapfile entries in `content` as `(decoded path, options)`; skips devices, UUIDs and
+/// labels. Paths are escape-decoded (`\040` → space) so they match snapshot metadata.
 pub(crate) fn swapfile_entries(content: &str) -> Vec<(String, String)> {
-    content
-        .lines()
-        .filter(|line| is_swap_line(line))
-        .filter_map(|line| {
-            let parts: Vec<&str> = line.split_whitespace().collect();
-            let source = parts[0];
-            is_swapfile_source(source).then(|| {
-                (
-                    source.to_string(),
-                    parts.get(3).copied().unwrap_or("defaults").to_string(),
-                )
-            })
-        })
+    parse_swap_entries(content)
+        .into_iter()
+        .filter(|e| is_swapfile_source(&e.spec))
+        .map(|e| (e.spec, e.options))
         .collect()
 }
 
@@ -70,9 +59,9 @@ fn parse_proc_swaps_files(content: &str) -> Vec<String> {
         .skip(1)
         .filter_map(|line| {
             let mut parts = line.split_whitespace();
-            let name = parts.next()?;
+            let name = decode_fstab_escapes(parts.next()?);
             let kind = parts.next()?;
-            (kind == "file" && is_swapfile_source(name)).then(|| name.to_string())
+            (kind == "file" && is_swapfile_source(&name)).then_some(name)
         })
         .collect()
 }
@@ -164,5 +153,16 @@ mod tests {
                        /dev/zram0 partition 100 0 100\n\
                        /swap/swapfile file 200 0 10\n";
         assert_eq!(parse_proc_swaps_files(content), vec!["/swap/swapfile"]);
+    }
+
+    #[test]
+    fn escaped_paths_are_decoded_to_match_snapshot_metadata() {
+        let fstab = "/swap/my\\040file none swap pri=5 0 0\n";
+        assert_eq!(
+            swapfile_entries(fstab),
+            vec![("/swap/my file".to_string(), "pri=5".to_string())]
+        );
+        let proc_swaps = "Filename Type Size Used Priority\n/swap/my\\040file file 1 0 5\n";
+        assert_eq!(parse_proc_swaps_files(proc_swaps), vec!["/swap/my file"]);
     }
 }

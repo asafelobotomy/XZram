@@ -69,18 +69,32 @@ pub fn prune_snapshots(keep: usize) -> Result<u32> {
             "prune keep must be at least 1 (refusing to delete all snapshots)".into(),
         ));
     }
-    with_store_lock(|| {
-        let index = load_index()?;
-        if index.len() <= keep {
-            return Ok(0);
-        }
-        let to_remove: Vec<String> = index.iter().skip(keep).map(|s| s.id.clone()).collect();
-        let count = to_remove.len() as u32;
-        for id in to_remove {
-            delete_snapshot_unlocked(&id)?;
-        }
-        Ok(count)
-    })
+    with_store_lock(|| prune_unlocked(keep))
+}
+
+/// Keep the newest `keep` snapshots, and always the newest `pre_apply` one: `rollback`
+/// restores it, so pruning it away would leave nothing to roll back to. Caller holds the
+/// store lock.
+pub(crate) fn prune_unlocked(keep: usize) -> Result<u32> {
+    let index = load_index()?;
+    if index.len() <= keep {
+        return Ok(0);
+    }
+    let newest_pre_apply = index
+        .iter()
+        .find(|s| s.trigger == SnapshotTrigger::PreApply)
+        .map(|s| s.id.clone());
+    let to_remove: Vec<String> = index
+        .iter()
+        .skip(keep)
+        .filter(|s| Some(&s.id) != newest_pre_apply.as_ref())
+        .map(|s| s.id.clone())
+        .collect();
+    let count = to_remove.len() as u32;
+    for id in to_remove {
+        delete_snapshot_unlocked(&id)?;
+    }
+    Ok(count)
 }
 
 pub fn migrate_legacy_backup() -> Result<Option<SnapshotMeta>> {
@@ -246,6 +260,31 @@ mod tests {
         assert_eq!(removed, 1);
         assert_eq!(list_snapshots().unwrap().len(), 1);
 
+        cleanup_test_env();
+    }
+
+    #[test]
+    fn prune_keeps_the_newest_pre_apply_for_rollback() {
+        let _guard = test_lock();
+        let env = test_env();
+        for (i, trigger) in [
+            SnapshotTrigger::PreApply,
+            SnapshotTrigger::Manual,
+            SnapshotTrigger::Manual,
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            fs::write(env._etc.path().join("fstab"), format!("{i}\n")).unwrap();
+            create_snapshot(trigger, None, None).unwrap();
+            std::thread::sleep(std::time::Duration::from_millis(2));
+        }
+        // Keep 1: the newest manual one, plus the (oldest) pre_apply that rollback needs.
+        assert_eq!(prune_snapshots(1).unwrap(), 1);
+        let left = list_snapshots().unwrap();
+        assert_eq!(left.len(), 2);
+        assert!(left.iter().any(|s| s.trigger == SnapshotTrigger::PreApply));
+        assert!(latest_pre_apply_id().is_ok());
         cleanup_test_env();
     }
 
