@@ -9,8 +9,8 @@ URL:            https://github.com/asafelobotomy/XZram
 Source0:        %{url}/archive/refs/tags/v%{version}.tar.gz#/%{name}-%{version}.tar.gz
 
 # rust-version in Cargo.toml
-BuildRequires:  rust >= 1.87
-BuildRequires:  cargo >= 1.87
+BuildRequires:  rust >= 1.89
+BuildRequires:  cargo >= 1.89
 BuildRequires:  cmake qt6-qtbase-devel systemd-rpm-macros
 Requires:       polkit systemd util-linux
 Recommends:     zram-generator

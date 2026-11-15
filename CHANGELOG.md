@@ -17,11 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI builds the RPM (with `%check`) on Fedora, and the distro smoke tests run `xzram detect`, `status` and `doctor` on each distro
 
 ### Changed
+- zbus 6.2.1 and zbus_polkit 6.0.0 (from 5). The CLI's D-Bus client moved off the blocking API zbus 6 removed; the D-Bus interface is unchanged. Minimum Rust is now 1.89 (zbus 6), also in debian/control and the RPM spec
 - Doctor `swap_nearly_full` is an error when swap is ≥ 98% used and less than 15% of RAM is available (previously a warning at any level, so a system with exhausted swap reported "Healthy")
 - `xzram-helper` refuses unknown fields in every action's payload (stage, zram.migrate, snapshot.*, swapfile.*, swap.activate), not only some
 - A release `xzram-helper` running as root ignores `XZRAM_*` development overrides (except `XZRAM_ERROR_FILE`)
 - debian/rules and the RPM spec install through the Makefile's `install-cli-files` / `install-gui-files`, so all packages ship the same file list
-- debian/control and the RPM spec require rustc/cargo ≥ 1.87 (the crates' `rust-version`); the RPM spec also needs `systemd-rpm-macros` for its `%systemd_*` scriptlets
+- debian/control and the RPM spec require the crates' `rust-version` of rustc/cargo; the RPM spec also needs `systemd-rpm-macros` for its `%systemd_*` scriptlets
 - Packages suggest `btrfs-progs` (swapfiles on btrfs are made with `btrfs filesystem mkswapfile`)
 - AUR `pkgrel=2`: picks up the `hicolor-icon-theme` dependency of `xzram-gui` and the `btrfs-progs` optional dependency
 - `make install*` refuses a `PREFIX`, `BINDIR` or `LIBEXECDIR` other than `/usr`: the polkit, D-Bus and systemd files name `/usr/libexec`, so a `PREFIX=/usr/local` install was broken

@@ -18,7 +18,7 @@ pub(crate) async fn authorize(
             &subject,
             action_id,
             &HashMap::new(),
-            CheckAuthorizationFlags::AllowUserInteraction.into(),
+            CheckAuthorizationFlags::ALLOW_USER_INTERACTION,
             "",
         )
         .await
@@ -45,9 +45,9 @@ mod tests {
     use super::*;
 
     fn call(sender: Option<&str>) -> zbus::Message {
-        let builder = zbus::Message::method_call("/io/github/XZram1", "GetStatus").unwrap();
+        let builder = zbus::Message::method_call("/io/github/XZram1", "GetStatus");
         let builder = match sender {
-            Some(name) => builder.sender(name).unwrap(),
+            Some(name) => builder.sender(name),
             None => builder,
         };
         builder.build(&()).unwrap()
