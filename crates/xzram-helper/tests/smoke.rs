@@ -21,6 +21,13 @@ fn missing_args_fails() {
 
 #[test]
 fn snapshot_create_rejects_pre_apply_and_ignores_bad_error_file() {
+    // A release helper running as root ignores XZRAM_DATA_DIR (env_guard), so it would
+    // write the real /var/lib/xzram/last_error. Root release test runs (rpmbuild %check
+    // in a container) skip this one; unprivileged and debug runs cover it.
+    if !cfg!(debug_assertions) && unsafe { libc::geteuid() } == 0 {
+        eprintln!("skipped: release helper as root ignores XZRAM_DATA_DIR");
+        return;
+    }
     let dir = tempfile::tempdir().unwrap();
     let outside = dir.path().join("evil-error-file");
     Command::new(cargo_bin("xzram-helper"))
