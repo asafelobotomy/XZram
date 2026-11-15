@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - zbus 6.2.1 and zbus_polkit 6.0.0 (from 5). The CLI's D-Bus client moved off the blocking API zbus 6 removed; the D-Bus interface is unchanged. Minimum Rust is now 1.89 (zbus 6), also in debian/control and the RPM spec
+- sha2 0.11.1 (from 0.10); snapshot `state_hash` values are unchanged (same lowercase hex)
 - Doctor `swap_nearly_full` is an error when swap is ≥ 98% used and less than 15% of RAM is available (previously a warning at any level, so a system with exhausted swap reported "Healthy")
 - `xzram-helper` refuses unknown fields in every action's payload (stage, zram.migrate, snapshot.*, swapfile.*, swap.activate), not only some
 - A release `xzram-helper` running as root ignores `XZRAM_*` development overrides (except `XZRAM_ERROR_FILE`)
