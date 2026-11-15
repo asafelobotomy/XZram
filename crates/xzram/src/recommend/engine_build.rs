@@ -37,7 +37,7 @@ pub(crate) fn recommend_from_context_scaled(
     let mut items = Vec::new();
     let mut pending = PendingConfig::default();
     let staging_blocked = !detection.etc_writable || detection.immutable_os;
-    let hibernate_blocks_zram = checks::hibernation_zram_conflict(&status.swaps);
+    let hibernate_blocks_zram = checks::hibernation_zram_conflict();
 
     if !detection.etc_writable {
         items.push(note_item(
@@ -197,7 +197,7 @@ fn stage_zram(
         let size = staged_zram
             .zram_size
             .as_deref()
-            .unwrap_or("min(ram / 2, 4096)");
+            .unwrap_or(crate::config::DEFAULT_ZRAM_SIZE);
         let pri = staged_zram.swap_priority.unwrap_or(100);
         let resident = staged_zram
             .zram_resident_limit

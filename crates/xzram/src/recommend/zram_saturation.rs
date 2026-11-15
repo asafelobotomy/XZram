@@ -42,7 +42,7 @@ pub(super) fn grow_for_saturation(
     let mem_gb = status.memory.mem_total_kb as f64 / (1024.0 * 1024.0);
     let next_tier = zram_size_formula(profile, mem_gb, RecommendSizeScale::High);
 
-    let live_mb = sat.size_bytes / (1024 * 1024);
+    let live_mb = sat.size_bytes / crate::status::MIB;
     let configured_mb = current
         .and_then(|c| c.zram_size.as_deref())
         .and_then(|f| eval_zram_size_mb(f, ram_mb))

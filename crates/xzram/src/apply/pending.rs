@@ -1,4 +1,3 @@
-use std::path::Path;
 use std::path::PathBuf;
 
 use tracing::info;
@@ -6,6 +5,7 @@ use tracing::info;
 use super::store_lock::with_store_lock;
 use super::types::PendingConfig;
 use crate::error::{Result, XzramError};
+use crate::fsutil::set_mode;
 use crate::sysctl::SysctlValues;
 
 pub fn data_dir() -> PathBuf {
@@ -23,26 +23,6 @@ fn ensure_data_dir() -> PathBuf {
     dir
 }
 
-fn set_mode(path: &Path, mode: u32) {
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode));
-    }
-    #[cfg(not(unix))]
-    {
-        let _ = (path, mode);
-    }
-}
-
-fn set_mode_600(path: &Path) {
-    set_mode(path, 0o600);
-}
-
-fn set_mode_644(path: &Path) {
-    set_mode(path, 0o644);
-}
-
 /// Path to the last privileged-helper error (survives systemd-run swallowing stderr).
 pub fn last_error_path() -> PathBuf {
     data_dir().join("last_error")
@@ -52,7 +32,7 @@ pub fn write_last_error(message: &str) {
     let _dir = ensure_data_dir();
     let path = last_error_path();
     if crate::fsutil::atomic_write(&path, message.as_bytes(), 0o600).is_ok() {
-        set_mode_600(&path);
+        set_mode(&path, 0o600);
     }
 }
 
@@ -157,7 +137,7 @@ fn write_pending_unlocked(config: &PendingConfig) -> Result<()> {
     let content =
         serde_json::to_string_pretty(config).map_err(|e| XzramError::Parse(e.to_string()))?;
     crate::fsutil::atomic_write(&path, content.as_bytes(), 0o644)?;
-    set_mode_644(&path);
+    set_mode(&path, 0o644);
     Ok(())
 }
 

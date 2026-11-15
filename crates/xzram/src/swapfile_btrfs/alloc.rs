@@ -174,7 +174,7 @@ fn build_swapfile(target: &Path, size_mb: u64) -> Result<()> {
 
 fn allocate_swapfile_bytes(path: &Path, size_mb: u64) -> Result<()> {
     let size_bytes = size_mb
-        .checked_mul(1024 * 1024)
+        .checked_mul(crate::status::MIB)
         .and_then(|b| libc::off_t::try_from(b).ok())
         .ok_or_else(|| XzramError::Validation("swapfile size too large".into()))?;
     let mut file = OpenOptions::new()

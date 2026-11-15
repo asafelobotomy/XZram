@@ -33,7 +33,7 @@ pub(crate) fn run(command: ZramCommands, json: bool, dbus: bool) -> anyhow::Resu
                 zram_size: Some(size.unwrap_or_else(|| {
                     defaults
                         .zram_size
-                        .unwrap_or_else(|| "min(ram / 2, 4096)".into())
+                        .unwrap_or_else(|| xzram::config::DEFAULT_ZRAM_SIZE.into())
                 })),
                 zram_resident_limit: None,
                 compression_algorithm: Some(algorithm.unwrap_or_else(|| {

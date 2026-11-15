@@ -150,7 +150,7 @@ pub fn disable_zram(backend: &dyn ZramBackendTrait, opts: ApplyOptions) -> Resul
 mod tests {
     use super::*;
 
-    const GIB: u64 = 1 << 30;
+    use crate::status::GIB;
 
     fn mem(total_gib: u64, available: u64) -> MemoryInfo {
         MemoryInfo {

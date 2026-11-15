@@ -25,6 +25,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Packages suggest `btrfs-progs` (swapfiles on btrfs are made with `btrfs filesystem mkswapfile`)
 - AUR `pkgrel=2`: picks up the `hicolor-icon-theme` dependency of `xzram-gui` and the `btrfs-progs` optional dependency
 - `make install*` refuses a `PREFIX`, `BINDIR` or `LIBEXECDIR` other than `/usr`: the polkit, D-Bus and systemd files name `/usr/libexec`, so a `PREFIX=/usr/local` install was broken
+- xzramd unit adds `UMask=0077`, `RemoveIPC=yes`, `PrivateIPC=yes` and `KeyringMode=private`; the snapshot store and `pending.json` keep their explicit modes (index.json 0644, snapshots/ 0711), now covered by a test that runs under that umask. Directories `atomic_write` creates (e.g. the oomd drop-in folders, one of which each user's systemd manager reads) are made 0755, not root-only
+- Tech debt: removed the unused `zram_backend_warning`, the GUI's unconnected `confirmBeforeApplyChanged` signal, unused `kExitError`/`kExitUsage` and `CMAKE_AUTOUIC`; one `fsutil::set_mode`, one `SnapshotTrigger::parse_caller`, and named constants for MiB/GiB, the zram-generator default size and the 4 GiB overflow cap
 
 ### Fixed
 - `xzram swapfile prepare`, xzramd `PrepareSwapfileBtrfs` and the GUI's Doctor "prepare" button failed with "unknown action: swapfile.prepare": the helper action had been dropped
@@ -46,6 +48,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The Debian and RPM packages now install the uQ Settings page (only the Makefile and PKGBUILDs did)
 - The zram backend, package-manager detection and swapfile checks no longer run `which`, which minimal installs (e.g. Fedora base images) don't have; the zram backend showed as unavailable there
 - The snapshot store is pruned to 50 after each new snapshot (it used to grow without limit); the newest `pre_apply` snapshot, which `rollback` needs, is never pruned
+- A disk swapfile or partition with "zram" in its path (e.g. `/swap/zram.swap`) was treated as a zram device by doctor, recommend, drain and saturation checks; zram is now recognised only as `/dev/zramN` (`SwapEntry::is_zram`)
 
 ## [0.6.0] — 2026-11-13
 

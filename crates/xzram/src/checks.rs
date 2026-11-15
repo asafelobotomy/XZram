@@ -17,7 +17,7 @@ pub fn zram_zswap_conflict(zram_devices: &[crate::status::ZramDevice]) -> bool {
     matches!(zswap_enabled(), Some(true))
 }
 
-pub fn hibernation_zram_conflict(swaps: &[SwapEntry]) -> bool {
+pub fn hibernation_zram_conflict() -> bool {
     let resume_path = Path::new("/sys/power/resume");
     let Ok(resume) = std::fs::read_to_string(resume_path) else {
         return false;
@@ -27,12 +27,7 @@ pub fn hibernation_zram_conflict(swaps: &[SwapEntry]) -> bool {
         return false;
     }
 
-    if resume_device_is_zram(resume) {
-        return true;
-    }
-
-    let _ = swaps;
-    false
+    resume_device_is_zram(resume)
 }
 
 fn resume_device_is_zram(resume: &str) -> bool {
@@ -62,8 +57,8 @@ pub fn priority_inverted(swaps: &[SwapEntry]) -> bool {
     if swaps.len() < 2 {
         return false;
     }
-    let zram_swaps: Vec<_> = swaps.iter().filter(|s| s.name.contains("zram")).collect();
-    let disk_swaps: Vec<_> = swaps.iter().filter(|s| !s.name.contains("zram")).collect();
+    let zram_swaps: Vec<_> = swaps.iter().filter(|s| s.is_zram()).collect();
+    let disk_swaps: Vec<_> = swaps.iter().filter(|s| !s.is_zram()).collect();
     if zram_swaps.is_empty() || disk_swaps.is_empty() {
         return false;
     }
@@ -124,6 +119,26 @@ mod tests {
             },
         ];
         assert!(priority_inverted(&swaps));
+    }
+
+    #[test]
+    fn swapfile_named_zram_is_disk_swap() {
+        let swap = |name: &str, swap_type: &str, priority| SwapEntry {
+            name: name.into(),
+            swap_type: swap_type.into(),
+            size_bytes: 0,
+            used_bytes: 0,
+            priority,
+        };
+        // A disk swapfile whose path mentions zram, above the real zram device: inverted.
+        let swaps = vec![
+            swap("/dev/zram0", "partition", 100),
+            swap("/var/zram-overflow.swap", "file", 200),
+        ];
+        assert!(!swaps[1].is_zram());
+        assert!(priority_inverted(&swaps));
+        // With only that swapfile there is no zram, so no inversion to report.
+        assert!(!priority_inverted(&swaps[1..]));
     }
 
     #[test]

@@ -3,7 +3,10 @@
 use serde::{Deserialize, Serialize};
 
 use super::staging::eval_zram_size_mb;
-use super::types::{RecommendProfile, OVERFLOW_SWAPFILE_HIGH_MAX_MB, OVERFLOW_SWAPFILE_MAX_MB};
+use super::types::{
+    RecommendProfile, OVERFLOW_SWAPFILE_HIGH_MAX_MB, OVERFLOW_SWAPFILE_LOW_MAX_MB,
+    OVERFLOW_SWAPFILE_MAX_MB,
+};
 
 /// User-selectable size tier for zram or overflow swapfile.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -141,7 +144,7 @@ pub fn zram_size_formula(
 pub fn overflow_size_mb_for_scale(mem_total_kb: u64, scale: RecommendSizeScale) -> u64 {
     let ram_mb = mem_total_kb / 1024;
     match scale {
-        RecommendSizeScale::Low => (ram_mb / 2).min(4096),
+        RecommendSizeScale::Low => (ram_mb / 2).min(OVERFLOW_SWAPFILE_LOW_MAX_MB),
         RecommendSizeScale::Default => ram_mb.min(OVERFLOW_SWAPFILE_MAX_MB),
         RecommendSizeScale::High => ram_mb.min(OVERFLOW_SWAPFILE_HIGH_MAX_MB),
     }

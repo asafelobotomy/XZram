@@ -51,7 +51,7 @@ impl ZramSaturation {
 /// The first zram swap device that is at least [`NEAR_FULL_RATIO`] full while disk swap
 /// with a lower priority holds data.
 pub fn detect(status: &StatusReport) -> Option<ZramSaturation> {
-    for zram in status.swaps.iter().filter(|s| s.name.contains("zram")) {
+    for zram in status.swaps.iter().filter(|s| s.is_zram()) {
         if zram.size_bytes == 0
             || (zram.used_bytes as f64) < zram.size_bytes as f64 * NEAR_FULL_RATIO
         {
@@ -60,7 +60,7 @@ pub fn detect(status: &StatusReport) -> Option<ZramSaturation> {
         let overflow_bytes: u64 = status
             .swaps
             .iter()
-            .filter(|s| !s.name.contains("zram") && s.priority < zram.priority)
+            .filter(|s| !s.is_zram() && s.priority < zram.priority)
             .map(|s| s.used_bytes)
             .sum();
         if overflow_bytes == 0 {
@@ -140,7 +140,7 @@ pub fn propose_size(
         reason: format!(
             "{}; '{formula}' (~{}) holds it in RAM instead: {why}",
             sat.describe(),
-            format_bytes(approx_mib * 1024 * 1024)
+            format_bytes(approx_mib * crate::status::MIB)
         ),
         formula,
         approx_mib,
@@ -153,12 +153,12 @@ pub(crate) mod tests {
     use crate::recommend::eval_zram_size_mb;
     use crate::status::{MemoryInfo, SwapEntry, ZramDevice};
 
-    const GIB: u64 = 1 << 30;
+    use crate::status::GIB;
 
     pub(crate) fn status_28(zram_used: u64, disk_used: u64) -> StatusReport {
         let swap = |name: &str, size, used, priority| SwapEntry {
             name: name.into(),
-            swap_type: if name.contains("zram") {
+            swap_type: if crate::status::is_zram_device_path(name) {
                 "partition"
             } else {
                 "file"

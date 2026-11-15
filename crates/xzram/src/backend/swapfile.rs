@@ -27,7 +27,7 @@ impl SwapfileBackend {
             .filter(|e| e.spec.starts_with('/') && !e.spec.starts_with("/dev/"))
             .map(|e| SwapfileConfig {
                 size_mb: fs::metadata(&e.spec)
-                    .map(|m| m.len() / (1024 * 1024))
+                    .map(|m| m.len() / crate::status::MIB)
                     .unwrap_or(0),
                 priority: parse_fstab_priority(&e.options),
                 path: e.spec,

@@ -1,5 +1,4 @@
 use crate::apply::{SwapfileConfig, ZramConfig};
-use crate::detect::{detect, ZramBackend};
 use crate::error::{Result, XzramError};
 
 pub mod swapfile;
@@ -26,29 +25,10 @@ pub trait SwapfileBackendTrait: SwapBackend {
     fn resize(&self, path: &str, size_mb: u64) -> Result<()>;
 }
 
+/// xzram manages zram only through systemd-zram-generator, whatever is installed now:
+/// legacy zram-tools and hand-made devices are reported by `doctor`, not driven directly.
 pub fn available_zram_backend() -> Result<Box<dyn ZramBackendTrait>> {
-    let detection = detect()?;
-    match detection.zram_backend {
-        ZramBackend::SystemdZramGenerator | ZramBackend::None | ZramBackend::Manual => {
-            Ok(Box::new(zram_generator::ZramGeneratorBackend))
-        }
-        ZramBackend::ZramTools => Ok(Box::new(zram_generator::ZramGeneratorBackend)),
-    }
-}
-
-pub fn zram_backend_warning() -> Result<Option<String>> {
-    let detection = detect()?;
-    match detection.zram_backend {
-        ZramBackend::ZramTools => Ok(Some(
-            "Legacy zram-tools detected; consider 'xzram zram migrate' to move to zram-generator"
-                .into(),
-        )),
-        ZramBackend::Manual => Ok(Some(
-            "Manual zram configuration detected; xzram will manage via systemd-zram-generator"
-                .into(),
-        )),
-        _ => Ok(None),
-    }
+    Ok(Box::new(zram_generator::ZramGeneratorBackend))
 }
 
 pub fn available_swapfile_backend() -> Box<dyn SwapfileBackendTrait> {

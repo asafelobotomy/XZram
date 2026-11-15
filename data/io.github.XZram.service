@@ -9,6 +9,13 @@ ExecStart=/usr/libexec/xzramd
 Restart=on-failure
 RestartSec=2
 NoNewPrivileges=yes
+# Files the daemon creates itself are private by default; the snapshot store and
+# pending.json set explicit modes (index.json 0644, snapshots/ 0711) so the CLI can read them,
+# and directories created for config files (e.g. oomd drop-ins) get 0755.
+UMask=0077
+RemoveIPC=yes
+PrivateIPC=yes
+KeyringMode=private
 PrivateTmp=yes
 ProtectSystem=strict
 ProtectHome=yes

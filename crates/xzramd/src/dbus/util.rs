@@ -23,19 +23,10 @@ pub(crate) fn validate_staged_pending(pending: &PendingConfig) -> zbus::fdo::Res
         .map_err(|e| zbus::fdo::Error::InvalidArgs(e.to_string()))
 }
 
-/// Parse a caller-supplied snapshot trigger.
-///
-/// `pre_apply` is reserved for automatic snapshots taken right before a change: `rollback`
-/// restores the newest `pre_apply` snapshot, so letting callers forge one would let them
-/// redirect a later rollback.
+/// Parse a caller-supplied snapshot trigger (`pre_apply` is refused; see
+/// [`SnapshotTrigger::parse_caller`]).
 pub(crate) fn caller_snapshot_trigger(trigger: &str) -> zbus::fdo::Result<SnapshotTrigger> {
-    match SnapshotTrigger::parse(trigger) {
-        Ok(SnapshotTrigger::PreApply) => Err(zbus::fdo::Error::InvalidArgs(
-            "snapshot trigger 'pre_apply' is reserved for automatic snapshots".into(),
-        )),
-        Ok(t) => Ok(t),
-        Err(e) => Err(zbus::fdo::Error::InvalidArgs(e.to_string())),
-    }
+    SnapshotTrigger::parse_caller(trigger).map_err(|e| zbus::fdo::Error::InvalidArgs(e.to_string()))
 }
 
 pub(crate) async fn prepare_swapfile_btrfs(

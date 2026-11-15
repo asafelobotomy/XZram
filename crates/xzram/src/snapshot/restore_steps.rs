@@ -35,7 +35,7 @@ pub(super) fn check_restore_memory(
     let incoming = status
         .swaps
         .iter()
-        .filter(|s| s.name.starts_with("/dev/zram") || files.contains(s.name.as_str()))
+        .filter(|s| s.is_zram() || files.contains(s.name.as_str()))
         .map(|s| s.used_bytes)
         .sum();
     MemoryCheck {

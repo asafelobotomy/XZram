@@ -156,7 +156,7 @@ fn push_rotational_warnings(items: &mut Vec<RecommendationItem>, status: &Status
     let mut slow: Vec<String> = status
         .swaps
         .iter()
-        .filter(|s| !s.name.contains("zram"))
+        .filter(|s| !s.is_zram())
         .filter(|s| is_rotational_swap(&s.name) == Some(true))
         .map(|s| s.name.clone())
         .collect();

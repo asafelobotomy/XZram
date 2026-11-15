@@ -155,7 +155,7 @@ pub fn doctor() -> Result<DoctorReport> {
     }
 
     check_zswap(&mut issues);
-    check_hibernation(&mut issues, &status.swaps);
+    check_hibernation(&mut issues);
     check_filesystem_swapfile(&mut issues, detection.root_filesystem.as_deref());
     check_btrfs_swapfile_nodatacow(&mut issues);
     check_swap_priorities(&mut issues, &status.swaps);

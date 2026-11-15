@@ -7,15 +7,16 @@ use super::{DoctorIssue, IssueSeverity};
 use crate::oom::{MemoryPressure, OomProbe};
 use crate::status::{format_bytes, StatusReport};
 
-const GIB: u64 = 1024 * 1024 * 1024;
+use crate::status::GIB;
 /// Total swap use at which a further allocation burst can exhaust it.
 const SWAP_NEARLY_FULL_RATIO: f64 = 0.8;
 /// Swap this full, with RAM available below `LOW_AVAILABLE_RATIO` of total, is an error:
 /// nothing is left to absorb the next burst but the OOM killer.
 const SWAP_EXHAUSTED_RATIO: f64 = 0.98;
 const LOW_AVAILABLE_RATIO: f64 = 0.15;
-/// Disk overflow behind zram smaller than min(RAM / 2, this) is flagged.
-const OVERFLOW_SMALL_CAP_BYTES: u64 = 4 * GIB;
+/// Disk overflow behind zram smaller than min(RAM / 2, this) is flagged: the low overflow scale.
+const OVERFLOW_SMALL_CAP_BYTES: u64 =
+    crate::recommend::OVERFLOW_SWAPFILE_LOW_MAX_MB * crate::status::MIB;
 
 fn issue(severity: IssueSeverity, code: &str, message: String, suggestion: &str) -> DoctorIssue {
     DoctorIssue {
@@ -160,14 +161,14 @@ pub(super) fn check_swap_headroom(issues: &mut Vec<DoctorIssue>, status: &Status
 
 /// zram lives in RAM; once it fills, only disk swap stands between the system and OOM.
 pub(super) fn check_overflow_size(issues: &mut Vec<DoctorIssue>, status: &StatusReport) {
-    let zram_active = status.swaps.iter().any(|s| s.name.contains("zram"));
+    let zram_active = status.swaps.iter().any(|s| s.is_zram());
     if !zram_active {
         return;
     }
     let disk: u64 = status
         .swaps
         .iter()
-        .filter(|s| !s.name.contains("zram"))
+        .filter(|s| !s.is_zram())
         .map(|s| s.size_bytes)
         .sum();
     let ram = status.memory.mem_total_kb * 1024;
@@ -216,7 +217,7 @@ pub(super) fn check_thp_mode(issues: &mut Vec<DoctorIssue>, mode: Option<&str>, 
 }
 
 pub(super) fn check_swap_placement(issues: &mut Vec<DoctorIssue>, status: &StatusReport) {
-    for swap in status.swaps.iter().filter(|s| !s.name.contains("zram")) {
+    for swap in status.swaps.iter().filter(|s| !s.is_zram()) {
         if crate::placement::is_rotational_swap(&swap.name) != Some(true) {
             continue;
         }

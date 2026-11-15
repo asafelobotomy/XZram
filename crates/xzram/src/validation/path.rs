@@ -90,41 +90,6 @@ pub fn ensure_swapfile_under_allowlist(path: &str) -> Result<()> {
     }
 }
 
-/// Reject if any existing path component is a symlink; leaf must be a regular file if present.
-pub fn ensure_no_symlink_components(path: &Path) -> Result<()> {
-    let mut accumulated = PathBuf::new();
-    for component in path.components() {
-        accumulated.push(component);
-        let meta = match fs::symlink_metadata(&accumulated) {
-            Ok(m) => m,
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
-            Err(e) => return Err(e.into()),
-        };
-        if meta.file_type().is_symlink() {
-            return Err(XzramError::Validation(format!(
-                "swapfile path must not contain symlinks ({})",
-                accumulated.display()
-            )));
-        }
-    }
-    if path.exists() {
-        let meta = fs::symlink_metadata(path)?;
-        if meta.file_type().is_symlink() {
-            return Err(XzramError::Validation(format!(
-                "swapfile path must not be a symlink ({})",
-                path.display()
-            )));
-        }
-        if !meta.is_file() {
-            return Err(XzramError::Validation(format!(
-                "swapfile path must be a regular file ({})",
-                path.display()
-            )));
-        }
-    }
-    Ok(())
-}
-
 pub fn is_known_swapfile(path: &str) -> bool {
     fstab_lists_swap_file(path) || proc_swaps_lists_file(path)
 }
@@ -158,7 +123,6 @@ pub fn ensure_removable_swapfile(path: &str) -> Result<()> {
 pub fn validate_swapfile_config(config: &SwapfileConfig) -> Result<SwapfileConfig> {
     validate_swapfile_path(&config.path)?;
     ensure_swapfile_under_allowlist(&config.path)?;
-    ensure_no_symlink_components(Path::new(&config.path))?;
     super::ensure_secure_swap_location(Path::new(&config.path))?;
     if config.size_mb == 0 {
         return Err(XzramError::Validation(
@@ -176,14 +140,12 @@ pub fn validate_swapfile_config(config: &SwapfileConfig) -> Result<SwapfileConfi
 pub fn validate_swapfile_prepare_path(path: &str) -> Result<PathBuf> {
     let pb = validate_swapfile_path(path)?;
     ensure_swapfile_under_allowlist(path)?;
-    ensure_no_symlink_components(Path::new(path))?;
     super::ensure_secure_swap_location(Path::new(path))?;
     Ok(pb)
 }
 
 pub fn validate_swapfile_remove_path(path: &str) -> Result<PathBuf> {
     let pb = validate_swapfile_path(path)?;
-    ensure_no_symlink_components(Path::new(path))?;
     super::ensure_secure_swap_location(Path::new(path))?;
     ensure_removable_swapfile(path)?;
     Ok(pb)
@@ -196,7 +158,6 @@ pub fn validate_swapfile_resize_path(path: &str, size_mb: u64) -> Result<()> {
             "swapfile resize path must be under the allowlist or an existing swap file (got {path})"
         )));
     }
-    ensure_no_symlink_components(Path::new(path))?;
     super::ensure_secure_swap_location(Path::new(path))?;
     if size_mb == 0 {
         return Err(XzramError::Validation(
@@ -292,7 +253,7 @@ mod tests {
         let link = dir.path().join("link");
         fs::write(&target, b"x").unwrap();
         std::os::unix::fs::symlink(&target, &link).unwrap();
-        assert!(ensure_no_symlink_components(&link).is_err());
+        assert!(super::super::ensure_secure_swap_location(&link).is_err());
     }
 
     #[test]

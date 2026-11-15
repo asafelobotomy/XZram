@@ -147,10 +147,13 @@ pub fn write_zram_generator_conf(path: &Path, conf: &ZramGeneratorConf) -> Resul
     crate::fsutil::atomic_write(path, content.as_bytes(), 0o644)
 }
 
+/// zram-generator's own default `zram-size`, used when none is configured.
+pub const DEFAULT_ZRAM_SIZE: &str = "min(ram / 2, 4096)";
+
 pub fn default_zram_config() -> ZramDeviceSection {
     ZramDeviceSection {
         name: "zram0".into(),
-        zram_size: Some("min(ram / 2, 4096)".into()),
+        zram_size: Some(DEFAULT_ZRAM_SIZE.into()),
         compression_algorithm: Some("zstd".into()),
         swap_priority: Some(100),
         ..Default::default()
