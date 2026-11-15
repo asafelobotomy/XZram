@@ -33,6 +33,18 @@ impl SnapshotTrigger {
             ))),
         }
     }
+
+    /// Parse a trigger a caller (CLI, D-Bus client) asked for. `pre_apply` is reserved for
+    /// the automatic snapshots taken right before a change: `rollback` restores the newest
+    /// `pre_apply` snapshot, so letting callers forge one would redirect a later rollback.
+    pub fn parse_caller(s: &str) -> Result<Self> {
+        match Self::parse(s)? {
+            Self::PreApply => Err(XzramError::Validation(
+                "snapshot trigger 'pre_apply' is reserved for automatic snapshots".into(),
+            )),
+            t => Ok(t),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]

@@ -39,7 +39,7 @@ pub fn nodatacow_needs_fix(status: &NodatacowStatus, active_swap: bool) -> bool 
 }
 
 pub fn check_nodatacow(path: &Path) -> Result<NodatacowStatus> {
-    build_status(path, false)
+    build_status(path)
 }
 
 pub fn prepare_nodatacow(path: &Path, mkdir_parents: bool) -> Result<NodatacowStatus> {
@@ -51,7 +51,7 @@ pub fn prepare_nodatacow(path: &Path, mkdir_parents: bool) -> Result<NodatacowSt
 
     let fstype = filesystem_for_path(&parent)?;
     if fstype != "btrfs" {
-        return build_status(path, false);
+        return build_status(path);
     }
 
     if parent.exists() && !path_has_nodatacow(&parent)? {
@@ -62,10 +62,10 @@ pub fn prepare_nodatacow(path: &Path, mkdir_parents: bool) -> Result<NodatacowSt
         apply::run_command("chattr", &["+C", &path.to_string_lossy()])?;
     }
 
-    build_status(path, false)
+    build_status(path)
 }
 
-fn build_status(path: &Path, _preparing: bool) -> Result<NodatacowStatus> {
+fn build_status(path: &Path) -> Result<NodatacowStatus> {
     let swapfile_path = path.to_string_lossy().into_owned();
     let parent = parent_directory(path)?;
     let parent_directory = parent.to_string_lossy().into_owned();

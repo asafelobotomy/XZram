@@ -26,6 +26,6 @@ pub use scales::{RecommendScales, RecommendSizeScale, RecommendSizeScales};
 pub use staging::eval_zram_size_mb;
 pub use types::{
     OverflowDecision, RecommendProfile, RecommendationItem, RecommendedDefaults, SystemContext,
-    OVERFLOW_FREE_SPACE_MARGIN_MB, OVERFLOW_SWAPFILE_HIGH_MAX_MB, OVERFLOW_SWAPFILE_MAX_MB,
-    OVERFLOW_SWAPFILE_PATH, OVERFLOW_SWAP_PRIORITY,
+    OVERFLOW_FREE_SPACE_MARGIN_MB, OVERFLOW_SWAPFILE_HIGH_MAX_MB, OVERFLOW_SWAPFILE_LOW_MAX_MB,
+    OVERFLOW_SWAPFILE_MAX_MB, OVERFLOW_SWAPFILE_PATH, OVERFLOW_SWAP_PRIORITY,
 };

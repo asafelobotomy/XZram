@@ -62,7 +62,7 @@ pub fn decide_overflow_swapfile_scaled(
             available_mb: 0,
         };
     };
-    let available_mb = avail / (1024 * 1024);
+    let available_mb = avail / crate::status::MIB;
     if available_mb < required_mb {
         return OverflowDecision::SkipInsufficientSpace {
             required_mb,
@@ -91,7 +91,7 @@ pub(super) fn probe_configured_disk_swap() -> (bool, Vec<String>) {
 
     if let Ok(files) = available_swapfile_backend().list() {
         for file in files {
-            if !file.path.contains("zram") {
+            if !crate::status::is_zram_device_path(&file.path) {
                 paths.push(file.path);
             }
         }
@@ -99,7 +99,7 @@ pub(super) fn probe_configured_disk_swap() -> (bool, Vec<String>) {
 
     if let Ok(partitions) = swap_partition::list_swap_partitions() {
         for part in partitions {
-            if !part.device.contains("zram") {
+            if !crate::status::is_zram_device_path(&part.device) {
                 paths.push(part.device);
             }
         }
@@ -155,11 +155,7 @@ fn decide_grow_existing(
     available_bytes: Option<u64>,
     scale: super::scales::RecommendSizeScale,
 ) -> OverflowDecision {
-    let disk: Vec<_> = status
-        .swaps
-        .iter()
-        .filter(|s| !s.name.contains("zram"))
-        .collect();
+    let disk: Vec<_> = status.swaps.iter().filter(|s| !s.is_zram()).collect();
     let [only] = disk.as_slice() else {
         return OverflowDecision::SkipActiveDiskSwap;
     };
@@ -167,13 +163,13 @@ fn decide_grow_existing(
         return OverflowDecision::SkipActiveDiskSwap;
     }
     let size_mb = super::scales::overflow_size_mb_for_scale(status.memory.mem_total_kb, scale);
-    let current_mb = only.size_bytes / (1024 * 1024);
+    let current_mb = only.size_bytes / crate::status::MIB;
     if current_mb.saturating_add(GROW_SLACK_MB) >= size_mb {
         return OverflowDecision::SkipActiveDiskSwap;
     }
     // In-place growth only needs the delta; apply re-checks space before touching anything.
     let required_mb = (size_mb - current_mb).saturating_add(OVERFLOW_FREE_SPACE_MARGIN_MB);
-    let available_mb = available_bytes.unwrap_or(0) / (1024 * 1024);
+    let available_mb = available_bytes.unwrap_or(0) / crate::status::MIB;
     if available_mb < required_mb {
         return OverflowDecision::SkipInsufficientSpace {
             required_mb,
@@ -188,7 +184,7 @@ fn decide_grow_existing(
 }
 
 pub(super) fn has_active_disk_swap(status: &StatusReport) -> bool {
-    status.swaps.iter().any(|s| !s.name.contains("zram"))
+    status.swaps.iter().any(|s| !s.is_zram())
 }
 
 #[cfg(test)]

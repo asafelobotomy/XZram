@@ -19,11 +19,7 @@ where
 {
     let dir = data_dir();
     std::fs::create_dir_all(&dir)?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let _ = std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o755));
-    }
+    crate::fsutil::set_mode(&dir, 0o755);
     let file = OpenOptions::new()
         .create(true)
         .truncate(false)

@@ -8,6 +8,7 @@ use super::types::{SnapshotMeta, SnapshotTrigger};
 use crate::apply::pending::data_dir;
 use crate::apply::store_lock::with_store_lock;
 use crate::error::{Result, XzramError};
+use crate::fsutil::set_mode;
 
 pub fn ensure_snapshots_initialized() -> Result<()> {
     fs::create_dir_all(snapshots_root())?;
@@ -168,11 +169,6 @@ const SNAPSHOTS_ROOT_MODE: u32 = 0o711;
 /// Per-snapshot payload directories hold copies of /etc files and stay root-only.
 const SNAPSHOT_DIR_MODE: u32 = 0o700;
 
-fn set_mode(path: &std::path::Path, mode: u32) {
-    use std::os::unix::fs::PermissionsExt;
-    let _ = fs::set_permissions(path, fs::Permissions::from_mode(mode));
-}
-
 /// Create a per-snapshot payload directory with private permissions.
 pub(crate) fn create_private_dir(dir: &std::path::Path) -> Result<()> {
     fs::create_dir_all(dir)?;
@@ -288,18 +284,51 @@ mod tests {
         cleanup_test_env();
     }
 
-    #[test]
-    fn index_world_readable_payload_private() {
+    fn assert_store_modes() {
         use std::os::unix::fs::PermissionsExt;
-        let _guard = test_lock();
         let env = test_env();
         fs::write(env._etc.path().join("fstab"), "a\n").unwrap();
         let meta = create_snapshot(SnapshotTrigger::Manual, Some("m"), None).unwrap();
         let mode = |p: &std::path::Path| fs::metadata(p).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode(&data_dir()), 0o755);
         assert_eq!(mode(&snapshots_root()), 0o711);
         assert_eq!(mode(&index_path()), 0o644);
         assert_eq!(mode(&snapshots_root().join(&meta.id)), 0o700);
+        assert_eq!(
+            mode(&snapshots_root().join(&meta.id).join("manifest.json")),
+            0o600
+        );
         cleanup_test_env();
+    }
+
+    #[test]
+    fn index_world_readable_payload_private() {
+        let _guard = test_lock();
+        assert_store_modes();
+    }
+
+    /// xzramd runs with `UMask=0077` and creates snapshots in-process, so the store's
+    /// modes must not depend on the umask. umask is per process, so this re-runs itself in a
+    /// child rather than changing it under the other test threads.
+    #[test]
+    fn store_modes_survive_daemon_umask() {
+        const CHILD: &str = "XZRAM_TEST_UMASK_CHILD";
+        if std::env::var_os(CHILD).is_some() {
+            // SAFETY: umask has no preconditions; this child process runs only this test.
+            unsafe { libc::umask(0o077) };
+            assert_store_modes();
+            return;
+        }
+        let status = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "snapshot::index::tests::store_modes_survive_daemon_umask",
+                "--test-threads=1",
+            ])
+            .env(CHILD, "1")
+            .status()
+            .unwrap();
+        assert!(status.success(), "child test run failed: {status}");
     }
 
     #[test]

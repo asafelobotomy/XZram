@@ -7,6 +7,12 @@ use std::path::Path;
 
 use crate::Result;
 
+/// Best-effort `chmod`: explicit modes make the result independent of the caller's umask
+/// (xzramd runs with `UMask=0077`).
+pub fn set_mode(path: &Path, mode: u32) {
+    let _ = fs::set_permissions(path, fs::Permissions::from_mode(mode));
+}
+
 /// Atomically replace `path` with `contents`.
 ///
 /// Writes a sibling temp file (`O_EXCL`, never following symlinks), fsyncs it, renames it

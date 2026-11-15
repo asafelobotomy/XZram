@@ -145,9 +145,8 @@ void SettingsWidget::onIntervalChanged(int) {
     emit refreshIntervalChanged(refreshIntervalMs());
 }
 
-void SettingsWidget::onConfirmToggled(bool checked) {
+void SettingsWidget::onConfirmToggled(bool /*checked*/) {
     saveSettings();
-    emit confirmBeforeApplyChanged(checked);
 }
 
 void SettingsWidget::onLinkedOptimizeToggled(bool checked) {

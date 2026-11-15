@@ -190,16 +190,23 @@ mod tests {
 
     #[test]
     fn swapfile_create_payload_rejects_non_bool_flags() {
-        let json = r#"{"path":"/swapfile","size_mb":1024,"priority":-2,"prepare":"yes"}"#;
-        assert!(swapfile_create_payload(json).is_err());
+        let json = r#"{"path":"/swapfile","size_mb":1024,"priority":10,"prepare":"yes"}"#;
+        match swapfile_create_payload(json) {
+            Err(zbus::fdo::Error::InvalidArgs(text)) => {
+                assert!(text.contains("'prepare' must be a boolean"), "{text}")
+            }
+            other => panic!("expected InvalidArgs for a string flag, got {other:?}"),
+        }
     }
 
     #[test]
     fn swapfile_create_payload_drops_unknown_fields() {
-        let json = r#"{"path":"/swapfile","size_mb":1024,"priority":-2,"extra":"x"}"#;
-        if let Ok(out) = swapfile_create_payload(json) {
-            assert!(!out.contains("extra"));
-            assert!(!out.contains("prepare"));
-        }
+        let json = r#"{"path":"/swapfile","size_mb":1024,"priority":10,"extra":"x"}"#;
+        let out = swapfile_create_payload(json).expect("valid /swapfile config");
+        let value: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(value["path"], "/swapfile");
+        assert_eq!(value["size_mb"], 1024);
+        assert!(value.get("extra").is_none(), "{out}");
+        assert!(value.get("prepare").is_none(), "{out}");
     }
 }

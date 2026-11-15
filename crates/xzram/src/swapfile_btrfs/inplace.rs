@@ -15,7 +15,7 @@ use std::path::Path;
 use crate::apply;
 use crate::error::{Result, XzramError};
 
-const MIB: u64 = 1024 * 1024;
+use crate::status::MIB;
 /// Headroom left free on the filesystem so swap allocation can't fill it completely.
 pub(crate) const SPACE_MARGIN_MB: u64 = 64;
 
@@ -163,7 +163,7 @@ fn zero_fill(file: &File, from: u64, to: u64) -> Result<()> {
 mod tests {
     use super::*;
 
-    const GIB: u64 = 1024 * MIB;
+    use crate::status::GIB;
 
     #[test]
     fn staged_when_room_for_a_full_copy() {

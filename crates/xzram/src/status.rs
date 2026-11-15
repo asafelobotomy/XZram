@@ -2,6 +2,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::{Result, XzramError};
 
+/// Bytes per MiB.
+pub const MIB: u64 = 1 << 20;
+/// Bytes per GiB.
+pub const GIB: u64 = 1 << 30;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SwapEntry {
     pub name: String,
@@ -9,6 +14,21 @@ pub struct SwapEntry {
     pub size_bytes: u64,
     pub used_bytes: u64,
     pub priority: i32,
+}
+
+impl SwapEntry {
+    /// True when this swap area is a zram device (`/dev/zramN`), not a disk swapfile or
+    /// partition that merely has "zram" somewhere in its path.
+    pub fn is_zram(&self) -> bool {
+        is_zram_device_path(&self.name)
+    }
+}
+
+/// True for a zram block device path: `/dev/zramN` (or a bare `zramN`).
+pub fn is_zram_device_path(path: &str) -> bool {
+    let name = path.strip_prefix("/dev/").unwrap_or(path);
+    name.strip_prefix("zram")
+        .is_some_and(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()))
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -272,6 +292,23 @@ mod tests {
         assert_eq!(swaps.len(), 1);
         assert_eq!(swaps[0].name, "/dev/zram0");
         assert_eq!(swaps[0].priority, 100);
+    }
+
+    #[test]
+    fn zram_device_paths_only() {
+        for yes in ["/dev/zram0", "/dev/zram12", "zram1"] {
+            assert!(is_zram_device_path(yes), "{yes}");
+        }
+        for no in [
+            "/swap/zram.swap",
+            "/var/lib/zram0/swapfile",
+            "/dev/zram",
+            "/dev/zram0p1",
+            "/swapfile",
+            "/dev/nvme0n1p3",
+        ] {
+            assert!(!is_zram_device_path(no), "{no}");
+        }
     }
 
     #[test]

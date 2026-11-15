@@ -60,7 +60,7 @@ pub fn detect() -> Result<DetectionReport> {
     let os_release = parse_os_release()?;
     let family = classify_distro(&os_release);
     let package_manager = detect_package_manager(&family, &os_release.id_like);
-    let zram_backend = detect_zram_backend()?;
+    let zram_backend = detect_zram_backend();
     let zram_generator_config = find_zram_generator_config();
     let etc_writable = probe_etc_writable();
     let immutable_os = detect_immutable_os(&os_release);
@@ -180,17 +180,17 @@ fn detect_init_system() -> String {
     }
 }
 
-fn detect_zram_backend() -> Result<ZramBackend> {
+fn detect_zram_backend() -> ZramBackend {
     if find_zram_generator_config().is_some() {
-        return Ok(ZramBackend::SystemdZramGenerator);
+        return ZramBackend::SystemdZramGenerator;
     }
     if std::path::Path::new("/etc/default/zramswap").exists() {
-        return Ok(ZramBackend::ZramTools);
+        return ZramBackend::ZramTools;
     }
     if std::path::Path::new("/sys/block/zram0").exists() {
-        return Ok(ZramBackend::Manual);
+        return ZramBackend::Manual;
     }
-    Ok(ZramBackend::None)
+    ZramBackend::None
 }
 
 /// The zram-generator config in effect: systemd's precedence is /etc over /run over

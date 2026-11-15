@@ -24,7 +24,6 @@ public:
 
 signals:
     void refreshIntervalChanged(int intervalMs);
-    void confirmBeforeApplyChanged(bool enabled);
     void linkedOptimizeChanged(bool enabled);
     void pruneKeepDefaultChanged(int keep);
 

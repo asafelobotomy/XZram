@@ -22,8 +22,8 @@ pub fn linked_optimize_context() -> crate::error::Result<LinkedOptimizeContext> 
         profile: pick_profile(&detection, &status),
         mem_total_kb: status.memory.mem_total_kb,
         has_active_zram: !status.zram_devices.is_empty(),
-        has_disk_swap: status.swaps.iter().any(|s| !s.name.contains("zram")),
-        hibernate_blocks_zram: crate::checks::hibernation_zram_conflict(&status.swaps),
+        has_disk_swap: status.swaps.iter().any(|s| !s.is_zram()),
+        hibernate_blocks_zram: crate::checks::hibernation_zram_conflict(),
         etc_writable: detection.etc_writable,
         immutable_os: detection.immutable_os,
     })

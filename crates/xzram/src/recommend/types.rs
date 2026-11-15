@@ -4,6 +4,8 @@ use crate::apply::{PendingConfig, SwapfileConfig};
 
 pub const OVERFLOW_SWAPFILE_PATH: &str = "/swap/swapfile";
 pub const OVERFLOW_SWAP_PRIORITY: i32 = 10;
+/// Cap of the low overflow scale, min(RAM / 2, this); doctor flags overflow below it.
+pub const OVERFLOW_SWAPFILE_LOW_MAX_MB: u64 = 4096;
 pub const OVERFLOW_SWAPFILE_MAX_MB: u64 = 8192;
 pub const OVERFLOW_SWAPFILE_HIGH_MAX_MB: u64 = 16384;
 pub const OVERFLOW_FREE_SPACE_MARGIN_MB: u64 = 512;

@@ -19,8 +19,8 @@ pub(super) fn check_zswap(issues: &mut Vec<DoctorIssue>) {
     }
 }
 
-pub(super) fn check_hibernation(issues: &mut Vec<DoctorIssue>, swaps: &[crate::status::SwapEntry]) {
-    if checks::hibernation_zram_conflict(swaps) {
+pub(super) fn check_hibernation(issues: &mut Vec<DoctorIssue>) {
+    if checks::hibernation_zram_conflict() {
         issues.push(DoctorIssue {
             severity: IssueSeverity::Error,
             code: "hibernate_zram".into(),
@@ -108,13 +108,13 @@ pub(super) fn check_swap_priorities(
 
     let zram_prio = swaps
         .iter()
-        .filter(|s| s.name.contains("zram"))
+        .filter(|s| s.is_zram())
         .map(|s| s.priority)
         .max()
         .unwrap_or(0);
     let disk_prio = swaps
         .iter()
-        .filter(|s| !s.name.contains("zram"))
+        .filter(|s| !s.is_zram())
         .map(|s| s.priority)
         .max()
         .unwrap_or(0);
@@ -265,7 +265,7 @@ mod tests {
         crate::saturation::tests::status_28(zram_used, disk_used)
     }
 
-    const GIB: u64 = 1 << 30;
+    use crate::status::GIB;
 
     #[test]
     fn zram_near_full_warns_when_disk_swap_absorbs_overflow() {

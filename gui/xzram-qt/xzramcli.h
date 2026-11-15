@@ -11,8 +11,6 @@ namespace XzramCli {
 
 /// CLI exit codes (see `xzram --help`).
 constexpr int kExitOk = 0;
-constexpr int kExitError = 1;
-constexpr int kExitUsage = 2;
 constexpr int kExitDoctorUnhealthy = 3;
 
 struct RunResult {

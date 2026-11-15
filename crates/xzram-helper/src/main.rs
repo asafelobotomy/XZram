@@ -52,18 +52,6 @@ fn main() {
     }
 }
 
-/// Snapshot triggers a caller may request. `pre_apply` is reserved for the automatic
-/// snapshots taken before apply / direct actions, because `rollback` restores the newest
-/// `pre_apply` snapshot and a forged one would redirect it.
-fn caller_snapshot_trigger(raw: &str) -> xzram::Result<SnapshotTrigger> {
-    match SnapshotTrigger::parse(raw)? {
-        SnapshotTrigger::PreApply => Err(xzram::XzramError::Validation(
-            "snapshot trigger 'pre_apply' is reserved for automatic snapshots".into(),
-        )),
-        t => Ok(t),
-    }
-}
-
 /// `apply` payload: optional pending to stage first, plus apply options.
 #[derive(serde::Serialize, Deserialize)]
 struct ApplyBundle {
@@ -173,7 +161,7 @@ fn run(action: &str, payload: &str) -> xzram::Result<()> {
                 label: Option<String>,
             }
             let p: CreatePayload = from_json_strict(payload)?;
-            let trigger = caller_snapshot_trigger(&p.trigger)?;
+            let trigger = SnapshotTrigger::parse_caller(&p.trigger)?;
             let meta = snapshot::create_snapshot(trigger, p.label.as_deref(), None)?;
             println!(
                 "{}",
@@ -242,14 +230,14 @@ mod tests {
 
     #[test]
     fn snapshot_create_rejects_pre_apply_trigger() {
-        assert!(caller_snapshot_trigger("pre_apply").is_err());
-        assert!(caller_snapshot_trigger("nope").is_err());
+        assert!(SnapshotTrigger::parse_caller("pre_apply").is_err());
+        assert!(SnapshotTrigger::parse_caller("nope").is_err());
         assert_eq!(
-            caller_snapshot_trigger("manual").unwrap(),
+            SnapshotTrigger::parse_caller("manual").unwrap(),
             SnapshotTrigger::Manual
         );
         assert_eq!(
-            caller_snapshot_trigger("app_open").unwrap(),
+            SnapshotTrigger::parse_caller("app_open").unwrap(),
             SnapshotTrigger::AppOpen
         );
     }

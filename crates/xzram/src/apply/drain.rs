@@ -36,11 +36,7 @@ pub struct DrainPlan {
 
 /// Plan the drain from a status snapshot. `Err` when there is no active zram to drain into.
 pub fn plan_drain(status: &StatusReport) -> std::result::Result<DrainPlan, String> {
-    let zram: Vec<_> = status
-        .swaps
-        .iter()
-        .filter(|s| s.name.contains("zram"))
-        .collect();
+    let zram: Vec<_> = status.swaps.iter().filter(|s| s.is_zram()).collect();
     let Some(zram_priority) = zram.iter().map(|s| s.priority).max() else {
         return Err("no active zram swap to move overflow into".into());
     };
@@ -51,7 +47,7 @@ pub fn plan_drain(status: &StatusReport) -> std::result::Result<DrainPlan, Strin
     let targets: Vec<DrainTarget> = status
         .swaps
         .iter()
-        .filter(|s| !s.name.contains("zram") && s.priority < zram_priority && s.used_bytes > 0)
+        .filter(|s| !s.is_zram() && s.priority < zram_priority && s.used_bytes > 0)
         .map(|s| DrainTarget {
             name: decode_fstab_escapes(&s.name),
             priority: s.priority,
@@ -150,7 +146,7 @@ mod tests {
     use super::*;
     use crate::saturation::tests::status_28;
 
-    const GIB: u64 = 1 << 30;
+    use crate::status::GIB;
 
     #[test]
     fn plans_lower_priority_disk_swap_only() {
