@@ -1,5 +1,7 @@
 mod args;
 mod commands;
+#[cfg(test)]
+mod completion;
 mod dbus_client;
 mod exit_codes;
 mod helper_version;

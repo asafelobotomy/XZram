@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GUI: when Apply or Apply recommended defaults is refused for lack of free memory, offer **Apply at next boot** or **Restart anyway**; success dialogs show the CLI's messages (the at-boot note, the force warning)
 - `make install-cli-files` / `make install-files`: copy an existing build without building, so a source install builds as the user and runs only the copy as root
 - `make install-gui-files` (the GUI half of `install-files`) and `make uninstall`; `scripts/uninstall-system.sh` and `scripts/reinstall-system.sh` use it instead of their own copies of the file list
+- `make completions` regenerates `data/bash-completion/xzram` from the CLI definition (clap_complete); a CLI test fails when the file is out of date
 - CI builds the RPM (with `%check`) on Fedora, and the distro smoke tests run `xzram detect`, `status` and `doctor` on each distro
 
 ### Changed
@@ -40,6 +41,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Snapshot restore only deletes "extra" swapfiles that pass the `swapfile remove` checks; others are left in place and reported. A snapshot can no longer record an empty swapfile list because fstab couldn't be read (which would have made a later restore delete every swapfile)
 - Snapshot restore decodes fstab path escapes (`\040`), so a swapfile path with a space is reactivated instead of treated as extra. Failures of `swapon` and `sysctl --system` during restore are reported instead of claimed as success
 - Restoring a snapshot with no `/etc` zram config restarts zram from the vendor config instead of leaving zram off until reboot
+- Bash completion matched the CLI again: it was missing `sysctl set --vfs-cache-pressure/--dirty-bytes/--dirty-background-bytes`, `defaults optimize-linked --anchor/--seed-file` and others, and offered `--yes` on `snapshot restore`
+- Docs: the README CLI reference lists every command and flag (`swapfile check|prepare`, `snapshot create|delete|prune`, `defaults optimize-linked`, the `--*-scale`/`--label`/`--trigger`/`--keep`/`--yes` flags; `--now` is per command, not global); the README no longer calls the uQ page read-only; `docs/GUI-PHASE2.md` lists the `ApplyNow*` and `*WithOptions` D-Bus methods and describes the busy dialog as it is (no Cancel)
 - The Debian and RPM packages now install the uQ Settings page (only the Makefile and PKGBUILDs did)
 - The zram backend, package-manager detection and swapfile checks no longer run `which`, which minimal installs (e.g. Fedora base images) don't have; the zram backend showed as unavailable there
 - The snapshot store is pruned to 50 after each new snapshot (it used to grow without limit); the newest `pre_apply` snapshot, which `rollback` needs, is never pruned

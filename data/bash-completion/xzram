@@ -1,101 +1,2326 @@
 # bash completion for xzram
+# Generated from the CLI definition by clap_complete; do not edit.
+# Regenerate with: make completions
 
 _xzram() {
-    local cur prev words cword
-    _init_completion || return
+    local i cur prev opts cmd
+    COMPREPLY=()
+    if [[ "${BASH_VERSINFO[0]}" -ge 4 ]]; then
+        cur="$2"
+    else
+        cur="${COMP_WORDS[COMP_CWORD]}"
+    fi
+    prev="$3"
+    cmd=""
+    opts=""
 
-    local commands="status detect doctor zram swapfile swap sysctl pending daemon defaults apply rollback snapshot"
-    local zram_cmds="show set disable migrate"
-    local swapfile_cmds="list create resize remove check prepare"
-    local swap_cmds="list on off drain-overflow"
-    local sysctl_cmds="show set"
-    local pending_cmds="show clear"
-    local daemon_cmds="start"
-    local defaults_cmds="recommend stage apply optimize-linked"
-    local snapshot_cmds="list create restore delete prune"
+    for i in "${COMP_WORDS[@]:0:COMP_CWORD}"
+    do
+        case "${cmd},${i}" in
+            ",$1")
+                cmd="xzram"
+                ;;
+            xzram,apply)
+                cmd="xzram__subcmd__apply"
+                ;;
+            xzram,daemon)
+                cmd="xzram__subcmd__daemon"
+                ;;
+            xzram,defaults)
+                cmd="xzram__subcmd__defaults"
+                ;;
+            xzram,detect)
+                cmd="xzram__subcmd__detect"
+                ;;
+            xzram,doctor)
+                cmd="xzram__subcmd__doctor"
+                ;;
+            xzram,help)
+                cmd="xzram__subcmd__help"
+                ;;
+            xzram,pending)
+                cmd="xzram__subcmd__pending"
+                ;;
+            xzram,rollback)
+                cmd="xzram__subcmd__rollback"
+                ;;
+            xzram,snapshot)
+                cmd="xzram__subcmd__snapshot"
+                ;;
+            xzram,status)
+                cmd="xzram__subcmd__status"
+                ;;
+            xzram,swap)
+                cmd="xzram__subcmd__swap"
+                ;;
+            xzram,swapfile)
+                cmd="xzram__subcmd__swapfile"
+                ;;
+            xzram,sysctl)
+                cmd="xzram__subcmd__sysctl"
+                ;;
+            xzram,zram)
+                cmd="xzram__subcmd__zram"
+                ;;
+            xzram__subcmd__daemon,help)
+                cmd="xzram__subcmd__daemon__subcmd__help"
+                ;;
+            xzram__subcmd__daemon,start)
+                cmd="xzram__subcmd__daemon__subcmd__start"
+                ;;
+            xzram__subcmd__daemon__subcmd__help,help)
+                cmd="xzram__subcmd__daemon__subcmd__help__subcmd__help"
+                ;;
+            xzram__subcmd__daemon__subcmd__help,start)
+                cmd="xzram__subcmd__daemon__subcmd__help__subcmd__start"
+                ;;
+            xzram__subcmd__defaults,apply)
+                cmd="xzram__subcmd__defaults__subcmd__apply"
+                ;;
+            xzram__subcmd__defaults,help)
+                cmd="xzram__subcmd__defaults__subcmd__help"
+                ;;
+            xzram__subcmd__defaults,optimize-linked)
+                cmd="xzram__subcmd__defaults__subcmd__optimize__subcmd__linked"
+                ;;
+            xzram__subcmd__defaults,recommend)
+                cmd="xzram__subcmd__defaults__subcmd__recommend"
+                ;;
+            xzram__subcmd__defaults,stage)
+                cmd="xzram__subcmd__defaults__subcmd__stage"
+                ;;
+            xzram__subcmd__defaults__subcmd__help,apply)
+                cmd="xzram__subcmd__defaults__subcmd__help__subcmd__apply"
+                ;;
+            xzram__subcmd__defaults__subcmd__help,help)
+                cmd="xzram__subcmd__defaults__subcmd__help__subcmd__help"
+                ;;
+            xzram__subcmd__defaults__subcmd__help,optimize-linked)
+                cmd="xzram__subcmd__defaults__subcmd__help__subcmd__optimize__subcmd__linked"
+                ;;
+            xzram__subcmd__defaults__subcmd__help,recommend)
+                cmd="xzram__subcmd__defaults__subcmd__help__subcmd__recommend"
+                ;;
+            xzram__subcmd__defaults__subcmd__help,stage)
+                cmd="xzram__subcmd__defaults__subcmd__help__subcmd__stage"
+                ;;
+            xzram__subcmd__help,apply)
+                cmd="xzram__subcmd__help__subcmd__apply"
+                ;;
+            xzram__subcmd__help,daemon)
+                cmd="xzram__subcmd__help__subcmd__daemon"
+                ;;
+            xzram__subcmd__help,defaults)
+                cmd="xzram__subcmd__help__subcmd__defaults"
+                ;;
+            xzram__subcmd__help,detect)
+                cmd="xzram__subcmd__help__subcmd__detect"
+                ;;
+            xzram__subcmd__help,doctor)
+                cmd="xzram__subcmd__help__subcmd__doctor"
+                ;;
+            xzram__subcmd__help,help)
+                cmd="xzram__subcmd__help__subcmd__help"
+                ;;
+            xzram__subcmd__help,pending)
+                cmd="xzram__subcmd__help__subcmd__pending"
+                ;;
+            xzram__subcmd__help,rollback)
+                cmd="xzram__subcmd__help__subcmd__rollback"
+                ;;
+            xzram__subcmd__help,snapshot)
+                cmd="xzram__subcmd__help__subcmd__snapshot"
+                ;;
+            xzram__subcmd__help,status)
+                cmd="xzram__subcmd__help__subcmd__status"
+                ;;
+            xzram__subcmd__help,swap)
+                cmd="xzram__subcmd__help__subcmd__swap"
+                ;;
+            xzram__subcmd__help,swapfile)
+                cmd="xzram__subcmd__help__subcmd__swapfile"
+                ;;
+            xzram__subcmd__help,sysctl)
+                cmd="xzram__subcmd__help__subcmd__sysctl"
+                ;;
+            xzram__subcmd__help,zram)
+                cmd="xzram__subcmd__help__subcmd__zram"
+                ;;
+            xzram__subcmd__help__subcmd__daemon,start)
+                cmd="xzram__subcmd__help__subcmd__daemon__subcmd__start"
+                ;;
+            xzram__subcmd__help__subcmd__defaults,apply)
+                cmd="xzram__subcmd__help__subcmd__defaults__subcmd__apply"
+                ;;
+            xzram__subcmd__help__subcmd__defaults,optimize-linked)
+                cmd="xzram__subcmd__help__subcmd__defaults__subcmd__optimize__subcmd__linked"
+                ;;
+            xzram__subcmd__help__subcmd__defaults,recommend)
+                cmd="xzram__subcmd__help__subcmd__defaults__subcmd__recommend"
+                ;;
+            xzram__subcmd__help__subcmd__defaults,stage)
+                cmd="xzram__subcmd__help__subcmd__defaults__subcmd__stage"
+                ;;
+            xzram__subcmd__help__subcmd__pending,clear)
+                cmd="xzram__subcmd__help__subcmd__pending__subcmd__clear"
+                ;;
+            xzram__subcmd__help__subcmd__pending,show)
+                cmd="xzram__subcmd__help__subcmd__pending__subcmd__show"
+                ;;
+            xzram__subcmd__help__subcmd__snapshot,create)
+                cmd="xzram__subcmd__help__subcmd__snapshot__subcmd__create"
+                ;;
+            xzram__subcmd__help__subcmd__snapshot,delete)
+                cmd="xzram__subcmd__help__subcmd__snapshot__subcmd__delete"
+                ;;
+            xzram__subcmd__help__subcmd__snapshot,list)
+                cmd="xzram__subcmd__help__subcmd__snapshot__subcmd__list"
+                ;;
+            xzram__subcmd__help__subcmd__snapshot,prune)
+                cmd="xzram__subcmd__help__subcmd__snapshot__subcmd__prune"
+                ;;
+            xzram__subcmd__help__subcmd__snapshot,restore)
+                cmd="xzram__subcmd__help__subcmd__snapshot__subcmd__restore"
+                ;;
+            xzram__subcmd__help__subcmd__swap,drain-overflow)
+                cmd="xzram__subcmd__help__subcmd__swap__subcmd__drain__subcmd__overflow"
+                ;;
+            xzram__subcmd__help__subcmd__swap,list)
+                cmd="xzram__subcmd__help__subcmd__swap__subcmd__list"
+                ;;
+            xzram__subcmd__help__subcmd__swap,off)
+                cmd="xzram__subcmd__help__subcmd__swap__subcmd__off"
+                ;;
+            xzram__subcmd__help__subcmd__swap,on)
+                cmd="xzram__subcmd__help__subcmd__swap__subcmd__on"
+                ;;
+            xzram__subcmd__help__subcmd__swapfile,check)
+                cmd="xzram__subcmd__help__subcmd__swapfile__subcmd__check"
+                ;;
+            xzram__subcmd__help__subcmd__swapfile,create)
+                cmd="xzram__subcmd__help__subcmd__swapfile__subcmd__create"
+                ;;
+            xzram__subcmd__help__subcmd__swapfile,list)
+                cmd="xzram__subcmd__help__subcmd__swapfile__subcmd__list"
+                ;;
+            xzram__subcmd__help__subcmd__swapfile,prepare)
+                cmd="xzram__subcmd__help__subcmd__swapfile__subcmd__prepare"
+                ;;
+            xzram__subcmd__help__subcmd__swapfile,remove)
+                cmd="xzram__subcmd__help__subcmd__swapfile__subcmd__remove"
+                ;;
+            xzram__subcmd__help__subcmd__swapfile,resize)
+                cmd="xzram__subcmd__help__subcmd__swapfile__subcmd__resize"
+                ;;
+            xzram__subcmd__help__subcmd__sysctl,set)
+                cmd="xzram__subcmd__help__subcmd__sysctl__subcmd__set"
+                ;;
+            xzram__subcmd__help__subcmd__sysctl,show)
+                cmd="xzram__subcmd__help__subcmd__sysctl__subcmd__show"
+                ;;
+            xzram__subcmd__help__subcmd__zram,disable)
+                cmd="xzram__subcmd__help__subcmd__zram__subcmd__disable"
+                ;;
+            xzram__subcmd__help__subcmd__zram,migrate)
+                cmd="xzram__subcmd__help__subcmd__zram__subcmd__migrate"
+                ;;
+            xzram__subcmd__help__subcmd__zram,set)
+                cmd="xzram__subcmd__help__subcmd__zram__subcmd__set"
+                ;;
+            xzram__subcmd__help__subcmd__zram,show)
+                cmd="xzram__subcmd__help__subcmd__zram__subcmd__show"
+                ;;
+            xzram__subcmd__pending,clear)
+                cmd="xzram__subcmd__pending__subcmd__clear"
+                ;;
+            xzram__subcmd__pending,help)
+                cmd="xzram__subcmd__pending__subcmd__help"
+                ;;
+            xzram__subcmd__pending,show)
+                cmd="xzram__subcmd__pending__subcmd__show"
+                ;;
+            xzram__subcmd__pending__subcmd__help,clear)
+                cmd="xzram__subcmd__pending__subcmd__help__subcmd__clear"
+                ;;
+            xzram__subcmd__pending__subcmd__help,help)
+                cmd="xzram__subcmd__pending__subcmd__help__subcmd__help"
+                ;;
+            xzram__subcmd__pending__subcmd__help,show)
+                cmd="xzram__subcmd__pending__subcmd__help__subcmd__show"
+                ;;
+            xzram__subcmd__snapshot,create)
+                cmd="xzram__subcmd__snapshot__subcmd__create"
+                ;;
+            xzram__subcmd__snapshot,delete)
+                cmd="xzram__subcmd__snapshot__subcmd__delete"
+                ;;
+            xzram__subcmd__snapshot,help)
+                cmd="xzram__subcmd__snapshot__subcmd__help"
+                ;;
+            xzram__subcmd__snapshot,list)
+                cmd="xzram__subcmd__snapshot__subcmd__list"
+                ;;
+            xzram__subcmd__snapshot,prune)
+                cmd="xzram__subcmd__snapshot__subcmd__prune"
+                ;;
+            xzram__subcmd__snapshot,restore)
+                cmd="xzram__subcmd__snapshot__subcmd__restore"
+                ;;
+            xzram__subcmd__snapshot__subcmd__help,create)
+                cmd="xzram__subcmd__snapshot__subcmd__help__subcmd__create"
+                ;;
+            xzram__subcmd__snapshot__subcmd__help,delete)
+                cmd="xzram__subcmd__snapshot__subcmd__help__subcmd__delete"
+                ;;
+            xzram__subcmd__snapshot__subcmd__help,help)
+                cmd="xzram__subcmd__snapshot__subcmd__help__subcmd__help"
+                ;;
+            xzram__subcmd__snapshot__subcmd__help,list)
+                cmd="xzram__subcmd__snapshot__subcmd__help__subcmd__list"
+                ;;
+            xzram__subcmd__snapshot__subcmd__help,prune)
+                cmd="xzram__subcmd__snapshot__subcmd__help__subcmd__prune"
+                ;;
+            xzram__subcmd__snapshot__subcmd__help,restore)
+                cmd="xzram__subcmd__snapshot__subcmd__help__subcmd__restore"
+                ;;
+            xzram__subcmd__swap,drain-overflow)
+                cmd="xzram__subcmd__swap__subcmd__drain__subcmd__overflow"
+                ;;
+            xzram__subcmd__swap,help)
+                cmd="xzram__subcmd__swap__subcmd__help"
+                ;;
+            xzram__subcmd__swap,list)
+                cmd="xzram__subcmd__swap__subcmd__list"
+                ;;
+            xzram__subcmd__swap,off)
+                cmd="xzram__subcmd__swap__subcmd__off"
+                ;;
+            xzram__subcmd__swap,on)
+                cmd="xzram__subcmd__swap__subcmd__on"
+                ;;
+            xzram__subcmd__swap__subcmd__help,drain-overflow)
+                cmd="xzram__subcmd__swap__subcmd__help__subcmd__drain__subcmd__overflow"
+                ;;
+            xzram__subcmd__swap__subcmd__help,help)
+                cmd="xzram__subcmd__swap__subcmd__help__subcmd__help"
+                ;;
+            xzram__subcmd__swap__subcmd__help,list)
+                cmd="xzram__subcmd__swap__subcmd__help__subcmd__list"
+                ;;
+            xzram__subcmd__swap__subcmd__help,off)
+                cmd="xzram__subcmd__swap__subcmd__help__subcmd__off"
+                ;;
+            xzram__subcmd__swap__subcmd__help,on)
+                cmd="xzram__subcmd__swap__subcmd__help__subcmd__on"
+                ;;
+            xzram__subcmd__swapfile,check)
+                cmd="xzram__subcmd__swapfile__subcmd__check"
+                ;;
+            xzram__subcmd__swapfile,create)
+                cmd="xzram__subcmd__swapfile__subcmd__create"
+                ;;
+            xzram__subcmd__swapfile,help)
+                cmd="xzram__subcmd__swapfile__subcmd__help"
+                ;;
+            xzram__subcmd__swapfile,list)
+                cmd="xzram__subcmd__swapfile__subcmd__list"
+                ;;
+            xzram__subcmd__swapfile,prepare)
+                cmd="xzram__subcmd__swapfile__subcmd__prepare"
+                ;;
+            xzram__subcmd__swapfile,remove)
+                cmd="xzram__subcmd__swapfile__subcmd__remove"
+                ;;
+            xzram__subcmd__swapfile,resize)
+                cmd="xzram__subcmd__swapfile__subcmd__resize"
+                ;;
+            xzram__subcmd__swapfile__subcmd__help,check)
+                cmd="xzram__subcmd__swapfile__subcmd__help__subcmd__check"
+                ;;
+            xzram__subcmd__swapfile__subcmd__help,create)
+                cmd="xzram__subcmd__swapfile__subcmd__help__subcmd__create"
+                ;;
+            xzram__subcmd__swapfile__subcmd__help,help)
+                cmd="xzram__subcmd__swapfile__subcmd__help__subcmd__help"
+                ;;
+            xzram__subcmd__swapfile__subcmd__help,list)
+                cmd="xzram__subcmd__swapfile__subcmd__help__subcmd__list"
+                ;;
+            xzram__subcmd__swapfile__subcmd__help,prepare)
+                cmd="xzram__subcmd__swapfile__subcmd__help__subcmd__prepare"
+                ;;
+            xzram__subcmd__swapfile__subcmd__help,remove)
+                cmd="xzram__subcmd__swapfile__subcmd__help__subcmd__remove"
+                ;;
+            xzram__subcmd__swapfile__subcmd__help,resize)
+                cmd="xzram__subcmd__swapfile__subcmd__help__subcmd__resize"
+                ;;
+            xzram__subcmd__sysctl,help)
+                cmd="xzram__subcmd__sysctl__subcmd__help"
+                ;;
+            xzram__subcmd__sysctl,set)
+                cmd="xzram__subcmd__sysctl__subcmd__set"
+                ;;
+            xzram__subcmd__sysctl,show)
+                cmd="xzram__subcmd__sysctl__subcmd__show"
+                ;;
+            xzram__subcmd__sysctl__subcmd__help,help)
+                cmd="xzram__subcmd__sysctl__subcmd__help__subcmd__help"
+                ;;
+            xzram__subcmd__sysctl__subcmd__help,set)
+                cmd="xzram__subcmd__sysctl__subcmd__help__subcmd__set"
+                ;;
+            xzram__subcmd__sysctl__subcmd__help,show)
+                cmd="xzram__subcmd__sysctl__subcmd__help__subcmd__show"
+                ;;
+            xzram__subcmd__zram,disable)
+                cmd="xzram__subcmd__zram__subcmd__disable"
+                ;;
+            xzram__subcmd__zram,help)
+                cmd="xzram__subcmd__zram__subcmd__help"
+                ;;
+            xzram__subcmd__zram,migrate)
+                cmd="xzram__subcmd__zram__subcmd__migrate"
+                ;;
+            xzram__subcmd__zram,set)
+                cmd="xzram__subcmd__zram__subcmd__set"
+                ;;
+            xzram__subcmd__zram,show)
+                cmd="xzram__subcmd__zram__subcmd__show"
+                ;;
+            xzram__subcmd__zram__subcmd__help,disable)
+                cmd="xzram__subcmd__zram__subcmd__help__subcmd__disable"
+                ;;
+            xzram__subcmd__zram__subcmd__help,help)
+                cmd="xzram__subcmd__zram__subcmd__help__subcmd__help"
+                ;;
+            xzram__subcmd__zram__subcmd__help,migrate)
+                cmd="xzram__subcmd__zram__subcmd__help__subcmd__migrate"
+                ;;
+            xzram__subcmd__zram__subcmd__help,set)
+                cmd="xzram__subcmd__zram__subcmd__help__subcmd__set"
+                ;;
+            xzram__subcmd__zram__subcmd__help,show)
+                cmd="xzram__subcmd__zram__subcmd__help__subcmd__show"
+                ;;
+            *)
+                ;;
+        esac
+    done
 
-    case "${words[1]}" in
-        zram)
-            case $cword in
-                2) COMPREPLY=($(compgen -W "$zram_cmds" -- "$cur")) ;;
-                3)
-                    if [[ ${words[2]} == "set" ]]; then
-                        COMPREPLY=($(compgen -W "--device --size --algorithm --priority --now --at-boot --force" -- "$cur"))
-                    elif [[ ${words[2]} == "disable" ]]; then
-                        COMPREPLY=($(compgen -W "--now --at-boot --force" -- "$cur"))
-                    elif [[ ${words[2]} == "migrate" ]]; then
-                        COMPREPLY=($(compgen -W "--now" -- "$cur"))
-                    fi
-                    ;;
-                *) COMPREPLY=($(compgen -W "--device --size --algorithm --priority --now --at-boot --force --json" -- "$cur")) ;;
-            esac
-            ;;
-        swapfile)
-            case $cword in
-                2) COMPREPLY=($(compgen -W "$swapfile_cmds" -- "$cur")) ;;
+    case "${cmd}" in
+        xzram)
+            opts="-h -V --json --dbus --help --version status detect doctor zram swapfile swap sysctl pending daemon apply defaults rollback snapshot help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 1 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
                 *)
-                    COMPREPLY=($(compgen -W "--size-mb --priority --now --prepare --mkdir --json" -- "$cur"))
+                    COMPREPLY=()
                     ;;
             esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
             ;;
-        swap)
-            case $cword in
-                2) COMPREPLY=($(compgen -W "$swap_cmds" -- "$cur")) ;;
+        xzram__subcmd__apply)
+            opts="-h --at-boot --force --json --dbus --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
                 *)
-                    if [[ ${words[2]} == "drain-overflow" ]]; then
-                        COMPREPLY=($(compgen -W "--force --dry-run --json --dbus" -- "$cur"))
-                    fi
+                    COMPREPLY=()
                     ;;
             esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
             ;;
-        apply)
-            COMPREPLY=($(compgen -W "--at-boot --force --json --dbus" -- "$cur"))
-            ;;
-        sysctl)
-            case $cword in
-                2) COMPREPLY=($(compgen -W "$sysctl_cmds" -- "$cur")) ;;
+        xzram__subcmd__daemon)
+            opts="-h --json --dbus --help start help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
                 *)
-                    COMPREPLY=($(compgen -W "--swappiness --watermark-boost-factor --watermark-scale-factor --page-cluster --zram-defaults --now --json" -- "$cur"))
+                    COMPREPLY=()
                     ;;
             esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
             ;;
-        pending)
-            if [[ $cword -eq 2 ]]; then
-                COMPREPLY=($(compgen -W "$pending_cmds" -- "$cur"))
+        xzram__subcmd__daemon__subcmd__help)
+            opts="start help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
             fi
-            ;;
-        daemon)
-            if [[ $cword -eq 2 ]]; then
-                COMPREPLY=($(compgen -W "$daemon_cmds" -- "$cur"))
-            fi
-            ;;
-        defaults)
-            if [[ $cword -eq 2 ]]; then
-                COMPREPLY=($(compgen -W "$defaults_cmds" -- "$cur"))
-            else
-                COMPREPLY=($(compgen -W "--yes --zram-scale --swap-scale --json --dbus" -- "$cur"))
-            fi
-            ;;
-        snapshot)
-            case $cword in
-                2) COMPREPLY=($(compgen -W "$snapshot_cmds" -- "$cur")) ;;
-                3)
-                    case ${words[2]} in
-                        create) COMPREPLY=($(compgen -W "--label --trigger --json --dbus" -- "$cur")) ;;
-                        restore|delete) COMPREPLY=($(compgen -W "--yes --json --dbus" -- "$cur")) ;;
-                        prune) COMPREPLY=($(compgen -W "--keep --yes --json --dbus" -- "$cur")) ;;
-                    esac
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
                     ;;
             esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
             ;;
-        *)
-            if [[ $cword -eq 1 ]]; then
-                COMPREPLY=($(compgen -W "$commands" -- "$cur"))
-            else
-                COMPREPLY=($(compgen -W "--json --dbus --now" -- "$cur"))
+        xzram__subcmd__daemon__subcmd__help__subcmd__help)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
             fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__daemon__subcmd__help__subcmd__start)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__daemon__subcmd__start)
+            opts="-h --json --dbus --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__defaults)
+            opts="-h --json --dbus --help recommend stage apply optimize-linked help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__defaults__subcmd__apply)
+            opts="-h --yes --zram-scale --swap-scale --at-boot --force --json --dbus --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                --zram-scale)
+                    COMPREPLY=($(compgen -W "low default high" -- "${cur}"))
+                    return 0
+                    ;;
+                --swap-scale)
+                    COMPREPLY=($(compgen -W "low default high" -- "${cur}"))
+                    return 0
+                    ;;
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__defaults__subcmd__help)
+            opts="recommend stage apply optimize-linked help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__defaults__subcmd__help__subcmd__apply)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__defaults__subcmd__help__subcmd__help)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__defaults__subcmd__help__subcmd__optimize__subcmd__linked)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__defaults__subcmd__help__subcmd__recommend)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__defaults__subcmd__help__subcmd__stage)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__defaults__subcmd__optimize__subcmd__linked)
+            opts="-h --anchor --seed-file --json --dbus --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                --anchor)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --seed-file)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__defaults__subcmd__recommend)
+            opts="-h --zram-scale --swap-scale --json --dbus --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                --zram-scale)
+                    COMPREPLY=($(compgen -W "low default high" -- "${cur}"))
+                    return 0
+                    ;;
+                --swap-scale)
+                    COMPREPLY=($(compgen -W "low default high" -- "${cur}"))
+                    return 0
+                    ;;
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__defaults__subcmd__stage)
+            opts="-h --zram-scale --swap-scale --json --dbus --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                --zram-scale)
+                    COMPREPLY=($(compgen -W "low default high" -- "${cur}"))
+                    return 0
+                    ;;
+                --swap-scale)
+                    COMPREPLY=($(compgen -W "low default high" -- "${cur}"))
+                    return 0
+                    ;;
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__detect)
+            opts="-h --json --dbus --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__doctor)
+            opts="-h --json --dbus --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__help)
+            opts="status detect doctor zram swapfile swap sysctl pending daemon apply defaults rollback snapshot help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__help__subcmd__apply)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__help__subcmd__daemon)
+            opts="start"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__help__subcmd__daemon__subcmd__start)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__help__subcmd__defaults)
+            opts="recommend stage apply optimize-linked"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__help__subcmd__defaults__subcmd__apply)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__help__subcmd__defaults__subcmd__optimize__subcmd__linked)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__help__subcmd__defaults__subcmd__recommend)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__help__subcmd__defaults__subcmd__stage)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__help__subcmd__detect)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__help__subcmd__doctor)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__help__subcmd__help)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__help__subcmd__pending)
+            opts="show clear"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__help__subcmd__pending__subcmd__clear)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__help__subcmd__pending__subcmd__show)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__help__subcmd__rollback)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__help__subcmd__snapshot)
+            opts="list create restore delete prune"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__help__subcmd__snapshot__subcmd__create)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__help__subcmd__snapshot__subcmd__delete)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__help__subcmd__snapshot__subcmd__list)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__help__subcmd__snapshot__subcmd__prune)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__help__subcmd__snapshot__subcmd__restore)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__help__subcmd__status)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__help__subcmd__swap)
+            opts="list on off drain-overflow"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__help__subcmd__swap__subcmd__drain__subcmd__overflow)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__help__subcmd__swap__subcmd__list)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__help__subcmd__swap__subcmd__off)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__help__subcmd__swap__subcmd__on)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__help__subcmd__swapfile)
+            opts="list create resize remove check prepare"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__help__subcmd__swapfile__subcmd__check)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__help__subcmd__swapfile__subcmd__create)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__help__subcmd__swapfile__subcmd__list)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__help__subcmd__swapfile__subcmd__prepare)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__help__subcmd__swapfile__subcmd__remove)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__help__subcmd__swapfile__subcmd__resize)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__help__subcmd__sysctl)
+            opts="show set"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__help__subcmd__sysctl__subcmd__set)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__help__subcmd__sysctl__subcmd__show)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__help__subcmd__zram)
+            opts="show set disable migrate"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__help__subcmd__zram__subcmd__disable)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__help__subcmd__zram__subcmd__migrate)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__help__subcmd__zram__subcmd__set)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__help__subcmd__zram__subcmd__show)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__pending)
+            opts="-h --json --dbus --help show clear help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__pending__subcmd__clear)
+            opts="-h --json --dbus --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__pending__subcmd__help)
+            opts="show clear help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__pending__subcmd__help__subcmd__clear)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__pending__subcmd__help__subcmd__help)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__pending__subcmd__help__subcmd__show)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__pending__subcmd__show)
+            opts="-h --json --dbus --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__rollback)
+            opts="-h --json --dbus --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__snapshot)
+            opts="-h --json --dbus --help list create restore delete prune help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__snapshot__subcmd__create)
+            opts="-h --label --trigger --json --dbus --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                --label)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --trigger)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__snapshot__subcmd__delete)
+            opts="-h --yes --json --dbus --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__snapshot__subcmd__help)
+            opts="list create restore delete prune help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__snapshot__subcmd__help__subcmd__create)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__snapshot__subcmd__help__subcmd__delete)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__snapshot__subcmd__help__subcmd__help)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__snapshot__subcmd__help__subcmd__list)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__snapshot__subcmd__help__subcmd__prune)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__snapshot__subcmd__help__subcmd__restore)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__snapshot__subcmd__list)
+            opts="-h --json --dbus --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__snapshot__subcmd__prune)
+            opts="-h --keep --yes --json --dbus --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                --keep)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__snapshot__subcmd__restore)
+            opts="-h --json --dbus --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__status)
+            opts="-h --json --dbus --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__swap)
+            opts="-h --json --dbus --help list on off drain-overflow help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__swap__subcmd__drain__subcmd__overflow)
+            opts="-h --force --dry-run --json --dbus --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__swap__subcmd__help)
+            opts="list on off drain-overflow help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__swap__subcmd__help__subcmd__drain__subcmd__overflow)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__swap__subcmd__help__subcmd__help)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__swap__subcmd__help__subcmd__list)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__swap__subcmd__help__subcmd__off)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__swap__subcmd__help__subcmd__on)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__swap__subcmd__list)
+            opts="-h --json --dbus --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__swap__subcmd__off)
+            opts="-h --json --dbus --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__swap__subcmd__on)
+            opts="-h --json --dbus --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__swapfile)
+            opts="-h --json --dbus --help list create resize remove check prepare help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__swapfile__subcmd__check)
+            opts="-h --json --dbus --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__swapfile__subcmd__create)
+            opts="-h --size-mb --priority --now --prepare --mkdir --json --dbus --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                --size-mb)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --priority)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__swapfile__subcmd__help)
+            opts="list create resize remove check prepare help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__swapfile__subcmd__help__subcmd__check)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__swapfile__subcmd__help__subcmd__create)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__swapfile__subcmd__help__subcmd__help)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__swapfile__subcmd__help__subcmd__list)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__swapfile__subcmd__help__subcmd__prepare)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__swapfile__subcmd__help__subcmd__remove)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__swapfile__subcmd__help__subcmd__resize)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__swapfile__subcmd__list)
+            opts="-h --json --dbus --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__swapfile__subcmd__prepare)
+            opts="-h --mkdir --json --dbus --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__swapfile__subcmd__remove)
+            opts="-h --now --json --dbus --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__swapfile__subcmd__resize)
+            opts="-h --size-mb --now --json --dbus --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                --size-mb)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__sysctl)
+            opts="-h --json --dbus --help show set help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__sysctl__subcmd__help)
+            opts="show set help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__sysctl__subcmd__help__subcmd__help)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__sysctl__subcmd__help__subcmd__set)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__sysctl__subcmd__help__subcmd__show)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__sysctl__subcmd__set)
+            opts="-h --swappiness --watermark-boost-factor --watermark-scale-factor --page-cluster --vfs-cache-pressure --dirty-bytes --dirty-background-bytes --zram-defaults --now --json --dbus --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                --swappiness)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --watermark-boost-factor)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --watermark-scale-factor)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --page-cluster)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --vfs-cache-pressure)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --dirty-bytes)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --dirty-background-bytes)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__sysctl__subcmd__show)
+            opts="-h --json --dbus --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__zram)
+            opts="-h --json --dbus --help show set disable migrate help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__zram__subcmd__disable)
+            opts="-h --now --at-boot --force --json --dbus --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__zram__subcmd__help)
+            opts="show set disable migrate help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__zram__subcmd__help__subcmd__disable)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__zram__subcmd__help__subcmd__help)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__zram__subcmd__help__subcmd__migrate)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__zram__subcmd__help__subcmd__set)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__zram__subcmd__help__subcmd__show)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__zram__subcmd__migrate)
+            opts="-h --now --json --dbus --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__zram__subcmd__set)
+            opts="-h --device --size --algorithm --priority --now --at-boot --force --json --dbus --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                --device)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --size)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --algorithm)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --priority)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__zram__subcmd__show)
+            opts="-h --json --dbus --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
             ;;
     esac
 }
 
-complete -F _xzram xzram
+if [[ "${BASH_VERSINFO[0]}" -eq 4 && "${BASH_VERSINFO[1]}" -ge 4 || "${BASH_VERSINFO[0]}" -gt 4 ]]; then
+    complete -F _xzram -o nosort -o bashdefault -o default xzram
+else
+    complete -F _xzram -o bashdefault -o default xzram
+fi

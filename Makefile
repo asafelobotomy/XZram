@@ -10,7 +10,7 @@ SYSTEMDUNITDIR ?= $(PREFIX)/lib/systemd/system
 
 .PHONY: all build build-gui check test test-lib fmt fmt-check clippy lint loc-check \
 	install install-cli install-files install-cli-files install-gui-files install-post \
-	uninstall check-install-paths gui-smoke clean version-check
+	uninstall check-install-paths gui-smoke clean version-check completions
 
 XZRAM_VERSION := $(shell tr -d '[:space:]' < VERSION)
 
@@ -45,6 +45,11 @@ lint: fmt-check clippy loc-check
 
 loc-check:
 	./scripts/check-loc.sh
+
+# data/bash-completion/xzram is generated from the clap definition; a CLI test fails until
+# it is regenerated after a CLI change.
+completions:
+	XZRAM_UPDATE_COMPLETIONS=1 cargo test -p xzram-cli --bin xzram completion
 
 # CLI/daemon/polkit/dbus only (no Qt), plus the uQ Settings page (inert without uQ).
 install-cli: build
