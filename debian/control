@@ -3,8 +3,8 @@ Section: admin
 Priority: optional
 Maintainer: XZram contributors <xzram@example.com>
 Build-Depends: debhelper-compat (= 13),
-               cargo (>= 1.87),
-               rustc (>= 1.87),
+               cargo (>= 1.89),
+               rustc (>= 1.89),
                cmake,
                qt6-base-dev
 Standards-Version: 4.7.2

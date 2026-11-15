@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Debian package smoke for CI: Build-Depends from apt, Rust from rustup, then dpkg-buildpackage.
-# debian/control asks for rustc/cargo >= 1.87 (Cargo.toml rust-version); trixie's are older, so
+# debian/control asks for rustc/cargo >= 1.89 (Cargo.toml rust-version); trixie's are older, so
 # those two come from rustup and are the only unmet Build-Depends this script lets through.
 # Expects the repo mounted read-only at /src; builds from a writable copy.
 set -euo pipefail
