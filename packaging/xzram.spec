@@ -8,10 +8,15 @@ URL:            https://github.com/asafelobotomy/XZram
 # GitHub tag archives extract to XZram-%%{version}/ (leading v stripped).
 Source0:        %{url}/archive/refs/tags/v%{version}.tar.gz#/%{name}-%{version}.tar.gz
 
-BuildRequires:  rust cargo cmake qt6-qtbase-devel
+# rust-version in Cargo.toml
+BuildRequires:  rust >= 1.87
+BuildRequires:  cargo >= 1.87
+BuildRequires:  cmake qt6-qtbase-devel systemd-rpm-macros
 Requires:       polkit systemd util-linux
 Recommends:     zram-generator
 Suggests:       %{name}-gui
+# Swapfiles on btrfs are made with `btrfs filesystem mkswapfile` when it is there
+Suggests:       btrfs-progs
 
 %description
 XZram is a CLI and system D-Bus daemon for creating, removing, and customizing
@@ -31,29 +36,14 @@ and polkit-gated apply.
 %autosetup -n XZram-%{version}
 
 %build
-cargo build --release --locked
-cmake -S gui -B build-gui
-cmake --build build-gui
+make build build-gui
 
 %check
 cargo test --release --locked
 
 %install
-install -Dm755 target/release/xzram %{buildroot}%{_bindir}/xzram
-install -Dm755 target/release/xzram-helper %{buildroot}%{_libexecdir}/xzram-helper
-install -Dm755 target/release/xzramd %{buildroot}%{_libexecdir}/xzramd
-install -Dm755 build-gui/xzram-qt/xzram-qt %{buildroot}%{_bindir}/xzram-qt
-install -Dm644 data/io.github.xzram.policy %{buildroot}%{_datadir}/polkit-1/actions/io.github.xzram.policy
-install -Dm644 data/bash-completion/xzram %{buildroot}%{_datadir}/bash-completion/completions/xzram
-install -Dm644 data/io.github.XZram.service %{buildroot}%{_unitdir}/xzramd.service
-install -Dm644 data/io.github.XZram.conf %{buildroot}%{_datadir}/dbus-1/system.d/io.github.XZram.conf
-install -Dm644 data/dbus-1/system-services/io.github.XZram1.service %{buildroot}%{_datadir}/dbus-1/system-services/io.github.XZram1.service
-install -Dm644 data/io.github.XZram.desktop %{buildroot}%{_datadir}/applications/io.github.XZram.desktop
-install -Dm644 data/io.github.XZram.metainfo.xml %{buildroot}%{_datadir}/metainfo/io.github.XZram.metainfo.xml
-for size in 32x32 48x48 64x64 128x128 256x256 512x512; do
-  install -Dm644 data/icons/hicolor/${size}/apps/io.github.XZram.png \
-    %{buildroot}%{_datadir}/icons/hicolor/${size}/apps/io.github.XZram.png
-done
+# The Makefile's *-files targets are the one install list (shared with debian/rules).
+make install-files DESTDIR=%{buildroot}
 
 %files
 %license LICENSE
@@ -66,6 +56,7 @@ done
 %{_unitdir}/xzramd.service
 %{_datadir}/dbus-1/system.d/io.github.XZram.conf
 %{_datadir}/dbus-1/system-services/io.github.XZram1.service
+%{_datadir}/uq/settings/pages/xzram/
 
 %files gui
 %doc docs/GUI-PHASE2.md

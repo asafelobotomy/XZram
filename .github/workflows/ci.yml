@@ -112,6 +112,21 @@ jobs:
             debian:trixie \
             bash /ci-debian-package.sh
 
+  rpm-package:
+    name: RPM package smoke build
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Build RPM package (with %check)
+        run: |
+          docker run --rm \
+            -v "$PWD:/src:ro" \
+            -v "$PWD/scripts/ci-rpm-package.sh:/ci-rpm-package.sh:ro" \
+            fedora:44 \
+            bash /ci-rpm-package.sh
+
   qt-gui:
     name: Build Qt GUI (headless)
     runs-on: ubuntu-latest
@@ -139,6 +154,8 @@ jobs:
       # The uQ release whose page rules and test kit this page is checked against. Move it
       # when uQ ships a newer one (and refresh tests/uq from templates/settings-page-tests).
       UQ_TAG: v0.3.0-rc.1
+      # The commit UQ_TAG points at; uqctl is built from this, so a moved tag changes nothing.
+      UQ_REV: 89e87b9475f74c6401cdf39e434217da628722c1
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -157,7 +174,7 @@ jobs:
       - name: Page tests (QML)
         run: QT_QPA_PLATFORM=offscreen /usr/lib/qt6/bin/qmltestrunner -import tests/uq/stub -input tests/uq
 
-      - name: Page install check (Makefile and both PKGBUILDs)
+      - name: Page install check (Makefile, debian/rules, RPM spec, both PKGBUILDs)
         run: ./scripts/check-uq-install.sh
 
       - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master (stable toolchain)
@@ -169,11 +186,11 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.uq
-          key: uqctl-${{ env.UQ_TAG }}
+          key: uqctl-${{ env.UQ_REV }}
 
       - name: Build uqctl
         if: steps.uqctl.outputs.cache-hit != 'true'
-        run: cargo install --locked --git https://github.com/asafelobotomy/uq --tag "$UQ_TAG" uqctl --root "$HOME/.uq"
+        run: cargo install --locked --git https://github.com/asafelobotomy/uq --rev "$UQ_REV" uqctl --root "$HOME/.uq"
 
       # `--no-programs` skips only the "program exists" check: this page has no commands and
       # needs no installed xzram. Paths and everything else are still checked.

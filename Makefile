@@ -1,3 +1,7 @@
+# Install paths. Packages pass DESTDIR (a staging root); the paths themselves stay under
+# /usr: the polkit policy, the D-Bus activation file, xzramd.service, and the CLI all name
+# /usr/libexec/xzram-helper and /usr/libexec/xzramd, and polkit and the D-Bus system bus only
+# read /usr/share. The *-files targets refuse other values instead of installing a broken copy.
 PREFIX ?= /usr
 BINDIR ?= $(PREFIX)/bin
 LIBEXECDIR ?= $(PREFIX)/libexec
@@ -5,8 +9,8 @@ DATADIR ?= $(PREFIX)/share
 SYSTEMDUNITDIR ?= $(PREFIX)/lib/systemd/system
 
 .PHONY: all build build-gui check test test-lib fmt fmt-check clippy lint loc-check \
-	install install-cli install-files install-cli-files install-post gui-smoke clean \
-	version-check
+	install install-cli install-files install-cli-files install-gui-files install-post \
+	uninstall check-install-paths gui-smoke clean version-check
 
 XZRAM_VERSION := $(shell tr -d '[:space:]' < VERSION)
 
@@ -43,7 +47,6 @@ loc-check:
 	./scripts/check-loc.sh
 
 # CLI/daemon/polkit/dbus only (no Qt), plus the uQ Settings page (inert without uQ).
-# Polkit/systemd/D-Bus unit files hardcode /usr/libexec; install with PREFIX=/usr.
 install-cli: build
 	$(MAKE) install-cli-files
 
@@ -51,7 +54,7 @@ install-cli: build
 # user and run just the copy as root: `make build && sudo make install-cli-files`.
 # `install` sets owner and mode on every file; never copy a user-owned staging tree onto /
 # (`cp -a` would hand that user /usr/libexec/xzram-helper, which pkexec runs as root).
-install-cli-files:
+install-cli-files: check-install-paths
 	@test -x target/release/xzram -a -x target/release/xzram-helper -a -x target/release/xzramd \
 		|| { echo "Build first (as your user): make build"; exit 1; }
 	install -Dm755 target/release/xzram $(DESTDIR)$(BINDIR)/xzram
@@ -68,7 +71,10 @@ install-cli-files:
 install: build build-gui
 	$(MAKE) install-files
 
-install-files: install-cli-files
+install-files: install-cli-files install-gui-files
+
+# GUI only (the xzram-gui package); the GUI runs $(BINDIR)/xzram, so BINDIR is checked too.
+install-gui-files: check-install-paths
 	@test -x build-gui/xzram-qt/xzram-qt \
 		|| { echo "Build first (as your user): make build build-gui"; exit 1; }
 	install -Dm755 build-gui/xzram-qt/xzram-qt $(DESTDIR)$(BINDIR)/xzram-qt
@@ -78,6 +84,25 @@ install-files: install-cli-files
 		install -Dm644 data/icons/hicolor/$$size/apps/io.github.XZram.png \
 			$(DESTDIR)$(DATADIR)/icons/hicolor/$$size/apps/io.github.XZram.png; \
 	done
+
+check-install-paths:
+	@test "$(PREFIX)" = /usr -a "$(BINDIR)" = /usr/bin -a "$(LIBEXECDIR)" = /usr/libexec \
+		|| { echo "xzram installs under /usr only (PREFIX=/usr; got PREFIX=$(PREFIX)" \
+			"BINDIR=$(BINDIR) LIBEXECDIR=$(LIBEXECDIR)); use DESTDIR to stage elsewhere"; exit 1; }
+
+# Removes what install-files installs; leaves /var/lib/xzram (snapshots) alone.
+uninstall: check-install-paths
+	rm -f $(DESTDIR)$(BINDIR)/xzram $(DESTDIR)$(BINDIR)/xzram-qt
+	rm -f $(DESTDIR)$(LIBEXECDIR)/xzram-helper $(DESTDIR)$(LIBEXECDIR)/xzramd
+	rm -f $(DESTDIR)$(SYSTEMDUNITDIR)/xzramd.service
+	rm -f $(DESTDIR)$(DATADIR)/dbus-1/system.d/io.github.XZram.conf
+	rm -f $(DESTDIR)$(DATADIR)/dbus-1/system-services/io.github.XZram1.service
+	rm -f $(DESTDIR)$(DATADIR)/polkit-1/actions/io.github.xzram.policy
+	rm -f $(DESTDIR)$(DATADIR)/bash-completion/completions/xzram
+	rm -rf $(DESTDIR)$(DATADIR)/uq/settings/pages/xzram
+	rm -f $(DESTDIR)$(DATADIR)/applications/io.github.XZram.desktop
+	rm -f $(DESTDIR)$(DATADIR)/metainfo/io.github.XZram.metainfo.xml
+	rm -f $(DESTDIR)$(DATADIR)/icons/hicolor/*/apps/io.github.XZram.png
 
 install-post:
 	@if [ -n "$(DESTDIR)" ]; then \

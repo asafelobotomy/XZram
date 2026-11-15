@@ -59,5 +59,15 @@ esac
 
 install_rustup
 cd /src
-cargo build --release
-cargo test
+cargo build --release --locked
+cargo test --locked
+
+# The read-only commands must run on a minimal install (no `which`, no root). doctor exits
+# 3 when it finds the container unhealthy, which is a result, not a failure.
+xzram="$CARGO_TARGET_DIR/release/xzram"
+"$xzram" --version
+"$xzram" detect
+"$xzram" status
+rc=0
+"$xzram" doctor || rc=$?
+[[ "$rc" -eq 0 || "$rc" -eq 3 ]] || { echo "xzram doctor exited $rc" >&2; exit 1; }

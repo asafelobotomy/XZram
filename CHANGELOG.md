@@ -12,11 +12,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - D-Bus `ApplyZramDisableWithOptions(b at_boot, b force) → as`, so D-Bus clients can get past the memory guard when disabling zram (the CLI no longer falls back to pkexec for this)
 - GUI: when Apply or Apply recommended defaults is refused for lack of free memory, offer **Apply at next boot** or **Restart anyway**; success dialogs show the CLI's messages (the at-boot note, the force warning)
 - `make install-cli-files` / `make install-files`: copy an existing build without building, so a source install builds as the user and runs only the copy as root
+- `make install-gui-files` (the GUI half of `install-files`) and `make uninstall`; `scripts/uninstall-system.sh` and `scripts/reinstall-system.sh` use it instead of their own copies of the file list
+- CI builds the RPM (with `%check`) on Fedora, and the distro smoke tests run `xzram detect`, `status` and `doctor` on each distro
 
 ### Changed
 - Doctor `swap_nearly_full` is an error when swap is ≥ 98% used and less than 15% of RAM is available (previously a warning at any level, so a system with exhausted swap reported "Healthy")
 - `xzram-helper` refuses unknown fields in every action's payload (stage, zram.migrate, snapshot.*, swapfile.*, swap.activate), not only some
 - A release `xzram-helper` running as root ignores `XZRAM_*` development overrides (except `XZRAM_ERROR_FILE`)
+- debian/rules and the RPM spec install through the Makefile's `install-cli-files` / `install-gui-files`, so all packages ship the same file list
+- debian/control and the RPM spec require rustc/cargo ≥ 1.87 (the crates' `rust-version`); the RPM spec also needs `systemd-rpm-macros` for its `%systemd_*` scriptlets
+- Packages suggest `btrfs-progs` (swapfiles on btrfs are made with `btrfs filesystem mkswapfile`)
+- AUR `pkgrel=2`: picks up the `hicolor-icon-theme` dependency of `xzram-gui` and the `btrfs-progs` optional dependency
+- `make install*` refuses a `PREFIX`, `BINDIR` or `LIBEXECDIR` other than `/usr`: the polkit, D-Bus and systemd files name `/usr/libexec`, so a `PREFIX=/usr/local` install was broken
 
 ### Fixed
 - `xzram swapfile prepare`, xzramd `PrepareSwapfileBtrfs` and the GUI's Doctor "prepare" button failed with "unknown action: swapfile.prepare": the helper action had been dropped
@@ -33,6 +40,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Snapshot restore only deletes "extra" swapfiles that pass the `swapfile remove` checks; others are left in place and reported. A snapshot can no longer record an empty swapfile list because fstab couldn't be read (which would have made a later restore delete every swapfile)
 - Snapshot restore decodes fstab path escapes (`\040`), so a swapfile path with a space is reactivated instead of treated as extra. Failures of `swapon` and `sysctl --system` during restore are reported instead of claimed as success
 - Restoring a snapshot with no `/etc` zram config restarts zram from the vendor config instead of leaving zram off until reboot
+- The Debian and RPM packages now install the uQ Settings page (only the Makefile and PKGBUILDs did)
+- The zram backend, package-manager detection and swapfile checks no longer run `which`, which minimal installs (e.g. Fedora base images) don't have; the zram backend showed as unavailable there
 - The snapshot store is pruned to 50 after each new snapshot (it used to grow without limit); the newest `pre_apply` snapshot, which `rollback` needs, is never pruned
 
 ## [0.6.0] — 2026-11-13
