@@ -157,11 +157,11 @@ fn detect_package_manager(family: &DistroFamily, id_like: &[String]) -> PackageM
                 PackageManager::Apt
             } else if id_like.iter().any(|l| l == "fedora" || l == "rhel") {
                 PackageManager::Dnf
-            } else if which_exists("pacman") {
+            } else if crate::which::command_exists("pacman") {
                 PackageManager::Pacman
-            } else if which_exists("apt") {
+            } else if crate::which::command_exists("apt") {
                 PackageManager::Apt
-            } else if which_exists("dnf") {
+            } else if crate::which::command_exists("dnf") {
                 PackageManager::Dnf
             } else {
                 PackageManager::Unknown
@@ -220,7 +220,8 @@ pub fn zram_generator_binary_present() -> bool {
         "/lib/systemd/system-generators/zram-generator",
         "/lib/systemd/system-generators/systemd-zram-generator",
     ];
-    PATHS.iter().any(|p| std::path::Path::new(p).is_file()) || which_exists("zram-generator")
+    PATHS.iter().any(|p| std::path::Path::new(p).is_file())
+        || crate::which::command_exists("zram-generator")
 }
 
 fn detect_root_filesystem() -> Option<String> {
@@ -238,14 +239,6 @@ fn detect_root_filesystem() -> Option<String> {
     } else {
         None
     }
-}
-
-fn which_exists(cmd: &str) -> bool {
-    std::process::Command::new("which")
-        .arg(cmd)
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
 }
 
 pub fn zram_generator_package_name(pm: PackageManager) -> &'static str {
@@ -309,7 +302,7 @@ fn detect_immutable_os(distro: &DistroInfo) -> bool {
     if std::env::var("OSTREE_VERSION").is_ok() {
         return true;
     }
-    if which_exists("rpm-ostree") {
+    if crate::which::command_exists("rpm-ostree") {
         return true;
     }
     if std::path::Path::new("/usr/bin/steamos-readonly").exists()

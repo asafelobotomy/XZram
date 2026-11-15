@@ -45,7 +45,7 @@ impl crate::backend::SwapBackend for ZramGeneratorBackend {
     }
 
     fn is_available(&self) -> bool {
-        which::which("systemctl").is_ok()
+        crate::which::command_exists("systemctl")
     }
 }
 
@@ -144,24 +144,6 @@ impl ZramBackendTrait for ZramGeneratorBackend {
             crate::apply::restart_zram_setup_unit(&device.name)?;
         }
         Ok(())
-    }
-}
-
-mod which {
-    use crate::error::XzramError;
-
-    pub fn which(cmd: &str) -> std::result::Result<(), XzramError> {
-        std::process::Command::new("which")
-            .arg(cmd)
-            .output()
-            .map(|o| {
-                if o.status.success() {
-                    Ok(())
-                } else {
-                    Err(XzramError::NotFound(cmd.into()))
-                }
-            })
-            .unwrap_or(Err(XzramError::NotFound(cmd.into())))
     }
 }
 

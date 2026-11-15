@@ -114,6 +114,11 @@ sudo systemctl enable --now xzramd
 
 `make install-cli` also installs the uQ Settings page to `$(DATADIR)/uq/settings/pages/xzram/`. It does nothing unless uQ is installed.
 
+xzram installs under `/usr` only: the polkit policy, the D-Bus files and `xzramd.service` name
+`/usr/libexec`, and polkit and the system bus only read `/usr/share`, so the install targets
+refuse another `PREFIX`, `BINDIR` or `LIBEXECDIR` (use `DESTDIR` to stage). `sudo make uninstall`
+removes what `install-files` installed and keeps `/var/lib/xzram` (snapshots).
+
 The `*-files` targets only copy what is already built, so `target/` and `build-gui/`
 never become root-owned, and `install` gives every installed file root ownership and an
 explicit mode. Don't stage with `DESTDIR` and then `cp -a` the tree onto `/`: that keeps your

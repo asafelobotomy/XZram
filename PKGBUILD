@@ -28,6 +28,7 @@ package_xzram() {
   depends=('polkit' 'systemd' 'util-linux')
   optdepends=(
     'zram-generator: zram swap via zram-generator'
+    'btrfs-progs: swapfiles on btrfs'
     'xzram-gui: Qt6 desktop GUI'
     'uq: the Memory and swap page in uQ Settings'
   )

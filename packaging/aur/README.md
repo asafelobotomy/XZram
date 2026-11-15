@@ -39,6 +39,6 @@ git push
 ```
 
 Commit the pinned `sha256sums` (and regenerated `.SRCINFO`) back into `packaging/aur/` on the main branch after the
-release build so the tree matches AUR. Until then `packaging/aur/PKGBUILD` carries an all-zero placeholder sum:
-`make version-check` warns about it, and fails if `PKGBUILD`/`.SRCINFO` disagree on `pkgver`/`sha256sums` or if a
+release build so the tree matches AUR. Between a version bump and that commit, `packaging/aur/PKGBUILD` carries an
+all-zero placeholder sum: `make version-check` warns about it, and fails if `PKGBUILD`/`.SRCINFO` disagree on `pkgver`/`sha256sums` or if a
 bumped `pkgver` reuses the checksum pinned for an earlier version.

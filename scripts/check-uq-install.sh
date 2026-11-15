@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# The uQ Settings page is installed by the Makefile and by both PKGBUILDs. Run each real install
-# line into a temp root and check that exactly the files of uq/pages/xzram/ arrive, in
+# The uQ Settings page is installed by the Makefile (which debian/rules and the RPM spec call)
+# and by both PKGBUILDs. Run each real install line into a temp root and check that exactly the files of uq/pages/xzram/ arrive, in
 # usr/share/uq/settings/pages/xzram/. Nothing from tests/ can be shipped this way.
 set -euo pipefail
 
@@ -24,10 +24,29 @@ check() {
   echo "ok: $label"
 }
 
-# Makefile: the one line of install-cli that mentions the page (-o build skips the cargo build).
+page_line() { grep 'uq/settings/pages/xzram'; }
+
+# Makefile: the one line of install-cli-files that mentions the page.
 mk="$tmp/make"
-make -s -n -o build install-cli DESTDIR="$mk" | grep 'uq/settings/pages/xzram' | bash
-check "Makefile install-cli" "$mk"
+make -s -n install-cli-files DESTDIR="$mk" | page_line | bash
+check "Makefile install-cli-files" "$mk"
+
+# debian/rules: the page must land in the xzram package (debian/xzram), not xzram-gui.
+deb="$tmp/deb"
+make -s -n -f debian/rules override_dh_auto_install | page_line \
+  | sed "s|$PWD/debian/xzram/|$deb/|" | bash
+check "debian/rules" "$deb"
+[[ ! -e "$PWD/debian/xzram" ]] || { echo "debian/rules wrote into the tree" >&2; exit 1; }
+
+# RPM spec: run its %install with %{buildroot} pointed at a temp root, and list the page in
+# the main package's %files.
+rpm="$tmp/rpm"
+spec=packaging/xzram.spec
+sed -n '/^%install$/,/^%files$/p' "$spec" | grep -v '^%' | sed "s|%{buildroot}|$rpm|g" \
+  | grep -v '^#' | sed 's/^make /make -s -n /' | bash | page_line | bash
+check "$spec" "$rpm"
+sed -n '/^%files$/,/^%files gui$/p' "$spec" | grep -qx '%{_datadir}/uq/settings/pages/xzram/' \
+  || { echo "$spec: the xzram %files must list %{_datadir}/uq/settings/pages/xzram/" >&2; exit 1; }
 
 # Both PKGBUILDs: the line in package_xzram, with $pkgdir pointed at a temp root.
 for pb in PKGBUILD packaging/aur/PKGBUILD; do

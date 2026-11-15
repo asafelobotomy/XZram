@@ -60,7 +60,7 @@ impl crate::backend::SwapBackend for SwapfileBackend {
     }
 
     fn is_available(&self) -> bool {
-        Path::new("/usr/sbin/mkswap").exists() || which_exists("mkswap")
+        Path::new("/usr/sbin/mkswap").exists() || crate::which::command_exists("mkswap")
     }
 }
 
@@ -111,7 +111,7 @@ impl SwapfileBackendTrait for SwapfileBackend {
 
 /// Best-effort SELinux relabel when `restorecon` is available (Fedora/RHEL).
 pub(crate) fn restorecon_if_present(path: &Path) {
-    if !which_exists("restorecon") {
+    if !crate::which::command_exists("restorecon") {
         return;
     }
     let _ = std::process::Command::new("restorecon")
@@ -146,14 +146,6 @@ fn remove_fstab_entry(path: &str) -> Result<()> {
         crate::fsutil::atomic_write(&fstab, updated.as_bytes(), 0o644)?;
     }
     Ok(())
-}
-
-fn which_exists(cmd: &str) -> bool {
-    std::process::Command::new("which")
-        .arg(cmd)
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
 }
 
 #[cfg(test)]
