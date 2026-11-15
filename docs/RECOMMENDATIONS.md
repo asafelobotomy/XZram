@@ -198,7 +198,8 @@ Anchor: `known-conflicts`.
 
 | Date | Change |
 |------|--------|
-| Unreleased | Conservative 12–31 GiB default `min(ram, 16384)`, ≥ 32 GiB `min(ram / 2, 16384)`, new tier table; saturation-aware zram size (ratio-based); memory guard + `--at-boot` / `--force` for zram restarts; `swap drain-overflow`; doctor `zram_near_full` can be an error, `swapfile_blocks_snapshots`; btrfs swapfiles refused in snapshotted subvolumes |
+| Unreleased | `defaults recommend` never replaces a zram size it can't evaluate (so it can't shrink a custom device); doctor `swap_nearly_full` is an error when swap is ≥ 98% used and under 15% of RAM is available |
+| 2026-11-13 (0.6.0) | Conservative 12–31 GiB default `min(ram, 16384)`, ≥ 32 GiB `min(ram / 2, 16384)`, new tier table; saturation-aware zram size (ratio-based); memory guard + `--at-boot` / `--force` for zram restarts; `swap drain-overflow`; doctor `zram_near_full` can be an error, `swapfile_blocks_snapshots`; btrfs swapfiles refused in snapshotted subvolumes |
 | 2026-10-14 (0.4.1) | oomd `session.slice` guard; MGLRU `min_ttl_ms`, THP `defrag`, dirty bytes, `vfs_cache_pressure`; doctor `oomd_session_unprotected`, `thp_always_low_ram` |
 | 2026-10-14 | Grow undersized managed `/swap/swapfile`; rotational placement warning; systemd-oomd OOM protection (drop-ins + enable); doctor RAM/swap checks (OOM kills, PSI, swap headroom, overflow size) |
 | 2026-07-22 | Overflow capped at 8 GiB; fstab + free-space gates; RO `/etc` and immutable OS skip all staging; respect larger vendor zram-size; Apt package hint; GUI Apply vs Configure copy |

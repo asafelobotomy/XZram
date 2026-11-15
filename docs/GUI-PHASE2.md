@@ -60,13 +60,28 @@ StageAction(s pending_json)             # polkit: io.github.xzram.stage
 StageRecommendedDefaults()              # polkit: io.github.xzram.stage (skips auth when nothing to stage)
 ClearPending()                          # polkit: io.github.xzram.pending.clear
 MigrateZram()                           # polkit: io.github.xzram.zram.migrate
-Apply()                                 # polkit: io.github.xzram.apply
-Rollback()                              # polkit: io.github.xzram.rollback
+Apply() -> as                           # polkit: io.github.xzram.apply
+ApplyWithOptions(b at_boot, b force) -> as        # polkit: io.github.xzram.apply
+Rollback() -> as                        # polkit: io.github.xzram.rollback
 ListSnapshots() / GetSnapshot(s id)     # polkit: io.github.xzram.store.read (allow_active=yes)
 CreateSnapshot(s trigger, s label)      # polkit: io.github.xzram.snapshot.create
 RestoreSnapshot(s id)                   # polkit: io.github.xzram.snapshot.restore
-DeleteSnapshot(s id) / PruneSnapshots   # polkit: io.github.xzram.snapshot.delete
+DeleteSnapshot(s id)                    # polkit: io.github.xzram.snapshot.delete
+PruneSnapshots(u keep) -> u             # polkit: io.github.xzram.snapshot.prune
+
+# Apply now: change the live system in one call, without staging (the uQ page uses these)
+ApplyNowZram(s config)                  # polkit: io.github.xzram.zram.configure (memory-checked)
+ApplyZramWithOptions(s config, b at_boot, b force)  # polkit: io.github.xzram.zram.configure
+ApplyNowZramDisable()                   # polkit: io.github.xzram.zram.disable (memory-checked)
+ApplyZramDisableWithOptions(b at_boot, b force) -> as  # polkit: io.github.xzram.zram.disable
+ApplyNowSwapfileCreate(s config)        # polkit: io.github.xzram.swapfile.create
+ApplyNowSwapfileResize(s path, t size)  # polkit: io.github.xzram.swapfile.resize
+ApplyNowSwapfileRemove(s path)          # polkit: io.github.xzram.swapfile.remove
+ApplyNowSysctl(s values)                # polkit: io.github.xzram.sysctl.set
 ```
+
+`swap drain-overflow` has no D-Bus method; it runs through pkexec only
+(`io.github.xzram.swap.drain`).
 
 ### Privilege UX
 
@@ -98,7 +113,7 @@ DeleteSnapshot(s id) / PruneSnapshots   # polkit: io.github.xzram.snapshot.delet
 GUI uses CLI verbs: `xzram snapshot list|create|restore|delete|prune`.
 Daemon still exposes the D-Bus snapshot methods for other clients.
 
-Apply creates a `pre_apply` snapshot inside the privileged apply path (no extra prompt). The GUI does **not** auto-create an `app_open` snapshot on startup (use `xzram snapshot create --trigger app_open` manually if desired). Long mutations (apply, restore, rollback, large swapfile stage) use a cancelable progress dialog. See [SNAPSHOTS.md](SNAPSHOTS.md).
+Apply creates a `pre_apply` snapshot inside the privileged apply path (no extra prompt). The GUI does **not** auto-create an `app_open` snapshot on startup (use `xzram snapshot create --trigger app_open` manually if desired). Long mutations (apply, restore, rollback, large swapfile stage) show a window-modal busy dialog until they finish. It has no Cancel button: a privileged change is not interrupted halfway. See [SNAPSHOTS.md](SNAPSHOTS.md).
 
 ### Packaging
 
@@ -159,8 +174,8 @@ items (hibernation, dual-tier tradeoffs) are informational only and link to
 | xzramd | rust, zbus, zbus_polkit, tokio |
 | xzram-qt | cmake, qt6-base, qt6-tools |
 
-## Still TODO
+## Testing
 
-- Broader D-Bus integration tests with `zbus` test connections
-- Optional Qt UI tests with `QTest`
-- CI GUI gate today: `make gui-smoke` (`QT_QPA_PLATFORM=offscreen`)
+- CI GUI gate: `make gui-smoke` (`QT_QPA_PLATFORM=offscreen`); there are no QTest UI tests
+- xzramd has unit tests for payload building and validation; there are no `zbus` integration
+  tests against a test bus

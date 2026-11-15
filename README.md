@@ -18,7 +18,7 @@ Linux distributions. It includes a Qt6 GUI and system D-Bus daemon (`xzramd`).
 - **Polkit integration** — granular privileged operations (no blanket sudo)
 - **D-Bus daemon** — `xzramd` on `io.github.XZram1` for `--dbus` / other clients; D-Bus activation starts it on demand (native GUI does not auto-start or require it)
 - **Qt6 GUI** — dashboard, zram, swap files, sysctl, doctor, snapshots, and settings (CLI/pkexec-first; daemon optional)
-- **uQ Settings page** — on [uQ](https://github.com/asafelobotomy/uq) systems, a "Memory and swap" page under Apps: memory and swap in use, zram size and compression, swappiness, and the swap list (read-only). Optional: install `uq`; see [`uq/README.md`](uq/README.md)
+- **uQ Settings page** — on [uQ](https://github.com/asafelobotomy/uq) systems, a "Memory and swap" page under Apps: memory and swap in use, zram size and compression, swappiness, and the swap list. It can change the zram size and algorithm and swappiness (through xzramd). Optional: install `uq`; see [`uq/README.md`](uq/README.md)
 - **Configuration snapshots** — automatic backups before every apply; versioned restore (`app_open` is manual)
 
 ## Supported distros
@@ -165,29 +165,62 @@ usual RPM workflow). Packages: `xzram` (CLI/daemon) and `xzram-gui` (Qt).
 
 ## CLI reference
 
+`xzram <command> --help` lists every flag. Commands that change the system stage the change
+by default (`xzram apply` makes it live); `--now` applies it immediately.
+
 ```
+# Read-only (no root)
 xzram status              # all swap devices, zram stats, priorities, memory/io PSI
 xzram doctor              # health checks; headline "System healthy" / "Healthy, N warnings" / "Issues found: ..."
 xzram detect              # distro, backend, installed packages
 
-xzram zram show|set|disable|migrate
-xzram zram set --size 'min(ram, 16384)' --now   # restart zram now (memory-checked)
+# zram
+xzram zram show
+xzram zram set [--device zram0] [--size EXPR] [--algorithm ALGO] [--priority N] [--now] [--at-boot|--force]
+xzram zram set --size 'min(ram, 16384)' --now      # restart zram now (memory-checked)
 xzram zram set --size 'min(ram, 16384)' --at-boot  # write config; takes effect at next boot
-xzram swapfile list|create|resize|remove
-xzram swap list|on|off    # list includes fstab partitions
-xzram swap drain-overflow [--dry-run] [--force]  # move disk-swap overflow back into zram
-xzram sysctl show|set
-xzram defaults recommend|stage|apply
-xzram pending show|clear  # inspect/clear staged config
-xzram daemon start        # enable and start xzramd (pkexec)
-xzram apply               # apply staged configuration
-xzram apply --at-boot     # same, but zram changes wait for the next boot (no swapoff now)
-xzram apply --force       # restart zram even if free memory can't take its stored data
-xzram snapshot list       # list configuration snapshots
-xzram snapshot restore last-apply
-xzram rollback            # alias: restore last pre-apply snapshot
+xzram zram disable [--now] [--at-boot|--force]
+xzram zram migrate [--now]                         # from legacy zram-tools configuration
 
-Global flags: --json, --dbus, --now (on write commands)
+# Swap files and devices
+xzram swapfile list
+xzram swapfile create PATH --size-mb N [--priority N] [--prepare] [--mkdir] [--now]
+xzram swapfile resize PATH --size-mb N [--now]
+xzram swapfile remove PATH [--now]
+xzram swapfile check PATH                          # btrfs nodatacow readiness
+xzram swapfile prepare PATH                        # chattr +C on the btrfs parent directory
+xzram swap list                                    # active swaps plus fstab partitions
+xzram swap on|off DEVICE
+xzram swap drain-overflow [--dry-run] [--force]    # move disk-swap overflow back into zram
+
+# Sysctl
+xzram sysctl show
+xzram sysctl set [--swappiness N] [--watermark-boost-factor N] [--watermark-scale-factor N]
+                 [--page-cluster N] [--vfs-cache-pressure N] [--dirty-bytes N]
+                 [--dirty-background-bytes N] [--zram-defaults] [--now]
+
+# Recommended defaults
+xzram defaults recommend [--zram-scale X] [--swap-scale X]   # review only, stages nothing
+xzram defaults stage [--zram-scale X] [--swap-scale X]
+xzram defaults apply [--yes] [--zram-scale X] [--swap-scale X] [--at-boot|--force]
+xzram defaults optimize-linked --anchor FIELD [--seed-file FILE]  # used by the GUI; no polkit
+
+# Staged changes
+xzram pending show|clear
+xzram apply [--at-boot|--force]  # --at-boot: zram changes wait for the next boot (no swapoff now)
+                                 # --force: restart zram even if free memory can't take its data
+
+# Snapshots
+xzram snapshot list
+xzram snapshot create [--label TEXT] [--trigger manual|app_open]
+xzram snapshot restore ID|latest|last-apply
+xzram snapshot delete ID [--yes]
+xzram snapshot prune [--keep N] [--yes]  # default keep: 50
+xzram rollback                           # restore the last pre-apply snapshot
+
+xzram daemon start        # enable and start xzramd (pkexec)
+
+Global flags: --json, --dbus
 ```
 
 Changing zram (size, algorithm, disable) restarts the device, which first moves everything
