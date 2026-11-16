@@ -1,3 +1,12 @@
+xzram (0.7.0-1) unstable; urgency=medium
+
+  * uQ Settings page rebuilt: swap files, snapshots, health check, plans
+    and progress
+  * New: xzram config show|set, --dry-run on destructive commands, --ndjson
+  * defaults apply accepts --at-boot and --force
+
+ -- XZram contributors <xzram@example.com>  Mon, 16 Nov 2026 12:00:00 +0000
+
 xzram (0.6.0-1) unstable; urgency=medium
 
   * doctor: headline counts warnings; saturated zram spilling to disk swap
