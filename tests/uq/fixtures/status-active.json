@@ -1,0 +1,54 @@
+{
+  "memory": {
+    "mem_total_kb": 16473776,
+    "mem_available_kb": 8236888,
+    "swap_total_kb": 8388608,
+    "swap_free_kb": 7340032
+  },
+  "pressure": {
+    "io": {
+      "full_avg10": 0.0,
+      "full_avg300": 0.06,
+      "full_avg60": 0.0,
+      "some_avg10": 0.0,
+      "some_avg300": 0.1,
+      "some_avg60": 0.01
+    },
+    "memory": {
+      "full_avg10": 0.0,
+      "full_avg300": 0.0,
+      "full_avg60": 0.0,
+      "some_avg10": 0.0,
+      "some_avg300": 0.0,
+      "some_avg60": 12.5
+    }
+  },
+  "swaps": [
+    {
+      "name": "/dev/zram0",
+      "swap_type": "partition",
+      "size_bytes": 8589934592,
+      "used_bytes": 1073741824,
+      "priority": 100
+    },
+    {
+      "name": "/swap/swapfile",
+      "swap_type": "file",
+      "size_bytes": 4294967296,
+      "used_bytes": 0,
+      "priority": 10
+    }
+  ],
+  "zram_devices": [
+    {
+      "name": "zram0",
+      "algorithm": "zstd",
+      "disk_size_bytes": 8589934592,
+      "data_bytes": 3221225472,
+      "compressed_bytes": 1073741824,
+      "total_bytes": 1100000000,
+      "mem_used_max_bytes": 0,
+      "mount_point": "[SWAP]"
+    }
+  ]
+}

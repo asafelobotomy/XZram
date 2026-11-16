@@ -1,5 +1,6 @@
 use std::path::Path;
-use std::process::{Command, ExitStatus};
+use std::process::{Command, ExitStatus, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::SystemTime;
 
 use tracing::info;
@@ -15,15 +16,24 @@ const PKEXEC_DISMISSED: i32 = 126;
 /// pkexec exit code when the caller is not authorized (or auth could not be obtained).
 const PKEXEC_NOT_AUTHORIZED: i32 = 127;
 
+/// Set when the caller reads our stdout as JSON (`--json`, `--ndjson`): the helper's own
+/// progress lines must not mix into it.
+static QUIET_HELPER: AtomicBool = AtomicBool::new(false);
+
+pub(crate) fn quiet_helper_stdout(quiet: bool) {
+    QUIET_HELPER.store(quiet, Ordering::Relaxed);
+}
+
 pub(crate) fn run_privileged_pkexec(action: &str, payload: &str) -> anyhow::Result<()> {
     let helper = find_helper_for_pkexec()?;
     ensure_helper_supports_client(&helper)?;
     let spawned_at = SystemTime::now();
-    let status = Command::new("pkexec")
-        .arg(&helper)
-        .arg(action)
-        .arg(payload)
-        .status()?;
+    let mut command = Command::new("pkexec");
+    command.arg(&helper).arg(action).arg(payload);
+    if QUIET_HELPER.load(Ordering::Relaxed) {
+        command.stdout(Stdio::null());
+    }
+    let status = command.status()?;
 
     if !status.success() {
         return Err(pkexec_failure(

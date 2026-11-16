@@ -1,0 +1,81 @@
+{
+  "keys": [
+    {
+      "help": "How much compressed memory there is, as a share of installed memory.",
+      "key": "zram-size",
+      "kind": "text",
+      "label": "Compressed memory size"
+    },
+    {
+      "help": "How memory is compressed. zstd squeezes most; lz4 is fastest.",
+      "key": "zram-algorithm",
+      "kind": "text",
+      "label": "Compression"
+    },
+    {
+      "help": "Which swap is used first. Higher is used first.",
+      "key": "zram-priority",
+      "kind": "number",
+      "label": "Compressed memory priority",
+      "max": 32767,
+      "min": -1
+    },
+    {
+      "help": "Higher values move memory to swap sooner. The usual choice is 60, or higher with compressed memory.",
+      "key": "swappiness",
+      "kind": "number",
+      "label": "Swappiness",
+      "max": 200,
+      "min": 0
+    },
+    {
+      "help": "How many pages are read back from swap at once, as a power of two. 0 suits compressed memory.",
+      "key": "page-cluster",
+      "kind": "number",
+      "label": "Swap read-ahead",
+      "max": 8,
+      "min": 0
+    },
+    {
+      "help": "How eagerly the file-name caches are given back. 100 is the kernel's default.",
+      "key": "vfs-cache-pressure",
+      "kind": "number",
+      "label": "File cache pressure",
+      "max": 1000,
+      "min": 1
+    },
+    {
+      "help": "How much memory the kernel keeps free, in tenths of a percent.",
+      "key": "watermark-scale-factor",
+      "kind": "number",
+      "label": "Free memory headroom",
+      "max": 10000,
+      "min": 0
+    },
+    {
+      "help": "How hard the kernel reclaims after fragmentation. 0 turns it off.",
+      "key": "watermark-boost-factor",
+      "kind": "number",
+      "label": "Memory boost",
+      "max": 10000,
+      "min": 0
+    }
+  ],
+  "pending": false,
+  "schema_version": 1,
+  "snapshots": 4,
+  "tuning": {
+    "page_cluster": 3,
+    "swappiness": 60,
+    "vfs_cache_pressure": 100,
+    "watermark_boost_factor": 15000,
+    "watermark_scale_factor": 10
+  },
+  "zram": {
+    "algorithm": null,
+    "configured": false,
+    "device": null,
+    "priority": null,
+    "size": null
+  }
+}

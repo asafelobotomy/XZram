@@ -1,453 +1,488 @@
-// Memory and swap: what XZram shows and the few things it changes. XZram's daemon is reached
-// over the page's own D-Bus table (page.toml); reads happen when the page opens, after each
-// change and on Refresh. All text goes through UqLabel; parsing and checks live in logic.js.
+// Memory and swap: what XZram shows and everything it changes. Everything goes through the
+// xzram command line (page.toml); logic.js reads its answers and words the result. Changes
+// show what they will do and ask first (uQ's confirmation sheet), stream their progress, and
+// are never forced: XZram's own refusals are shown as they are.
+// Laid out like Settings' own pages (uq_api = 3): five tabs of cards.
 import QtQuick
 import QtQuick.Controls as QQC2
 import QtQuick.Layouts
 import org.uq.settings
 import "logic.js" as Logic
 
-Item {
+SettingsPage {
     id: page
 
     property var ctx
-    /// The [[setting]] id Settings search jumped to.
+    property var theme
+    /// The [[setting]] row Settings search jumped to; the rows flash, and their tab opens.
     property string highlight
 
-    // What was last read (null until it has been).
+    // What was last read (null until it has been) and why a read failed ("" when it didn't).
     property var status: null
-    property var zramConfig: null
-    property int swappiness: -1
-    property var swaps: []
-    property bool zramKnown: false
-
-    /// "loading", "unavailable", "error" or "ready".
-    property string phase: "loading"
-    property string problem
-    property string problemText
-    property string rawDetail
-    property bool showRaw: false
-    property string notice
-
-    property bool busyZram: false
-    property bool busySwappiness: false
+    property var config: null
+    property var doctor: null
+    property var swapfiles: null
+    property var snapshots: null
+    property string statusProblem: ""
+    property string configProblem: ""
+    property string doctorProblem: ""
+    property string swapfilesProblem: ""
+    property string snapshotsProblem: ""
+    property bool doctorLoading: false
+    property bool statusLoading: false
     property bool moreAvailable: true
-    property var pendingChanges: null
-    /// The zram settings refused for lack of free memory, offered for the next restart.
-    property string deferredJson
-    /// Shared with delayed callbacks: set when the page is destroyed, so they do nothing.
-    readonly property var life: ({ gone: false })
-    Component.onDestruction: life.gone = true
-    property int readSerial: 0
 
-    readonly property var sizeRows: Logic.sizeChoices(page.zramConfig ? page.zramConfig.zram_size : null)
-    readonly property var algorithmNames: Logic.algorithmChoices(page.zramConfig ? page.zramConfig.compression_algorithm : null)
-    readonly property int sizeIndex: Logic.sizeIndex(page.zramConfig ? page.zramConfig.zram_size : null)
-    readonly property int algorithmIndex: Logic.algorithmIndex(page.zramConfig ? page.zramConfig.compression_algorithm : null)
-    readonly property bool zramEditable: page.zramConfig !== null && !page.busyZram
-    readonly property color errorColor: (page.ctx && page.ctx.theme && page.ctx.theme.colors && page.ctx.theme.colors.error) || "red"
+    /// The key of the row whose change is running, "" when none. One change runs at a time.
+    property string workingKey: ""
+    readonly property bool busy: page.workingKey !== ""
+    /// What the running change is doing: {label, percent (-1 when unknown), detail}.
+    property var progress: null
+    /// What each change said, by row key: {message, failed, kind, detail}.
+    property var notes: ({})
+    /// A refused change that can be saved for the next restart: {key, command, args, done}.
+    property var offer: null
+    property var openedWith: null
+    /// Set when the page is destroyed: a reply that comes after that does nothing.
+    readonly property var life: ({ gone: false })
+    Component.onDestruction: page.life.gone = true
+
+    pageId: "xzram"
+
+    function noteFor(key) {
+        return page.notes[key] || null;
+    }
+
+    function errorColor() {
+        const colors = page.ctx && page.ctx.theme ? page.ctx.theme.colors : null;
+        return (colors && colors.error) || "red";
+    }
 
     // -----------------------------------------------------------------------------------------
     // Reading
 
-    onCtxChanged: page.refresh()
+    function readStatus() {
+        if (!page.ctx || page.statusLoading)
+            return;
+        page.statusLoading = true;
+        page.ctx.command.run("status", [], result => {
+            if (page.life.gone)
+                return;
+            page.statusLoading = false;
+            const read = Logic.parseStatus(result);
+            if (read.ok) {
+                page.status = read;
+                page.statusProblem = "";
+            } else {
+                page.statusProblem = read.error;
+            }
+        });
+    }
 
-    function refresh() {
+    function takeConfig(result) {
+        if (page.life.gone)
+            return;
+        const read = Logic.parseConfig(result);
+        if (read.ok) {
+            page.config = read;
+            page.configProblem = "";
+        } else {
+            page.configProblem = read.error;
+        }
+    }
+
+    function takeSwapfiles(result) {
+        if (page.life.gone)
+            return;
+        const read = Logic.parseSwapfiles(result);
+        if (read.ok) {
+            page.swapfiles = read;
+            page.swapfilesProblem = "";
+        } else {
+            page.swapfilesProblem = read.error;
+        }
+    }
+
+    function readSnapshots() {
         if (!page.ctx)
             return;
-        const serial = ++page.readSerial;
-        const life = page.life;
-        const failures = [];
-        let waiting = 4;
-        function done(parse, take) {
-            return Logic.guarded(life, function (reply) {
-                if (serial !== page.readSerial)
-                    return;
-                const result = parse(reply);
-                if (result.ok)
-                    take(result);
-                else
-                    failures.push(result.error);
-                if (--waiting === 0)
-                    page.finishRead(failures);
-            });
-        }
-        page.read("GetStatus", done(Logic.parseStatus, r => page.status = r));
-        page.read("GetZramConfig", done(Logic.parseZramConfig, r => {
-            page.zramConfig = r.config;
-            page.zramKnown = true;
-        }));
-        page.read("GetSysctl", done(Logic.parseSysctl, r => page.swappiness = r.swappiness === null ? -1 : r.swappiness));
-        page.read("ListSwaps", done(Logic.parseSwaps, r => page.swaps = r.swaps));
+        page.ctx.command.run("snapshots", [], result => {
+            if (page.life.gone)
+                return;
+            const read = Logic.parseSnapshots(result);
+            if (read.ok) {
+                page.snapshots = read;
+                page.snapshotsProblem = "";
+            } else {
+                page.snapshotsProblem = read.error;
+            }
+        });
     }
 
-    /// One read, tried once more when the service was still starting.
-    function read(method, callback, attempt) {
-        const life = page.life;
-        page.ctx.dbus.call(method, [], Logic.guarded(life, reply => {
-            if (reply && reply.error && !attempt && Logic.isRetryable(reply.error))
-                page.read(method, callback, 1);
-            else
-                callback(reply);
-        }));
-    }
-
-    function finishRead(failures) {
-        if (failures.length === 0) {
-            // Keep the raw text of a refused change; drop that of a failed read.
-            if (page.phase !== "ready")
-                page.rawDetail = "";
-            page.phase = "ready";
-            page.resetControls();
+    function readDoctor() {
+        if (!page.ctx || page.doctorLoading)
             return;
+        page.doctorLoading = true;
+        page.ctx.command.run("doctor", [], result => {
+            if (page.life.gone)
+                return;
+            page.doctorLoading = false;
+            const read = Logic.parseDoctor(result);
+            if (read.ok) {
+                page.doctor = read;
+                page.doctorProblem = "";
+            } else {
+                page.doctorProblem = read.error;
+            }
+        });
+    }
+
+    /// After a change: everything it may have moved. The watched reads follow by themselves.
+    function refreshAll() {
+        page.readStatus();
+        page.readSnapshots();
+        page.readDoctor();
+    }
+
+    // The cheap reads now; the config and the swap files are followed from then on.
+    onCtxChanged: {
+        if (page.ctx && page.ctx !== page.openedWith) {
+            page.openedWith = page.ctx;
+            page.readStatus();
+            page.ctx.command.watch("config", page.takeConfig);
+            page.ctx.command.watch("swapfiles", page.takeSwapfiles);
+            page.readSnapshots();
+            page.readDoctor();
         }
-        const e = Logic.describeError(failures[0], "read the memory settings");
-        page.rawDetail = e.raw;
-        page.phase = (e.kind === "unavailable" && page.status === null) ? "unavailable" : "error";
-        page.problemText = e.kind === "other" ? "Couldn't read the memory settings." : e.message;
-        page.resetControls();
+    }
+
+    // Memory moves all the time: while a tab that shows it is open, read it every few seconds.
+    Timer {
+        interval: 5000
+        repeat: true
+        running: !!page.ctx && page.visible && !page.busy && (page.currentIndex === 0 || page.currentIndex === 3)
+        onTriggered: page.readStatus()
     }
 
     // -----------------------------------------------------------------------------------------
     // Changing
 
-    function resetControls() {
-        sizeBox.currentIndex = Qt.binding(() => page.sizeIndex);
-        algorithmBox.currentIndex = Qt.binding(() => page.algorithmIndex);
-        spin.value = Qt.binding(() => Math.max(0, page.swappiness));
+    function setNote(key, note) {
+        page.notes = Logic.withNote(page.notes, key, note);
     }
 
-    function askZram(changes) {
-        // Check the value now, so a bad one never reaches the dialog.
-        const built = Logic.buildZramConfig(page.zramConfig, changes);
-        page.notice = "";
-        if (!built.ok) {
-            page.problem = built.error;
-            page.resetControls();
+    /// Checks the arguments, then starts the row `key`. False (and a note) when they're wrong.
+    function begin(key, command, args) {
+        if (page.busy || !page.ctx)
+            return false;
+        const why = Logic.argsProblem(command, args);
+        page.offer = null;
+        page.setNote(key, why === "" ? null : Logic.problem(why));
+        return why === "";
+    }
+
+    /// Streams the write `command` for the row `key` (uQ asks first and shows the plan), then
+    /// notes what it said. A cancel changes nothing and shows nothing.
+    function stream(key, command, args, doneText, after) {
+        if (!page.begin(key, command, args)) {
+            if (after)
+                after();
             return;
         }
-        page.problem = "";
-        page.deferredJson = "";
-        page.pendingChanges = changes;
-        confirm.question = Logic.CONFIRMS[built.kind];
-        confirm.open();
+        let last = null;
+        page.workingKey = key;
+        page.progress = { label: "Starting…", percent: -1, detail: "" };
+        page.ctx.command.stream(command, args, ev => {
+            if (page.life.gone)
+                return;
+            const shown = Logic.progressOf(ev);
+            if (shown)
+                page.progress = shown;
+            else if (ev && (ev.event === "done" || ev.event === "error"))
+                last = ev;
+        }, result => {
+            if (page.life.gone)
+                return;
+            page.workingKey = "";
+            if (!Logic.isCancelled(result)) {
+                page.setNote(key, Logic.outcome(last, result, doneText));
+                page.refreshAll();
+            }
+            if (after)
+                after();
+        });
     }
 
-    /// After Confirm: read the zram settings again, so the other fields sent are current,
-    /// then write.
-    function runZram() {
-        const changes = page.pendingChanges;
-        page.pendingChanges = null;
-        if (!changes || !page.ctx)
+    /// Asks XZram what a change would do before asking the person: a change it would refuse for
+    /// lack of memory says so here, with the offer in `offer`; anything else goes on with `go`.
+    function checked(key, planCommand, args, offer, go, after) {
+        if (!page.begin(key, planCommand, args)) {
+            if (after)
+                after();
             return;
-        const life = page.life;
-        page.busyZram = true;
-        page.ctx.dbus.call("GetZramConfig", [], Logic.guarded(life, fresh => {
-            const current = Logic.parseZramConfig(fresh);
-            const built = current.ok ? Logic.buildZramConfig(current.config, changes) : { ok: false, error: "Couldn't read the zram settings, so nothing was changed." };
-            if (!built.ok) {
-                page.busyZram = false;
-                page.problem = built.error;
-                page.resetControls();
+        }
+        page.workingKey = key;
+        page.progress = { label: "Checking what that would do…", percent: -1, detail: "" };
+        page.ctx.command.run(planCommand, args, result => {
+            if (page.life.gone)
+                return;
+            page.workingKey = "";
+            const plan = Logic.parsePlan(result);
+            if (!plan.ok) {
+                page.setNote(key, Logic.problem(plan.error));
+            } else if (plan.refuse) {
+                page.setNote(key, { message: Logic.refusalText(plan), failed: true, kind: plan.memory ? "memory" : "other", detail: plan.reason });
+                if (plan.memory && offer)
+                    page.offer = { key: key, command: offer.command, args: offer.args, done: offer.done };
+            } else {
+                go();
                 return;
             }
-            page.ctx.dbus.call("ApplyNowZram", [built.json], Logic.guarded(life, reply => {
-                page.busyZram = false;
-                const lowMemory = reply && reply.error && Logic.describeError(reply.error, "").kind === "memory";
-                page.deferredJson = lowMemory ? built.json : "";
-                page.finishWrite(reply, "change the zram settings",
-                    built.kind === "zram-size" ? "Size changed." : "Compression changed.");
-            }));
-        }));
+            if (after)
+                after();
+        });
     }
 
-    /// After a refusal for lack of memory: save the same settings for the next restart.
-    function runZramAtBoot() {
-        const json = page.deferredJson;
-        page.deferredJson = "";
-        if (json === "" || !page.ctx)
+    /// After a refusal for lack of memory: save the same change for the next restart.
+    function takeOffer() {
+        const o = page.offer;
+        if (!o)
             return;
-        page.busyZram = true;
-        page.ctx.dbus.call("ApplyZramWithOptions", [json, true, false], Logic.guarded(page.life, reply => {
-            page.busyZram = false;
-            page.finishWrite(reply, "save the zram settings", Logic.AT_BOOT_DONE);
-        }));
+        page.stream(o.key, o.command, o.args, o.done);
     }
 
-    function cancelZram() {
-        // Cancel is not a failure: put the controls back and say nothing.
-        page.pendingChanges = null;
-        page.resetControls();
+    readonly property string savedForBoot: "Saved. It takes effect at the next restart."
+
+    function changeZram(key, value, after) {
+        const args = [key, value];
+        page.checked(key, "plan-zram", args,
+            { command: "set-zram-boot", args: args, done: page.savedForBoot },
+            () => page.stream(key, "set-zram", args, Logic.doneText(key, value), after), after);
     }
 
-    function applySwappiness() {
-        // Commit what is in the box: a typed number only becomes `value` on Enter.
-        spin.value = spin.shownValue;
-        const built = Logic.buildSysctl(spin.value);
-        page.notice = "";
-        if (!built.ok) {
-            page.problem = built.error;
-            page.resetControls();
+    function changeTuning(key, value, after) {
+        const why = Logic.checkTuning(key, value);
+        if (why !== "") {
+            page.setNote(key, Logic.problem(why));
+            if (after)
+                after();
             return;
         }
-        page.problem = "";
-        page.deferredJson = "";
-        page.busySwappiness = true;
-        const life = page.life;
-        const chosen = spin.value;
-        page.ctx.dbus.call("ApplyNowSysctl", [built.json], Logic.guarded(life, reply => {
-            page.busySwappiness = false;
-            page.finishWrite(reply, "change swappiness", "Swappiness set to " + chosen + ".");
-        }));
+        page.stream(key, "set-tuning", [key, String(value).trim()], Logic.doneText(key, String(value).trim()), after);
     }
 
-    function finishWrite(reply, what, done) {
-        const failed = reply && reply.error ? Logic.describeError(reply.error, what) : null;
-        page.rawDetail = "";
-        if (failed === null) {
-            page.problem = "";
-            page.notice = done;
-        } else if (failed.kind === "pending") {
-            // The work may still be going: not a failure.
-            page.problem = "";
-            page.notice = failed.message;
-        } else {
-            page.notice = "";
-            page.problem = failed.message;
-            page.rawDetail = failed.raw;
+    function turnZramOff() {
+        page.checked("zram-off", "plan-zram-off", [],
+            { command: "zram-off-boot", args: [], done: page.savedForBoot },
+            () => page.stream("zram-off", "zram-off", [], "Compressed memory is off."));
+    }
+
+    /// False (and a note) when the path or size is wrong.
+    function createSwapfile(path, gb) {
+        const why = Logic.checkSwapfile(path, gb);
+        if (why !== "") {
+            page.setNote("swapfile-new", Logic.problem(why));
+            return false;
         }
-        page.resetControls();
-        page.refresh();
+        const args = [Logic.mibOf(gb), path];
+        page.checked("swapfile-new", "plan-swapfile-create", args, null,
+            () => page.stream("swapfile-new", "swapfile-create", args, "Swap file created."));
+        return true;
+    }
+
+    function resizeSwapfile(path, gb) {
+        const key = "swapfile:" + path;
+        const why = Logic.checkSwapSize(gb);
+        if (why !== "") {
+            page.setNote(key, Logic.problem(why));
+            return false;
+        }
+        const args = [Logic.mibOf(gb), path];
+        page.checked(key, "plan-swapfile-resize", args, null,
+            () => page.stream(key, "swapfile-resize", args, "Swap file resized."));
+        return true;
+    }
+
+    function removeSwapfile(path) {
+        const key = "swapfile:" + path;
+        page.checked(key, "plan-swapfile-remove", [path], null,
+            () => page.stream(key, "swapfile-remove", [path], "Swap file removed."));
+    }
+
+    function restoreSnapshot(id) {
+        const key = "snapshot:" + id;
+        page.checked(key, "plan-snapshot-restore", [id], null,
+            () => page.stream(key, "snapshot-restore", [id], "Snapshot restored."));
+    }
+
+    function deleteSnapshot(id) {
+        page.stream("snapshot:" + id, "snapshot-delete", [id], "Snapshot deleted.");
+    }
+
+    function pruneSnapshots(keep) {
+        page.stream("snapshot-prune", "snapshot-prune", [String(keep)], "Older snapshots deleted.");
+    }
+
+    function rollBack() {
+        page.checked("rollback", "plan-rollback", [], null,
+            () => page.stream("rollback", "rollback", [], "Went back to before the last change."));
+    }
+
+    function takeSnapshot() {
+        if (!page.begin("snapshot-new", "snapshot-create", ["Taken from Settings"]))
+            return;
+        page.workingKey = "snapshot-new";
+        page.progress = { label: "Taking a snapshot…", percent: -1, detail: "" };
+        page.ctx.command.run("snapshot-create", ["Taken from Settings"], result => {
+            if (page.life.gone)
+                return;
+            page.workingKey = "";
+            const ok = !!result && result.code === 0;
+            page.setNote("snapshot-new", ok
+                ? { message: "Snapshot taken.", failed: false, kind: "done", detail: "" }
+                : Logic.failure("other", Logic.clip(result ? (result.error || "") : "", 400)));
+            page.readSnapshots();
+        });
     }
 
     function openXzram() {
         if (!page.ctx)
             return;
-        const life = page.life;
-        page.ctx.openApp("io.github.XZram.desktop", Logic.guarded(life, reply => {
-            if (reply && reply.error) {
+        page.ctx.openApp("io.github.XZram.desktop", reply => {
+            if (page.life.gone)
+                return;
+            if (reply && reply.error)
                 page.moreAvailable = false;
-                page.notice = "Couldn't open XZram.";
-            }
-        }));
+        });
     }
 
-    function scrollTo(id) {
-        const rows = { "zram-size": sizeRow, "zram-algorithm": algorithmRow, "swappiness": swappinessRow, "swaps": swapsRow };
-        const target = rows[id];
-        if (target)
-            flick.contentY = Math.max(0, Math.min(target.y, flick.contentHeight - flick.height));
+    headerItems: [
+        QQC2.Button {
+            objectName: "moreButton"
+            visible: page.moreAvailable
+            text: "More in XZram"
+            flat: true
+            onClicked: page.openXzram()
+        }
+    ]
+
+    banners: [
+        ErrorCard {
+            objectName: "configError"
+            title: "Couldn't read the memory settings"
+            detail: page.configProblem
+            visible: detail !== ""
+            Layout.fillWidth: true
+        }
+    ]
+
+    SettingsTab {
+        title: "Overview"
+        iconName: "utilities-system-monitor"
+
+        SettingsCard {
+            title: "Memory and swap"
+            iconName: "media-flash"
+            help: "What is in use right now. It updates every few seconds while this tab is open."
+            wide: true
+            Layout.fillWidth: true
+
+            OverviewSection {
+                host: page
+                Layout.fillWidth: true
+            }
+        }
+        SettingsCard {
+            title: "Compressed memory"
+            iconName: "package-x-generic"
+            help: "Swap that lives in memory and is compressed, which is faster than a disk."
+            Layout.fillWidth: true
+
+            ZramDevices {
+                host: page
+                Layout.fillWidth: true
+            }
+        }
+        SettingsCard {
+            title: "Health"
+            iconName: "dialog-information"
+            help: "XZram looks for settings that would make the computer freeze when memory runs out."
+            Layout.fillWidth: true
+
+            HealthSection {
+                host: page
+                Layout.fillWidth: true
+            }
+        }
     }
 
-    onHighlightChanged: page.scrollTo(page.highlight)
+    SettingsTab {
+        title: "Compressed memory"
+        iconName: "package-x-generic"
 
-    ConfirmDialog {
-        id: confirm
-        objectName: "confirmDialog"
-        onConfirmed: page.runZram()
-        onDismissed: page.cancelZram()
+        SettingsCard {
+            title: "Size and compression"
+            iconName: "media-flash"
+            help: "Changing these moves what is in swap back into memory first, so XZram checks there is room."
+            wide: true
+            Layout.fillWidth: true
+
+            ZramSection {
+                host: page
+                Layout.fillWidth: true
+            }
+        }
     }
 
-    Flickable {
-        id: flick
-        anchors.fill: parent
-        contentWidth: width
-        contentHeight: column.implicitHeight + 32
-        clip: true
-        QQC2.ScrollBar.vertical: QQC2.ScrollBar {}
+    SettingsTab {
+        title: "Tuning"
+        iconName: "configure"
 
-        ColumnLayout {
-            id: column
-            x: 16
-            y: 16
-            width: flick.width - 32
-            spacing: 12
+        SettingsCard {
+            title: "Kernel memory settings"
+            iconName: "configure"
+            help: "Kept after restarts. Nothing restarts when you change one."
+            wide: true
+            Layout.fillWidth: true
 
-            UqLabel {
-                objectName: "phaseLabel"
-                visible: page.phase === "loading"
-                text: "Checking…"
+            TuningSection {
+                host: page
                 Layout.fillWidth: true
             }
-            UqLabel {
-                objectName: "unavailableLabel"
-                visible: page.phase === "unavailable"
-                text: page.problemText
-                wrapMode: Text.Wrap
+        }
+    }
+
+    SettingsTab {
+        title: "Swap files"
+        iconName: "drive-harddisk"
+
+        SettingsCard {
+            title: "Swap on disk"
+            iconName: "drive-harddisk"
+            help: "Swap files are kept in /etc/fstab, so they come back after a restart."
+            wide: true
+            Layout.fillWidth: true
+
+            SwapFilesSection {
+                host: page
                 Layout.fillWidth: true
             }
-            ErrorCard {
-                objectName: "readError"
-                visible: page.phase === "error"
-                title: "Couldn't read the memory settings"
-                detail: page.problemText
+        }
+    }
+
+    SettingsTab {
+        title: "Snapshots"
+        iconName: "document-open-recent"
+
+        SettingsCard {
+            title: "Snapshots"
+            iconName: "edit-undo"
+            help: "XZram stores a copy of its settings before each change, so a change can be undone."
+            wide: true
+            Layout.fillWidth: true
+
+            SnapshotsSection {
+                host: page
                 Layout.fillWidth: true
-            }
-            QQC2.Button {
-                objectName: "advancedButton"
-                visible: (page.phase === "error" || page.phase === "unavailable" || page.problem !== "") && page.rawDetail !== ""
-                text: "Advanced details"
-                onClicked: page.showRaw = !page.showRaw
-            }
-            UqLabel {
-                objectName: "rawDetail"
-                visible: page.showRaw && page.rawDetail !== ""
-                text: page.rawDetail
-                wrapMode: Text.Wrap
-                Layout.fillWidth: true
-            }
-
-            UqLabel {
-                objectName: "problemLabel"
-                visible: page.problem !== ""
-                text: page.problem
-                color: page.errorColor
-                wrapMode: Text.Wrap
-                Layout.fillWidth: true
-            }
-            QQC2.Button {
-                objectName: "atBootButton"
-                visible: page.deferredJson !== "" && !page.busyZram
-                text: "Apply at next restart"
-                onClicked: page.runZramAtBoot()
-            }
-            UqLabel {
-                objectName: "noticeLabel"
-                visible: page.notice !== ""
-                text: page.notice
-                wrapMode: Text.Wrap
-                Layout.fillWidth: true
-            }
-
-            StatusSection {
-                lines: Logic.statusLines(page.status)
-                loading: page.phase === "loading"
-                Layout.fillWidth: true
-            }
-
-            UqLabel {
-                objectName: "notSetUp"
-                visible: page.phase === "ready" && page.zramKnown && page.zramConfig === null
-                text: "Compressed memory isn't set up through XZram on this computer, so its size and compression can't be changed here."
-                wrapMode: Text.Wrap
-                Layout.fillWidth: true
-            }
-
-            SettingRow {
-                id: sizeRow
-                settingId: "zram-size"
-                label: "Compressed memory size"
-                highlight: page.highlight
-                Layout.fillWidth: true
-
-                UqComboBox {
-                    id: sizeBox
-                    objectName: "sizeBox"
-                    model: page.sizeRows.map(r => r.label)
-                    currentIndex: page.sizeIndex
-                    enabled: page.zramEditable
-                    onActivated: index => {
-                        const row = page.sizeRows[index];
-                        if (!row || row.value === "" || index === page.sizeIndex)
-                            page.resetControls();
-                        else
-                            page.askZram({ size: row.value });
-                    }
-                }
-                UqLabel {
-                    visible: page.busyZram
-                    text: "Working…"
-                }
-            }
-
-            SettingRow {
-                id: algorithmRow
-                settingId: "zram-algorithm"
-                label: "Compression"
-                highlight: page.highlight
-                Layout.fillWidth: true
-
-                UqComboBox {
-                    id: algorithmBox
-                    objectName: "algorithmBox"
-                    model: page.algorithmNames
-                    currentIndex: page.algorithmIndex
-                    enabled: page.zramEditable
-                    onActivated: index => {
-                        const name = page.algorithmNames[index];
-                        if (name === undefined || name === "Default" || index === page.algorithmIndex)
-                            page.resetControls();
-                        else
-                            page.askZram({ algorithm: name });
-                    }
-                }
-                UqLabel {
-                    visible: page.busyZram
-                    text: "Working…"
-                }
-            }
-
-            SettingRow {
-                id: swappinessRow
-                settingId: "swappiness"
-                label: "Swappiness"
-                highlight: page.highlight
-                Layout.fillWidth: true
-
-                QQC2.SpinBox {
-                    id: spin
-                    objectName: "swappinessSpin"
-                    from: 0
-                    to: 200
-                    editable: true
-                    value: Math.max(0, page.swappiness)
-                    enabled: page.swappiness >= 0 && !page.busySwappiness
-                    // The number in the box, typed or not. SpinBox only commits typing on
-                    // Enter or focus loss (`live` needs Qt 6.6), and Apply must not wait.
-                    readonly property int shownValue: {
-                        const n = parseInt(contentItem && contentItem.text !== undefined
-                                           ? contentItem.text : "", 10);
-                        return isNaN(n) || n < from || n > to ? value : n;
-                    }
-                }
-                QQC2.Button {
-                    objectName: "applySwappiness"
-                    text: "Apply"
-                    enabled: page.swappiness >= 0 && spin.shownValue !== page.swappiness && !page.busySwappiness
-                    onClicked: page.applySwappiness()
-                }
-                UqLabel {
-                    visible: page.busySwappiness
-                    text: "Working…"
-                }
-            }
-            UqLabel {
-                text: "Higher values move memory to swap sooner. 0 to 200; the usual choice is 60, or higher with compressed memory."
-                wrapMode: Text.Wrap
-                Layout.fillWidth: true
-            }
-
-            SwapListSection {
-                id: swapsRow
-                swaps: page.swaps
-                highlight: page.highlight
-                Layout.fillWidth: true
-            }
-
-            RowLayout {
-                spacing: 8
-
-                QQC2.Button {
-                    objectName: "refreshButton"
-                    text: "Refresh"
-                    onClicked: page.refresh()
-                }
-                QQC2.Button {
-                    objectName: "moreButton"
-                    visible: page.moreAvailable
-                    text: "More in XZram"
-                    onClicked: page.openXzram()
-                }
             }
         }
     }

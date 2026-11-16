@@ -1,0 +1,39 @@
+{
+  "memory": {
+    "mem_available_kb": 15778552,
+    "mem_total_kb": 16473776,
+    "swap_free_kb": 0,
+    "swap_total_kb": 0
+  },
+  "pressure": {
+    "io": {
+      "full_avg10": 0.0,
+      "full_avg300": 0.06,
+      "full_avg60": 0.0,
+      "some_avg10": 0.0,
+      "some_avg300": 0.1,
+      "some_avg60": 0.01
+    },
+    "memory": {
+      "full_avg10": 0.0,
+      "full_avg300": 0.0,
+      "full_avg60": 0.0,
+      "some_avg10": 0.0,
+      "some_avg300": 0.0,
+      "some_avg60": 0.0
+    }
+  },
+  "swaps": [],
+  "zram_devices": [
+    {
+      "algorithm": "lzo-rle",
+      "compressed_bytes": 0,
+      "data_bytes": 0,
+      "disk_size_bytes": 0,
+      "mem_used_max_bytes": 0,
+      "mount_point": "",
+      "name": "zram0",
+      "total_bytes": 0
+    }
+  ]
+}

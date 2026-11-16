@@ -5,8 +5,14 @@ use xzram::swapfile_btrfs;
 use crate::args::SwapfileCommands;
 use crate::print::print_nodatacow_status;
 use crate::privileged::run_privileged;
+use crate::progress::{self, Watch};
 
-pub(crate) fn run(command: SwapfileCommands, json: bool, dbus: bool) -> anyhow::Result<()> {
+pub(crate) fn run(
+    command: SwapfileCommands,
+    json: bool,
+    dbus: bool,
+    ndjson: bool,
+) -> anyhow::Result<()> {
     match command {
         SwapfileCommands::List => {
             let backend = available_swapfile_backend();
@@ -26,7 +32,11 @@ pub(crate) fn run(command: SwapfileCommands, json: bool, dbus: bool) -> anyhow::
             now,
             prepare,
             mkdir,
+            dry_run,
         } => {
+            if dry_run {
+                return super::dry_run::swapfile_create(&path, size_mb, priority, json);
+            }
             let config = SwapfileConfig {
                 path: path.clone(),
                 size_mb,
@@ -44,7 +54,10 @@ pub(crate) fn run(command: SwapfileCommands, json: bool, dbus: bool) -> anyhow::
                         obj.insert("mkdir_parents".into(), serde_json::Value::Bool(mkdir));
                     }
                 }
-                run_privileged(dbus, "swapfile.create", &create_payload.to_string())?;
+                let label = "Creating the swap file";
+                progress::run(ndjson, label, Watch::Nothing, serde_json::json!({}), || {
+                    run_privileged(dbus, "swapfile.create", &create_payload.to_string())
+                })?;
             } else if prepare {
                 let payload = serde_json::json!({
                     "pending": pending,
@@ -60,27 +73,52 @@ pub(crate) fn run(command: SwapfileCommands, json: bool, dbus: bool) -> anyhow::
                 println!("Staged swapfile create; run 'xzram apply' to apply");
             }
         }
-        SwapfileCommands::Resize { path, size_mb, now } => {
+        SwapfileCommands::Resize {
+            path,
+            size_mb,
+            now,
+            dry_run,
+        } => {
+            if dry_run {
+                return super::dry_run::swapfile_resize(&path, size_mb, json);
+            }
             let resize = SwapfileResizeConfig { path, size_mb };
             let pending = PendingConfig {
                 swapfile_resize: Some(resize.clone()),
                 ..Default::default()
             };
             if now {
-                run_privileged(dbus, "swapfile.resize", &serde_json::to_string(&resize)?)?;
+                let watch = Watch::SwapFile(resize.path.clone());
+                progress::run(
+                    ndjson,
+                    "Resizing the swap file",
+                    watch,
+                    serde_json::json!({}),
+                    || run_privileged(dbus, "swapfile.resize", &serde_json::to_string(&resize)?),
+                )?;
             } else {
                 run_privileged(dbus, "stage", &serde_json::to_string(&pending)?)?;
                 println!("Staged swapfile resize; run 'xzram apply' to apply");
             }
         }
-        SwapfileCommands::Remove { path, now } => {
+        SwapfileCommands::Remove { path, now, dry_run } => {
+            if dry_run {
+                return super::dry_run::swapfile_remove(&path, json);
+            }
             let pending = PendingConfig {
                 remove_swapfile: Some(path.clone()),
                 ..Default::default()
             };
             if now {
                 let payload = serde_json::json!({ "path": path });
-                run_privileged(dbus, "swapfile.remove", &payload.to_string())?;
+                let watch = Watch::SwapFile(path.clone());
+                progress::run(
+                    ndjson,
+                    "Removing the swap file",
+                    watch,
+                    serde_json::json!({}),
+                    || run_privileged(dbus, "swapfile.remove", &payload.to_string()),
+                )?;
             } else {
                 run_privileged(dbus, "stage", &serde_json::to_string(&pending)?)?;
                 println!("Staged swapfile remove; run 'xzram apply' to apply");

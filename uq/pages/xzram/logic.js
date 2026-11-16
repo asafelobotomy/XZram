@@ -1,22 +1,22 @@
 .pragma library
-// Pure logic for the Memory and swap page: parsing XZram's replies, checking values before
-// they are sent, building the two write payloads and wording errors. No Qt calls, so Node can
-// load it (tests/uq/logic.test.mjs). Everything that comes from a reply is untrusted: wrong
-// types give a "couldn't read" result, never an exception.
+// The Memory and swap page's pure logic: no Qt calls, so Node can test it
+// (tests/uq/logic.test.mjs). Everything `xzram` prints is untrusted: it is read defensively, a
+// wrong type becomes an empty or "couldn't read" result, lists are capped and strings are cut.
 
-var MAX_ROWS = 500;
-var MAX_TEXT = 200;
-var SWAPPINESS_MIN = 0;
-var SWAPPINESS_MAX = 200;
+var ROW_LIMIT = 200;
+var TEXT_LIMIT = 300;
 
-/// The same character rule XZram's own validation applies to a zram size expression
-/// (letters, digits and " ()+*/.-_,^%"); "]" and newlines are not in it.
-var SIZE_PATTERN = /^[A-Za-z0-9 ()+*\/.\-_,^%]{1,200}$/;
-/// A compression algorithm name: one token, never starting with a dash.
-var ALGORITHM_PATTERN = /^[A-Za-z0-9_][A-Za-z0-9_-]{0,63}$/;
-var DEVICE_PATTERN = /^zram[0-9]+$/;
+/// Shown beside a row while its command runs.
+var WORKING = "Working…";
 
-/// Sizes the page offers: zram-generator expressions in terms of installed memory.
+/// XZram refuses to restart compressed memory when memory can't take back what is stored in it;
+/// every such refusal says this (xzram::apply::MEMORY_REFUSAL).
+var MEMORY_REFUSAL = "not enough free memory";
+
+// ---------------------------------------------------------------------------------------------
+// What can be chosen
+
+/// Sizes of compressed memory the page offers: zram-generator expressions in terms of memory.
 var SIZE_PRESETS = [
     { value: "ram / 4", label: "A quarter of memory" },
     { value: "ram / 2", label: "Half of memory" },
@@ -24,203 +24,318 @@ var SIZE_PRESETS = [
     { value: "ram", label: "As much as memory" }
 ];
 
-/// Algorithms the page offers (the kernel's usual names). The current one is added if missing.
+/// Compression algorithms the page offers (the kernel's usual names); the one in force is
+/// added when it is another.
 var ALGORITHMS = ["zstd", "lz4", "lzo-rle", "lzo", "842"];
 
-/// What the person is asked before a change that moves swap in use (the exact texts).
-var CONFIRMS = {
-    "zram-size": "Change the zram size? Swap in use is moved first; this can take a while.",
-    "zram-algorithm": "Change the zram compression? Swap in use is moved first; this can take a while."
+var ALGORITHM_HELP = {
+    "zstd": "Squeezes the most. A good choice for most computers.",
+    "lz4": "Fastest, but squeezes less.",
+    "lzo-rle": "A fast, light choice.",
+    "lzo": "An older, light choice.",
+    "842": "Made for IBM hardware."
 };
 
-var STILL_WORKING = "Still working. Check again in a moment.";
+/// The kernel settings on the Tuning tab: key, wording, range and the usual choice.
+var TUNING = [
+    { key: "swappiness", label: "Swappiness", min: 0, max: 200, usual: 60,
+      help: "Higher values move memory to swap sooner. 60 is the usual choice; with compressed memory, higher works well." },
+    { key: "page-cluster", label: "Swap read-ahead", min: 0, max: 8, usual: 0,
+      help: "How many pages are read back from swap at once, as a power of two. 0 suits compressed memory." },
+    { key: "vfs-cache-pressure", label: "File cache pressure", min: 1, max: 1000, usual: 100,
+      help: "How eagerly the file-name caches are given back. 100 is the kernel's default." },
+    { key: "watermark-scale-factor", label: "Free memory headroom", min: 0, max: 10000, usual: 125,
+      help: "How much memory the kernel keeps free, in tenths of a percent. Larger values leave more room before it stalls." },
+    { key: "watermark-boost-factor", label: "Memory boost", min: 0, max: 10000, usual: 0,
+      help: "How hard the kernel reclaims after fragmentation. 0 turns it off." }
+];
 
-/// XZram refuses to restart compressed memory when RAM can't take back what is stored in it
-/// (its refusal always contains this phrase). The page then offers to apply at next restart.
-var MEMORY_REFUSAL = "not enough free memory";
-var LOW_MEMORY = "Not changed. There isn't enough free memory right now to move what's in compressed memory back. Try again with fewer apps open, or apply it at the next restart.";
-var AT_BOOT_DONE = "Saved. It takes effect at the next restart.";
+var PRIORITY_MIN = 0;
+var PRIORITY_MAX = 32767;
 
-function clip(value) {
-    var s = String(value === undefined || value === null ? "" : value);
-    return s.length > MAX_TEXT ? s.slice(0, MAX_TEXT) + "…" : s;
-}
+/// Where a new swap file may go (XZram allows these and nothing else).
+var SWAPFILE_PATHS = ["/swap/swapfile", "/swapfile", "/var/swap/swapfile"];
+
+// ---------------------------------------------------------------------------------------------
+// Argument patterns: command id -> argument -> pattern. tests/uq/logic.test.mjs checks that
+// they are the same strings as page.toml's.
+
+var VALUE = "^[A-Za-z0-9 ()+*/.,^%_][A-Za-z0-9 ()+*/.\\-_,^%]{0,199}$";
+var ZKEY = "^(zram-size|zram-algorithm|zram-priority)$";
+var TKEY = "^(" + TUNING.map(function (t) { return t.key; }).join("|") + ")$";
+var TVAL = "^[0-9]{1,5}$";
+var PATH = "^/[A-Za-z0-9/._-]{1,200}$";
+var SIZE = "^[0-9]{1,7}$";
+var SNAP = "^[A-Za-z0-9][A-Za-z0-9_.-]{0,79}$";
+var KEEP = "^[0-9]{1,5}$";
+var LABEL = "^[^\\x00-\\x1f\\x7f]{1,80}$";
+
+var PATTERNS = {
+    "plan-zram": { "key": ZKEY, "value": VALUE },
+    "plan-zram-boot": { "key": ZKEY, "value": VALUE },
+    "set-zram": { "key": ZKEY, "value": VALUE },
+    "set-zram-boot": { "key": ZKEY, "value": VALUE },
+    "plan-zram-off": {},
+    "plan-zram-off-boot": {},
+    "zram-off": {},
+    "zram-off-boot": {},
+    "plan-rollback": {},
+    "rollback": {},
+    "plan-tuning": { "key": TKEY, "value": TVAL },
+    "set-tuning": { "key": TKEY, "value": TVAL },
+    "plan-swapfile-create": { "size_mb": SIZE, "path": PATH },
+    "swapfile-create": { "size_mb": SIZE, "path": PATH },
+    "plan-swapfile-resize": { "size_mb": SIZE, "path": PATH },
+    "swapfile-resize": { "size_mb": SIZE, "path": PATH },
+    "plan-swapfile-remove": { "path": PATH },
+    "swapfile-remove": { "path": PATH },
+    "plan-snapshot-restore": { "id": SNAP },
+    "snapshot-restore": { "id": SNAP },
+    "plan-snapshot-delete": { "id": SNAP },
+    "snapshot-delete": { "id": SNAP },
+    "plan-snapshot-prune": { "keep": KEEP },
+    "snapshot-prune": { "keep": KEEP },
+    "snapshot-create": { "label": LABEL }
+};
+
+// ---------------------------------------------------------------------------------------------
+// Small helpers
 
 function isObject(v) {
     return v !== null && typeof v === "object" && !Array.isArray(v);
+}
+
+/// A string for display: control characters become spaces, and it is cut to `limit`.
+function clip(value, limit) {
+    var s = typeof value === "string" ? value : (value === null || value === undefined ? "" : String(value));
+    s = s.replace(/[\u0000-\u001f\u007f]/g, " ");
+    var n = limit || TEXT_LIMIT;
+    return s.length > n ? s.slice(0, n - 1) + "…" : s;
 }
 
 function num(v) {
     return typeof v === "number" && isFinite(v) && v >= 0 ? v : 0;
 }
 
-// ---------------------------------------------------------------------------------------------
-// Replies
-
-/// XZram answers every read with `a{sv}` holding one `json` string. Returns
-/// `{ok: true, data}` or `{ok: false, error}`.
-function unwrap(reply) {
-    if (!isObject(reply))
-        return { ok: false, error: "No answer." };
-    if (reply.error)
-        return { ok: false, error: clip(reply.error) };
-    var v = reply.value;
-    if (!isObject(v) || typeof v.json !== "string")
-        return { ok: false, error: "The answer was not in the expected form." };
-    try {
-        return { ok: true, data: JSON.parse(v.json) };
-    } catch (e) {
-        return { ok: false, error: "The answer could not be read." };
-    }
+function plural(n, one, many) {
+    return n + " " + (n === 1 ? one : many);
 }
 
-/// GetStatus: memory totals, active swap and zram devices.
-function parseStatus(reply) {
-    var r = unwrap(reply);
-    if (!r.ok)
-        return r;
-    var d = r.data;
+function isCancelled(result) {
+    return !!(result && result.cancelled);
+}
+
+/// "1.5 GiB": binary units, as the xzram command prints them.
+function size(bytes) {
+    var b = num(bytes);
+    if (b < 1024)
+        return Math.round(b) + " bytes";
+    var units = ["KiB", "MiB", "GiB", "TiB"];
+    var i = -1;
+    do {
+        b = b / 1024;
+        i++;
+    } while (b >= 1023.95 && i < units.length - 1);
+    return b.toFixed(1) + " " + units[i];
+}
+
+/// How full a bar is, 0 to 1.
+function fraction(used, total) {
+    var t = num(total);
+    if (t <= 0)
+        return 0;
+    return Math.max(0, Math.min(1, num(used) / t));
+}
+
+/// A command's output as an object, read for every exit code: `xzram doctor` exits 3 and
+/// `xzram config set --json` exits 1, and both still print a document.
+function documentOf(result) {
+    var r = isObject(result) ? result : {};
+    return isObject(r.output) || Array.isArray(r.output) ? r.output : null;
+}
+
+function failedRead(result, what) {
+    var r = isObject(result) ? result : {};
+    var doc = documentOf(result);
+    var text = doc && typeof doc.error === "string" ? doc.error : (typeof r.error === "string" ? r.error : "");
+    return { ok: false, error: text !== "" ? clip(text) : "Couldn't " + what + "." };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Reading the replies
+
+/// `xzram status --json`: memory, pressure, swap areas and zram devices.
+function parseStatus(result) {
+    var d = documentOf(result);
     if (!isObject(d) || !isObject(d.memory))
-        return { ok: false, error: "The memory status was not in the expected form." };
+        return failedRead(result, "read memory and swap");
     var m = d.memory;
-    var devices = [];
-    var list = Array.isArray(d.zram_devices) ? d.zram_devices.slice(0, MAX_ROWS) : [];
+    var total = num(m.mem_total_kb) * 1024;
+    var available = num(m.mem_available_kb) * 1024;
+    var swapTotal = num(m.swap_total_kb) * 1024;
+    var swapFree = num(m.swap_free_kb) * 1024;
+    var zram = [];
+    var list = Array.isArray(d.zram_devices) ? d.zram_devices.slice(0, ROW_LIMIT) : [];
     for (var i = 0; i < list.length; ++i) {
         var z = list[i];
         if (!isObject(z))
             continue;
-        devices.push({
-            name: clip(z.name),
-            algorithm: clip(z.algorithm),
+        var stored = num(z.data_bytes);
+        var packed = num(z.compressed_bytes);
+        zram.push({
+            name: clip(z.name, 40),
+            algorithm: clip(z.algorithm, 40),
             sizeBytes: num(z.disk_size_bytes),
-            dataBytes: num(z.data_bytes),
-            compressedBytes: num(z.compressed_bytes)
+            storedBytes: stored,
+            compressedBytes: packed,
+            ratio: stored > 0 && packed > 0 ? Math.round((stored / packed) * 10) / 10 : 0,
+            active: z.mount_point === "[SWAP]"
         });
     }
+    var swaps = [];
+    var rows = Array.isArray(d.swaps) ? d.swaps.slice(0, ROW_LIMIT) : [];
+    for (var j = 0; j < rows.length; ++j) {
+        var s = rows[j];
+        if (!isObject(s))
+            continue;
+        swaps.push({
+            name: clip(s.name, 200),
+            type: clip(s.swap_type, 40),
+            sizeBytes: num(s.size_bytes),
+            usedBytes: num(s.used_bytes),
+            priority: typeof s.priority === "number" && isFinite(s.priority) ? Math.trunc(s.priority) : 0
+        });
+    }
+    var psi = isObject(d.pressure) && isObject(d.pressure.memory) ? num(d.pressure.memory.some_avg60) : 0;
     return {
         ok: true,
         memory: {
-            totalBytes: num(m.mem_total_kb) * 1024,
-            availableBytes: num(m.mem_available_kb) * 1024,
-            swapTotalBytes: num(m.swap_total_kb) * 1024,
-            swapFreeBytes: num(m.swap_free_kb) * 1024
+            totalBytes: total,
+            usedBytes: Math.max(0, total - available),
+            swapTotalBytes: swapTotal,
+            swapUsedBytes: Math.max(0, swapTotal - swapFree)
         },
-        zram: devices
+        pressure: psi,
+        zram: zram,
+        swaps: swaps
     };
 }
 
-/// GetZramConfig: the zram device configuration, or `null` when none is configured.
-function parseZramConfig(reply) {
-    var r = unwrap(reply);
-    if (!r.ok)
-        return r;
-    if (r.data === null)
-        return { ok: true, config: null };
-    var c = r.data;
-    if (!isObject(c) || !DEVICE_PATTERN.test(String(c.device)))
-        return { ok: false, error: "The zram settings were not in the expected form." };
-    function optString(v) {
-        return typeof v === "string" ? v : null;
+/// How hard memory is being pushed, from the share of time something waited for it.
+function pressureText(psi) {
+    var p = num(psi);
+    if (p < 1)
+        return "None. Nothing is waiting for memory.";
+    if (p < 10)
+        return "Some. Things wait for memory now and then.";
+    return "High. Things are often waiting for memory.";
+}
+
+/// `xzram config show --json`.
+function parseConfig(result) {
+    var d = documentOf(result);
+    if (!isObject(d) || !isObject(d.zram) || !isObject(d.tuning))
+        return failedRead(result, "read the memory settings");
+    var z = d.zram;
+    function text(v) {
+        return typeof v === "string" && v !== "" ? clip(v, 200) : null;
+    }
+    var tuning = {};
+    for (var i = 0; i < TUNING.length; ++i) {
+        var raw = d.tuning[TUNING[i].key.replace(/-/g, "_")];
+        tuning[TUNING[i].key] = typeof raw === "number" && isFinite(raw) && raw >= 0 ? Math.trunc(raw) : null;
     }
     return {
         ok: true,
-        config: {
-            device: c.device,
-            zram_size: optString(c.zram_size),
-            zram_resident_limit: optString(c.zram_resident_limit),
-            compression_algorithm: optString(c.compression_algorithm),
-            swap_priority: typeof c.swap_priority === "number" && isFinite(c.swap_priority)
-                ? Math.trunc(c.swap_priority) : null,
-            fs_type: optString(c.fs_type),
-            mount_point: optString(c.mount_point)
-        }
+        zram: {
+            configured: z.configured === true,
+            size: text(z.size),
+            algorithm: text(z.algorithm),
+            priority: typeof z.priority === "number" && isFinite(z.priority) ? Math.trunc(z.priority) : null
+        },
+        tuning: tuning,
+        pending: d.pending === true
     };
 }
 
-/// GetSysctl: the current swappiness (`null` when the kernel didn't report it).
-function parseSysctl(reply) {
-    var r = unwrap(reply);
-    if (!r.ok)
-        return r;
-    if (!isObject(r.data))
-        return { ok: false, error: "The memory tuning was not in the expected form." };
-    var s = r.data.swappiness;
-    var ok = typeof s === "number" && isFinite(s) && s >= SWAPPINESS_MIN && s <= SWAPPINESS_MAX;
-    return { ok: true, swappiness: ok ? Math.trunc(s) : null };
-}
-
-/// ListSwaps: every swap area, active or only configured.
-function parseSwaps(reply) {
-    var r = unwrap(reply);
-    if (!r.ok)
-        return r;
-    if (!Array.isArray(r.data))
-        return { ok: false, error: "The swap list was not in the expected form." };
-    var rows = [];
-    var list = r.data.slice(0, MAX_ROWS);
+/// `xzram doctor --json`: {healthy, summary, issues}. Problems first.
+function parseDoctor(result) {
+    var d = documentOf(result);
+    if (!isObject(d) || !Array.isArray(d.issues))
+        return failedRead(result, "run the health check");
+    var rank = { error: 0, warning: 1 };
+    var issues = [];
+    var list = d.issues.slice(0, ROW_LIMIT);
     for (var i = 0; i < list.length; ++i) {
-        var s = list[i];
-        if (!isObject(s))
+        var it = list[i];
+        if (!isObject(it) || typeof it.message !== "string")
             continue;
-        rows.push({
-            name: clip(s.name),
-            type: clip(s.swap_type),
-            sizeBytes: num(s.size_bytes),
-            usedBytes: num(s.used_bytes),
-            active: s.active === true
+        var severity = it.severity === "error" ? "error" : (it.severity === "warning" ? "warning" : "note");
+        issues.push({
+            severity: severity,
+            message: clip(it.message),
+            suggestion: typeof it.suggestion === "string" ? clip(it.suggestion) : ""
         });
     }
-    return { ok: true, swaps: rows };
+    issues.sort(function (a, b) {
+        var ra = rank[a.severity] === undefined ? 2 : rank[a.severity];
+        var rb = rank[b.severity] === undefined ? 2 : rank[b.severity];
+        return ra - rb;
+    });
+    return {
+        ok: true,
+        healthy: d.healthy === true,
+        summary: typeof d.summary === "string" ? clip(d.summary, 120) : (d.healthy === true ? "Healthy" : "Needs attention"),
+        issues: issues
+    };
 }
 
-// ---------------------------------------------------------------------------------------------
-// Wording
-
-function formatBytes(bytes) {
-    var b = num(bytes);
-    var units = ["bytes", "KB", "MB", "GB", "TB"];
-    var i = 0;
-    while (b >= 1024 && i < units.length - 1) {
-        b /= 1024;
-        ++i;
+/// `xzram swapfile list --json`: the swap files in /etc/fstab.
+function parseSwapfiles(result) {
+    var d = documentOf(result);
+    if (!Array.isArray(d))
+        return failedRead(result, "read the swap files");
+    var files = [];
+    var list = d.slice(0, ROW_LIMIT);
+    for (var i = 0; i < list.length; ++i) {
+        var f = list[i];
+        if (!isObject(f) || typeof f.path !== "string" || !new RegExp(PATH).test(f.path))
+            continue;
+        files.push({
+            path: f.path,
+            sizeMb: Math.trunc(num(f.size_mb)),
+            priority: typeof f.priority === "number" && isFinite(f.priority) ? Math.trunc(f.priority) : 0
+        });
     }
-    if (i === 0)
-        return Math.round(b) + " bytes";
-    return (Math.round(b * 10) / 10) + " " + units[i];
+    return { ok: true, files: files };
 }
 
-/// The lines under "Memory": memory in use, swap in use and each compressed-memory device.
-function statusLines(status) {
-    if (!status)
-        return [];
-    var m = status.memory;
-    var lines = [];
-    var usedMem = Math.max(0, m.totalBytes - m.availableBytes);
-    lines.push("Memory: " + formatBytes(usedMem) + " in use of " + formatBytes(m.totalBytes));
-    if (m.swapTotalBytes === 0) {
-        lines.push("Swap: none in use");
-    } else {
-        var usedSwap = Math.max(0, m.swapTotalBytes - m.swapFreeBytes);
-        lines.push("Swap: " + formatBytes(usedSwap) + " in use of " + formatBytes(m.swapTotalBytes));
+/// `xzram snapshot list --json`, newest first.
+function parseSnapshots(result) {
+    var d = documentOf(result);
+    if (!Array.isArray(d))
+        return failedRead(result, "read the snapshots");
+    var rows = [];
+    var list = d.slice(0, ROW_LIMIT);
+    for (var i = 0; i < list.length; ++i) {
+        var s = list[i];
+        if (!isObject(s) || typeof s.id !== "string" || !new RegExp(SNAP).test(s.id))
+            continue;
+        rows.push({
+            id: s.id,
+            label: clip(s.label, 120),
+            when: whenText(s.created_at),
+            trigger: s.trigger === "pre_apply" ? "Before a change" : (s.trigger === "app_open" ? "When XZram opened" : "Taken by hand"),
+            before: s.trigger === "pre_apply"
+        });
     }
-    for (var i = 0; i < status.zram.length; ++i) {
-        var z = status.zram[i];
-        var line = z.name + ": " + (z.algorithm || "unknown") + ", " + formatBytes(z.sizeBytes);
-        if (z.compressedBytes > 0 && z.dataBytes > 0) {
-            var ratio = Math.round((z.dataBytes / z.compressedBytes) * 10) / 10;
-            line += ", " + formatBytes(z.dataBytes) + " stored in " + formatBytes(z.compressedBytes) + " (" + ratio + " to 1)";
-        }
-        lines.push(line);
-    }
-    return lines;
+    return { ok: true, snapshots: rows };
 }
 
-/// One line for a row of the swap list.
-function swapLine(swap) {
-    var kind = swap.type ? swap.type + ", " : "";
-    if (!swap.active)
-        return swap.name + ": " + kind + "not in use right now";
-    return swap.name + ": " + kind + formatBytes(swap.usedBytes) + " used of " + formatBytes(swap.sizeBytes);
+/// "2026-11-16 10:30" from an RFC 3339 time; the text itself when it is another shape.
+function whenText(value) {
+    var m = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/.exec(typeof value === "string" ? value : "");
+    return m ? m[1] + " " + m[2] : clip(value, 40);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -231,7 +346,7 @@ function squash(expr) {
 }
 
 /// The rows of the size menu: `{value, label}`. A size that matches no preset (or none set at
-/// all) is shown first, so the menu always shows what is in force. `value` is "" for "not set".
+/// all) comes first, so the menu always shows what is in force.
 function sizeChoices(current) {
     var rows = [];
     var found = false;
@@ -239,16 +354,15 @@ function sizeChoices(current) {
     for (i = 0; i < SIZE_PRESETS.length; ++i)
         if (current && squash(SIZE_PRESETS[i].value) === squash(current))
             found = true;
-    if (current === null || current === undefined || current === "")
+    if (!current)
         rows.push({ value: "", label: "Default" });
     else if (!found)
-        rows.push({ value: current, label: "Custom: " + clip(current) });
+        rows.push({ value: current, label: "Custom: " + clip(current, 60) });
     for (i = 0; i < SIZE_PRESETS.length; ++i)
         rows.push({ value: SIZE_PRESETS[i].value, label: SIZE_PRESETS[i].label });
     return rows;
 }
 
-/// Index of the size in force within `sizeChoices(current)`.
 function sizeIndex(current) {
     var rows = sizeChoices(current);
     for (var i = 0; i < rows.length; ++i)
@@ -260,7 +374,7 @@ function sizeIndex(current) {
 /// The names in the algorithm menu: the usual ones, plus the one in force if it's another.
 function algorithmChoices(current) {
     var names = ALGORITHMS.slice();
-    if (current && names.indexOf(current) < 0 && ALGORITHM_PATTERN.test(current))
+    if (current && names.indexOf(current) < 0 && /^[A-Za-z0-9_][A-Za-z0-9_-]{0,63}$/.test(current))
         names.unshift(current);
     if (!current)
         names.unshift("Default");
@@ -268,115 +382,170 @@ function algorithmChoices(current) {
 }
 
 function algorithmIndex(current) {
-    var names = algorithmChoices(current);
-    var i = names.indexOf(current || "Default");
+    var i = algorithmChoices(current).indexOf(current || "Default");
     return i < 0 ? 0 : i;
 }
 
-// ---------------------------------------------------------------------------------------------
-// Checks and payloads
+function tuningDef(key) {
+    for (var i = 0; i < TUNING.length; ++i)
+        if (TUNING[i].key === key)
+            return TUNING[i];
+    return null;
+}
 
-/// "" when `expr` is an acceptable zram size, else the reason.
-function checkSize(expr) {
-    if (typeof expr !== "string" || expr.trim() === "")
-        return "Choose a size.";
-    if (expr.length > 200)
-        return "That size is too long.";
-    if (!SIZE_PATTERN.test(expr))
-        return "That size has characters XZram doesn't accept.";
+/// "" when `text` is a whole number in the range of the tuning `key`, else the reason.
+function checkTuning(key, text) {
+    var def = tuningDef(key);
+    if (!def)
+        return "That setting isn't known.";
+    var t = String(text).trim();
+    if (!/^[0-9]{1,5}$/.test(t) || Number(t) < def.min || Number(t) > def.max)
+        return def.label + " is a whole number from " + def.min + " to " + def.max + ".";
     return "";
 }
 
-function checkAlgorithm(name) {
-    if (typeof name !== "string" || !ALGORITHM_PATTERN.test(name))
-        return "That compression name isn't valid.";
+function checkPriority(text) {
+    var t = String(text).trim();
+    if (!/^[0-9]{1,5}$/.test(t) || Number(t) < PRIORITY_MIN || Number(t) > PRIORITY_MAX)
+        return "Priority is a whole number from " + PRIORITY_MIN + " to " + PRIORITY_MAX + ".";
     return "";
 }
 
-function checkSwappiness(value) {
-    var n = typeof value === "string" && /^[0-9]{1,3}$/.test(value) ? Number(value) : value;
-    if (typeof n !== "number" || !isFinite(n) || Math.floor(n) !== n || n < SWAPPINESS_MIN || n > SWAPPINESS_MAX)
-        return "Swappiness is a whole number from " + SWAPPINESS_MIN + " to " + SWAPPINESS_MAX + ".";
+/// "" when a new or resized swap file is acceptable, else the reason. `gb` is text.
+function checkSwapfile(path, gb) {
+    if (!new RegExp(PATH).test(path) || (SWAPFILE_PATHS.indexOf(path) < 0 && path.indexOf("/swap/") !== 0
+            && path.indexOf("/var/swap/") !== 0 && path.indexOf("/var/lib/swap/") !== 0))
+        return "A swap file goes in /swap/, /var/swap/, /var/lib/swap/, or is exactly /swapfile.";
+    return checkSwapSize(gb);
+}
+
+function checkSwapSize(gb) {
+    var t = String(gb).trim();
+    if (!/^[0-9]{1,4}(\.[0-9]{1,2})?$/.test(t) || Number(t) < 0.25 || Number(t) > 1024)
+        return "Choose a size from 0.25 to 1024 GB.";
     return "";
 }
 
-/// The `ApplyNowZram` argument: the whole current configuration with one field changed
-/// (`changes` is `{size}` or `{algorithm}`). `{ok: true, json, kind}` or `{ok: false, error}`.
-function buildZramConfig(current, changes) {
-    if (!current || !DEVICE_PATTERN.test(String(current.device)))
-        return { ok: false, error: "The current zram settings couldn't be read, so nothing was changed." };
-    var out = {
-        device: current.device,
-        zram_size: current.zram_size,
-        zram_resident_limit: current.zram_resident_limit,
-        compression_algorithm: current.compression_algorithm,
-        swap_priority: current.swap_priority,
-        fs_type: current.fs_type,
-        mount_point: current.mount_point
-    };
-    var kind;
-    var problem;
-    if (changes && changes.size !== undefined) {
-        problem = checkSize(changes.size);
-        out.zram_size = String(changes.size).trim();
-        kind = "zram-size";
-    } else if (changes && changes.algorithm !== undefined) {
-        problem = checkAlgorithm(changes.algorithm);
-        out.compression_algorithm = changes.algorithm;
-        kind = "zram-algorithm";
-    } else {
-        return { ok: false, error: "Nothing to change." };
+/// The size in MiB for the swap file commands, from GiB text.
+function mibOf(gb) {
+    return String(Math.round(Number(String(gb).trim()) * 1024));
+}
+
+/// "" when the arguments match the command's patterns in page.toml, else a sentence. The same
+/// check uQ makes, so the page can word it instead of getting a bare refusal.
+function argsProblem(command, args) {
+    var table = PATTERNS[command];
+    if (!table)
+        return "That isn't something this page can do.";
+    var names = Object.keys(table);
+    if (!Array.isArray(args) || args.length !== names.length)
+        return "That change was missing a value.";
+    for (var i = 0; i < names.length; ++i) {
+        var a = args[i];
+        if (typeof a !== "string" || a.charAt(0) === "-" || !new RegExp(table[names[i]]).test(a))
+            return "That value isn't one XZram accepts.";
     }
-    if (problem !== "")
-        return { ok: false, error: problem };
-    return { ok: true, json: JSON.stringify(out), kind: kind };
-}
-
-/// The `ApplyNowSysctl` argument: only swappiness, which XZram merges with what's there.
-function buildSysctl(swappiness) {
-    var problem = checkSwappiness(swappiness);
-    if (problem !== "")
-        return { ok: false, error: problem };
-    return { ok: true, json: JSON.stringify({ swappiness: Number(swappiness) }) };
+    return "";
 }
 
 // ---------------------------------------------------------------------------------------------
-// Errors
+// Plans and progress
 
-/// Sorts an `{error}` from a call into a kind and a plain sentence:
-/// `unavailable` (the service didn't answer), `denied`, `pending` (a deadline passed, the work
-/// may still be going), `memory` (not enough free memory to restart compressed memory now),
-/// `refused` (XZram rejected the value) or `other`.
-/// `what` finishes "Couldn't …", for example "change the zram size".
-function describeError(error, what) {
-    var raw = clip(error);
-    var low = raw.toLowerCase();
-    if (String(error === undefined || error === null ? "" : error).toLowerCase().indexOf(MEMORY_REFUSAL) >= 0)
-        return { kind: "memory", message: LOW_MEMORY, raw: raw };
-    if (low.indexOf("no answer within") >= 0 || low.indexOf("timeout") >= 0 || low.indexOf("timed out") >= 0 || low.indexOf("deadline") >= 0)
-        return { kind: "pending", message: STILL_WORKING, raw: raw };
-    if (low.indexOf("is not running") >= 0 || low.indexOf("serviceunknown") >= 0 || low.indexOf("was not provided") >= 0 || low.indexOf("could not be activated") >= 0 || low.indexOf("activation") >= 0 || low.indexOf("no such name") >= 0)
-        return { kind: "unavailable", message: "XZram isn't answering. It starts when needed, so try again in a moment.", raw: raw };
-    if (low.indexOf("accessdenied") >= 0 || low.indexOf("not authorized") >= 0 || low.indexOf("not authorised") >= 0 || low.indexOf("authorization") >= 0 || low.indexOf("permission") >= 0 || low.indexOf("access denied") >= 0)
-        return { kind: "denied", message: "Not changed. Administrator permission wasn't given.", raw: raw };
-    if (low.indexOf("invalidargs") >= 0 || low.indexOf("invalid args") >= 0 || low.indexOf("unsupported field") >= 0)
-        return { kind: "refused", message: "XZram didn't accept that value, so nothing was changed.", raw: raw };
-    return { kind: "other", message: "Couldn't " + what + ".", raw: raw };
-}
-
-/// True for an error worth one more try on the first read (the service was still starting).
-function isRetryable(error) {
-    var kind = describeError(error, "read").kind;
-    return kind === "pending" || kind === "unavailable";
-}
-
-/// Wraps a callback so it does nothing once `life.gone` is true. The wrapper lives here, not
-/// in the page, so calling it after the page is destroyed is safe (a function made inside a
-/// destroyed page can't be called at all).
-function guarded(life, fn) {
-    return function () {
-        if (life.gone)
-            return undefined;
-        return fn.apply(null, arguments);
+/// A previewed plan from a `plan-*` command: {ok, refuse, reason, memory}. `memory` is true
+/// when it would be refused for lack of free memory, the one refusal with a way forward
+/// (saving for the next restart).
+function parsePlan(result) {
+    var d = documentOf(result);
+    if (!isObject(d) || typeof d.would_refuse !== "boolean")
+        return failedRead(result, "check what that would do");
+    var reason = typeof d.reason === "string" ? clip(d.reason, 400) : "";
+    return {
+        ok: true,
+        refuse: d.would_refuse,
+        reason: reason,
+        memory: d.would_refuse && reason.toLowerCase().indexOf(MEMORY_REFUSAL) >= 0
     };
+}
+
+var LOW_MEMORY = "Not changed. There isn't enough free memory right now to move what's in swap back. Try again with fewer apps open, or save it for the next restart.";
+
+/// What the page shows for a refused plan.
+function refusalText(plan) {
+    if (plan.memory)
+        return LOW_MEMORY;
+    return plan.reason !== "" ? "Not changed. " + plan.reason : "Not changed.";
+}
+
+/// One event from a streamed command as the progress bar shows it:
+/// {label, percent (-1 when unknown), detail}, or null for an event that isn't progress.
+function progressOf(ev) {
+    if (!isObject(ev) || (ev.event !== "start" && ev.event !== "progress"))
+        return null;
+    var p = typeof ev.percent === "number" && isFinite(ev.percent) ? Math.max(0, Math.min(99, Math.round(ev.percent))) : -1;
+    return {
+        label: clip(ev.label, 120) || "Working…",
+        percent: p,
+        detail: ev.event === "progress" ? clip(ev.detail, 120) : ""
+    };
+}
+
+/// The note under a row once a streamed write is over. `last` is the last `done` or `error`
+/// event the stream sent (or null), `result` what `onDone` got, `done` the sentence for success.
+/// {message, failed, kind, detail}.
+function outcome(last, result, done) {
+    if (isObject(last) && last.event === "done" && last.ok === true)
+        return { message: done, failed: false, kind: "done", detail: "" };
+    if (isObject(last) && last.event === "error") {
+        var raw = clip(last.error, 400);
+        return failure(typeof last.kind === "string" ? last.kind : "other", raw);
+    }
+    // No final event: the command died, was stopped, or timed out.
+    var r = isObject(result) ? result : {};
+    if (r.code === 0)
+        return { message: done, failed: false, kind: "done", detail: "" };
+    var text = clip(r.error, 400);
+    return failure(timedOut(text) ? "pending" : "other", text);
+}
+
+function timedOut(text) {
+    var low = text.toLowerCase();
+    return low.indexOf("timed out") >= 0 || low.indexOf("timeout") >= 0;
+}
+
+function failure(kind, raw) {
+    if (kind === "memory")
+        return { message: LOW_MEMORY, failed: true, kind: "memory", detail: raw };
+    if (kind === "denied")
+        return { message: "Not changed. Administrator permission wasn't given.", failed: true, kind: "denied", detail: raw };
+    if (kind === "pending")
+        return { message: "Still working. Check again in a moment.", failed: false, kind: "pending", detail: raw };
+    return { message: "Couldn't make that change.", failed: true, kind: "other", detail: raw };
+}
+
+/// A note for a change refused before it was sent (a bad value, a refused plan).
+function problem(message) {
+    return { message: message, failed: true, kind: "other", detail: "" };
+}
+
+/// A copy of `notes` with `key` set to `note`, or removed when `note` is null.
+function withNote(notes, key, note) {
+    var out = {};
+    for (var k in notes)
+        if (Object.prototype.hasOwnProperty.call(notes, k) && k !== key)
+            out[k] = notes[k];
+    if (note)
+        out[key] = note;
+    return out;
+}
+
+/// The wording of what a finished change did.
+function doneText(key, value) {
+    if (key === "zram-size")
+        return "Compressed memory size changed.";
+    if (key === "zram-algorithm")
+        return "Compression changed.";
+    if (key === "zram-priority")
+        return "Priority changed.";
+    var def = tuningDef(key);
+    return (def ? def.label : "Setting") + " set to " + value + ".";
 }

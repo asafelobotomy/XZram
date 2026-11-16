@@ -1,12 +1,26 @@
 # The Memory and swap page for uQ Settings (https://github.com/asafelobotomy/uq).
-# Installed to /usr/share/uq/settings/pages/xzram/ by the xzram package. Reference:
+# Installed to /usr/share/uq/settings/pages/xzram/ by the xzram package. Everything it reads
+# or changes goes through the `xzram` command line; see uq/README.md. Reference:
 # docs/settings-pages.md in the uQ repository.
-uq_api = 1
+uq_api = 3
 id = "xzram"
 name = "Memory and swap"
 icon = "media-flash"
 qml = "Page.qml"
-keywords = ["swap", "zram", "memory", "ram", "swappiness", "compression"]
+keywords = ["swap", "zram", "memory", "ram", "swappiness", "compression", "swapfile", "snapshot"]
+
+[requires]
+bins = ["xzram"]
+
+[[setting]]
+id = "memory"
+label = "Memory and swap in use"
+keywords = ["ram", "usage", "pressure", "memory", "swap"]
+
+[[setting]]
+id = "health"
+label = "Health check"
+keywords = ["doctor", "problems", "warnings", "oom", "diagnose"]
 
 [[setting]]
 id = "zram-size"
@@ -19,27 +33,261 @@ label = "Compression"
 keywords = ["zram", "algorithm", "zstd", "lz4", "compression"]
 
 [[setting]]
+id = "zram-priority"
+label = "Compressed memory priority"
+keywords = ["zram", "priority", "swap order"]
+
+[[setting]]
 id = "swappiness"
 label = "Swappiness"
 keywords = ["swap", "vm.swappiness", "memory pressure", "ram"]
 
 [[setting]]
+id = "tuning"
+label = "Kernel memory tuning"
+keywords = ["page-cluster", "vfs_cache_pressure", "watermark", "sysctl"]
+
+[[setting]]
 id = "swaps"
-label = "Active swap"
-keywords = ["swap file", "swap partition", "swap devices", "memory"]
+label = "Swap files"
+keywords = ["swap file", "swapfile", "swap partition", "create", "resize", "remove"]
 
-# No `bus_name`: xzramd is started on demand by the bus, so the page shows while xzram is
-# installed. Reads are open to every user. The Apply methods ask for an administrator
-# password (a polkit prompt), which takes longer than the default 2 seconds.
-# ApplyZramWithOptions is only called with at_boot = true, after ApplyNowZram was refused
-# for lack of free memory: it writes the zram settings for the next restart.
-[requires]
-bins = ["xzram"]
+[[setting]]
+id = "snapshots"
+label = "Snapshots"
+keywords = ["backup", "restore", "rollback", "undo", "history"]
 
-[dbus]
-name = "io.github.XZram1"
-path = "/io/github/XZram"
-interface = "io.github.XZram.Manager"
-bus = "system"
-methods = ["GetStatus", "GetZramConfig", "GetSysctl", "ListSwaps", "ApplyNowZram", "ApplyZramWithOptions", "ApplyNowSysctl"]
-timeout_ms = { ApplyNowZram = 120000, ApplyZramWithOptions = 120000, ApplyNowSysctl = 120000 }
+# Reads. None of them needs a password.
+
+[[command]]
+id = "status"
+argv = ["/usr/bin/xzram", "status", "--json"]
+output = "json"
+timeout_ms = 20000
+
+[[command]]
+id = "config"
+argv = ["/usr/bin/xzram", "config", "show", "--json"]
+output = "json"
+timeout_ms = 20000
+watch = { files = ["/etc/systemd/zram-generator.conf", "/etc/sysctl.d/99-xzram.conf"] }
+
+[[command]]
+id = "doctor"
+argv = ["/usr/bin/xzram", "doctor", "--json"]
+output = "json"
+timeout_ms = 60000
+
+[[command]]
+id = "swapfiles"
+argv = ["/usr/bin/xzram", "swapfile", "list", "--json"]
+output = "json"
+timeout_ms = 20000
+watch = { files = ["/etc/fstab"] }
+
+[[command]]
+id = "snapshots"
+argv = ["/usr/bin/xzram", "snapshot", "list", "--json"]
+output = "json"
+timeout_ms = 30000
+
+# What a change would do, one per way of making it: reads, so they don't ask. Each is the
+# preview of the write that follows it, with the same arguments.
+
+[[command]]
+id = "plan-zram"
+argv = ["/usr/bin/xzram", "config", "set", "--dry-run", "--json"]
+output = "json"
+timeout_ms = 30000
+args = [{ name = "key", pattern = '^(zram-size|zram-algorithm|zram-priority)$' }, { name = "value", pattern = '^[A-Za-z0-9 ()+*/.,^%_][A-Za-z0-9 ()+*/.\-_,^%]{0,199}$' }]
+
+[[command]]
+id = "plan-zram-boot"
+argv = ["/usr/bin/xzram", "config", "set", "--at-boot", "--dry-run", "--json"]
+output = "json"
+timeout_ms = 30000
+args = [{ name = "key", pattern = '^(zram-size|zram-algorithm|zram-priority)$' }, { name = "value", pattern = '^[A-Za-z0-9 ()+*/.,^%_][A-Za-z0-9 ()+*/.\-_,^%]{0,199}$' }]
+
+[[command]]
+id = "plan-tuning"
+argv = ["/usr/bin/xzram", "config", "set", "--dry-run", "--json"]
+output = "json"
+timeout_ms = 30000
+args = [{ name = "key", pattern = '^(swappiness|page-cluster|vfs-cache-pressure|watermark-scale-factor|watermark-boost-factor)$' }, { name = "value", pattern = '^[0-9]{1,5}$' }]
+
+[[command]]
+id = "plan-zram-off"
+argv = ["/usr/bin/xzram", "zram", "disable", "--now", "--dry-run", "--json"]
+output = "json"
+timeout_ms = 30000
+
+[[command]]
+id = "plan-zram-off-boot"
+argv = ["/usr/bin/xzram", "zram", "disable", "--at-boot", "--dry-run", "--json"]
+output = "json"
+timeout_ms = 30000
+
+[[command]]
+id = "plan-swapfile-create"
+argv = ["/usr/bin/xzram", "swapfile", "create", "--now", "--dry-run", "--json", "--size-mb"]
+output = "json"
+timeout_ms = 30000
+args = [{ name = "size_mb", pattern = '^[0-9]{1,7}$' }, { name = "path", pattern = '^/[A-Za-z0-9/._-]{1,200}$' }]
+
+[[command]]
+id = "plan-swapfile-resize"
+argv = ["/usr/bin/xzram", "swapfile", "resize", "--now", "--dry-run", "--json", "--size-mb"]
+output = "json"
+timeout_ms = 30000
+args = [{ name = "size_mb", pattern = '^[0-9]{1,7}$' }, { name = "path", pattern = '^/[A-Za-z0-9/._-]{1,200}$' }]
+
+[[command]]
+id = "plan-swapfile-remove"
+argv = ["/usr/bin/xzram", "swapfile", "remove", "--now", "--dry-run", "--json"]
+output = "json"
+timeout_ms = 30000
+args = [{ name = "path", pattern = '^/[A-Za-z0-9/._-]{1,200}$' }]
+
+[[command]]
+id = "plan-snapshot-restore"
+argv = ["/usr/bin/xzram", "snapshot", "restore", "--dry-run", "--json"]
+output = "json"
+timeout_ms = 30000
+args = [{ name = "id", pattern = '^[A-Za-z0-9][A-Za-z0-9_.-]{0,79}$' }]
+
+[[command]]
+id = "plan-snapshot-delete"
+argv = ["/usr/bin/xzram", "snapshot", "delete", "--dry-run", "--json"]
+output = "json"
+timeout_ms = 30000
+args = [{ name = "id", pattern = '^[A-Za-z0-9][A-Za-z0-9_.-]{0,79}$' }]
+
+[[command]]
+id = "plan-snapshot-prune"
+argv = ["/usr/bin/xzram", "snapshot", "prune", "--dry-run", "--json", "--keep"]
+output = "json"
+timeout_ms = 30000
+args = [{ name = "keep", pattern = '^[0-9]{1,5}$' }]
+
+[[command]]
+id = "plan-rollback"
+argv = ["/usr/bin/xzram", "rollback", "--dry-run", "--json"]
+output = "json"
+timeout_ms = 30000
+
+# Writes. Each asks first, shows its preview, streams its progress, and ends with a
+# `done` or `error` event. The page never passes --force: XZram's own refusals are shown.
+
+[[command]]
+id = "set-zram"
+argv = ["/usr/bin/xzram", "--dbus", "--ndjson", "config", "set"]
+output = "ndjson"
+timeout_ms = 600000
+args = [{ name = "key", pattern = '^(zram-size|zram-algorithm|zram-priority)$' }, { name = "value", pattern = '^[A-Za-z0-9 ()+*/.,^%_][A-Za-z0-9 ()+*/.\-_,^%]{0,199}$' }]
+confirm = "Change compressed memory? What is in swap is moved back into memory first, which can take a while."
+preview = "plan-zram"
+
+[[command]]
+id = "set-zram-boot"
+argv = ["/usr/bin/xzram", "--dbus", "--ndjson", "config", "set", "--at-boot"]
+output = "ndjson"
+timeout_ms = 600000
+args = [{ name = "key", pattern = '^(zram-size|zram-algorithm|zram-priority)$' }, { name = "value", pattern = '^[A-Za-z0-9 ()+*/.,^%_][A-Za-z0-9 ()+*/.\-_,^%]{0,199}$' }]
+confirm = "Save this for the next restart? Nothing running is changed."
+preview = "plan-zram-boot"
+
+[[command]]
+id = "set-tuning"
+argv = ["/usr/bin/xzram", "--dbus", "--ndjson", "config", "set"]
+output = "ndjson"
+timeout_ms = 600000
+args = [{ name = "key", pattern = '^(swappiness|page-cluster|vfs-cache-pressure|watermark-scale-factor|watermark-boost-factor)$' }, { name = "value", pattern = '^[0-9]{1,5}$' }]
+confirm = "Change this setting?"
+preview = "plan-tuning"
+
+[[command]]
+id = "zram-off"
+argv = ["/usr/bin/xzram", "--dbus", "--ndjson", "zram", "disable", "--now"]
+output = "ndjson"
+timeout_ms = 600000
+confirm = "Turn compressed memory off? What is in swap is moved back into memory first."
+preview = "plan-zram-off"
+
+[[command]]
+id = "zram-off-boot"
+argv = ["/usr/bin/xzram", "--dbus", "--ndjson", "zram", "disable", "--at-boot"]
+output = "ndjson"
+timeout_ms = 600000
+confirm = "Keep compressed memory off from the next restart? Nothing running is changed."
+preview = "plan-zram-off-boot"
+
+[[command]]
+id = "swapfile-create"
+argv = ["/usr/bin/xzram", "--dbus", "--ndjson", "swapfile", "create", "--now", "--size-mb"]
+output = "ndjson"
+timeout_ms = 600000
+args = [{ name = "size_mb", pattern = '^[0-9]{1,7}$' }, { name = "path", pattern = '^/[A-Za-z0-9/._-]{1,200}$' }]
+confirm = "Create this swap file?"
+preview = "plan-swapfile-create"
+
+[[command]]
+id = "swapfile-resize"
+argv = ["/usr/bin/xzram", "--dbus", "--ndjson", "swapfile", "resize", "--now", "--size-mb"]
+output = "ndjson"
+timeout_ms = 600000
+args = [{ name = "size_mb", pattern = '^[0-9]{1,7}$' }, { name = "path", pattern = '^/[A-Za-z0-9/._-]{1,200}$' }]
+confirm = "Resize this swap file?"
+preview = "plan-swapfile-resize"
+
+[[command]]
+id = "swapfile-remove"
+argv = ["/usr/bin/xzram", "--dbus", "--ndjson", "swapfile", "remove", "--now"]
+output = "ndjson"
+timeout_ms = 600000
+args = [{ name = "path", pattern = '^/[A-Za-z0-9/._-]{1,200}$' }]
+confirm = "Remove this swap file? It is deleted from the disk."
+preview = "plan-swapfile-remove"
+
+[[command]]
+id = "snapshot-restore"
+argv = ["/usr/bin/xzram", "--dbus", "--ndjson", "snapshot", "restore"]
+output = "ndjson"
+timeout_ms = 600000
+args = [{ name = "id", pattern = '^[A-Za-z0-9][A-Za-z0-9_.-]{0,79}$' }]
+confirm = "Restore this snapshot? The settings in it replace the ones now."
+preview = "plan-snapshot-restore"
+
+[[command]]
+id = "snapshot-delete"
+argv = ["/usr/bin/xzram", "--dbus", "--ndjson", "snapshot", "delete", "--yes"]
+output = "ndjson"
+timeout_ms = 600000
+args = [{ name = "id", pattern = '^[A-Za-z0-9][A-Za-z0-9_.-]{0,79}$' }]
+confirm = "Delete this snapshot? It can't be brought back."
+preview = "plan-snapshot-delete"
+
+[[command]]
+id = "snapshot-prune"
+argv = ["/usr/bin/xzram", "--dbus", "--ndjson", "snapshot", "prune", "--yes", "--keep"]
+output = "ndjson"
+timeout_ms = 600000
+args = [{ name = "keep", pattern = '^[0-9]{1,5}$' }]
+confirm = "Delete the older snapshots? They can't be brought back."
+preview = "plan-snapshot-prune"
+
+[[command]]
+id = "rollback"
+argv = ["/usr/bin/xzram", "--dbus", "--ndjson", "rollback"]
+output = "ndjson"
+timeout_ms = 600000
+confirm = "Go back to how things were before the last change?"
+preview = "plan-rollback"
+
+# Taking a snapshot only reads the settings and stores a copy, so it doesn't ask.
+
+[[command]]
+id = "snapshot-create"
+argv = ["/usr/bin/xzram", "--dbus", "snapshot", "create", "--json", "--label"]
+output = "json"
+timeout_ms = 120000
+args = [{ name = "label", pattern = '^[^\x00-\x1f\x7f]{1,80}$' }]

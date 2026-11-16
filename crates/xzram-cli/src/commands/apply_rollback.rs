@@ -27,8 +27,14 @@ pub(crate) fn apply(dbus: bool, opts: ApplyOptions) -> anyhow::Result<()> {
     }
 }
 
-pub(crate) fn rollback(dbus: bool) -> anyhow::Result<()> {
-    run_privileged(dbus, "rollback", "{}")
+pub(crate) fn rollback(dbus: bool, ndjson: bool) -> anyhow::Result<()> {
+    crate::progress::run(
+        ndjson,
+        "Going back to before the last change",
+        crate::progress::Watch::AllSwap,
+        serde_json::json!({}),
+        || run_privileged(dbus, "rollback", "{}"),
+    )
 }
 
 pub(crate) fn pending_clear(dbus: bool) -> anyhow::Result<()> {

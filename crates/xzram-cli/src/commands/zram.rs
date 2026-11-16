@@ -5,8 +5,14 @@ use xzram::config::default_zram_config;
 use crate::args::ZramCommands;
 use crate::print::print_zram_config;
 use crate::privileged::run_privileged;
+use crate::progress::{self, Watch};
 
-pub(crate) fn run(command: ZramCommands, json: bool, dbus: bool) -> anyhow::Result<()> {
+pub(crate) fn run(
+    command: ZramCommands,
+    json: bool,
+    dbus: bool,
+    ndjson: bool,
+) -> anyhow::Result<()> {
     match command {
         ZramCommands::Show => {
             let backend = available_zram_backend()?;
@@ -67,11 +73,29 @@ pub(crate) fn run(command: ZramCommands, json: bool, dbus: bool) -> anyhow::Resu
                 println!("Staged zram configuration; run 'xzram apply' to apply");
             }
         }
-        ZramCommands::Disable { now, restart } => {
+        ZramCommands::Disable {
+            now,
+            restart,
+            dry_run,
+        } => {
             let opts = restart.options();
+            if dry_run {
+                return crate::commands::dry_run::zram_disable(opts, json);
+            }
             if now || opts.at_boot {
                 let payload = crate::commands::apply_rollback::options_payload(opts)?;
-                run_privileged(dbus, "zram.disable", &payload)?;
+                let watch = if opts.at_boot {
+                    Watch::Nothing
+                } else {
+                    Watch::Zram
+                };
+                progress::run(
+                    ndjson,
+                    "Turning compressed memory off",
+                    watch,
+                    serde_json::json!({}),
+                    || run_privileged(dbus, "zram.disable", &payload),
+                )?;
             } else if opts.force {
                 anyhow::bail!("--force only applies with --now (or to 'xzram apply')");
             } else {

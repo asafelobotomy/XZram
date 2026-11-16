@@ -5,8 +5,11 @@ mod completion;
 mod dbus_client;
 mod exit_codes;
 mod helper_version;
+mod plan;
 mod print;
 mod privileged;
+mod progress;
+mod settings;
 mod snapshot_ops;
 mod store_read;
 
@@ -26,6 +29,7 @@ fn main() -> ExitCode {
 
     // clap exits with `exit_codes::USAGE` (2) on argument errors.
     let cli = Cli::parse();
+    privileged::quiet_helper_stdout(cli.json || cli.ndjson);
     match commands::run(cli) {
         Ok(code) => ExitCode::from(code),
         Err(e) => {

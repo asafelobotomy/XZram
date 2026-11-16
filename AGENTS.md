@@ -25,7 +25,7 @@ cargo run -p xzram-cli -- status
 | CLI | `cargo run -p xzram-cli -- …` or `./target/release/xzram` | Primary |
 | Helper | `xzram-helper` via pkexec | Root only |
 | Daemon | `xzramd` / `systemctl enable --now xzramd` | Privileged next step |
-| uQ Settings page | `uq/pages/xzram/` (`page.toml`, `Page.qml`, `logic.js`, components) | Reads and writes through `xzramd` over D-Bus (`GetStatus`, `GetZramConfig`, `GetSysctl`, `ListSwaps`, `ApplyNowZram`, `ApplyZramWithOptions` (at boot only, after a low-memory refusal), `ApplyNowSysctl`); no `[[command]]`. Keep the method list in `page.toml` and `tests/uq/logic.test.mjs` in step with `crates/xzramd/src/dbus/`. See [uq/README.md](uq/README.md) |
+| uQ Settings page | `uq/pages/xzram/` (`page.toml`, `Page.qml`, `logic.js`, section components) | `uq_api = 3`. Every read, preview (`--dry-run --json`) and write (`--dbus --ndjson`) is a `[[command]]` that runs the `xzram` CLI; no D-Bus table. Keep the commands in `page.toml`, `PATTERNS` in `logic.js` and the CLI in step (`tests/uq/logic.test.mjs` checks them). See [uq/README.md](uq/README.md) |
 | GUI | `make build-gui` → `build-gui/xzram-qt/xzram-qt` | Optional; Qt6; CLI-backed; auto-refresh; `XZRAM_ALLOW_DEV_CLI=1` + `XZRAM_CLI` override only with `-DXZRAM_DEV_OVERRIDES=ON` (see docs/DEV-ENV.md) |
 
 Prefer `make install-cli` over `make install` when Qt is not needed.
