@@ -23,12 +23,21 @@ pub struct Cli {
     /// Route privileged operations via D-Bus daemon when available
     #[arg(long, global = true)]
     pub dbus: bool,
+
+    /// While a change runs, print one JSON object per line (start, progress, done or error)
+    #[arg(long, global = true)]
+    pub ndjson: bool,
 }
 
 #[derive(Subcommand)]
 pub enum Commands {
     /// Show swap and zram status
     Status,
+    /// Show or change the settings people usually change, one key at a time
+    Config {
+        #[command(subcommand)]
+        command: ConfigCommands,
+    },
     /// Detect distro and backend configuration
     Detect,
     /// Run health checks and diagnostics
@@ -74,7 +83,11 @@ pub enum Commands {
         command: DefaultsCommands,
     },
     /// Restore last known-good configuration
-    Rollback,
+    Rollback {
+        /// Print what it would do and change nothing
+        #[arg(long)]
+        dry_run: bool,
+    },
     /// Configuration snapshots
     Snapshot {
         #[command(subcommand)]
@@ -104,6 +117,24 @@ impl ZramRestartArgs {
 }
 
 #[derive(Subcommand)]
+pub enum ConfigCommands {
+    /// Show every setting in effect (no root needed)
+    Show,
+    /// Change one setting now: zram-size, zram-algorithm, zram-priority, swappiness,
+    /// page-cluster, vfs-cache-pressure, watermark-scale-factor or watermark-boost-factor
+    Set {
+        key: String,
+        value: String,
+        /// For zram settings: memory check bypass / write-only-for-next-boot (see `xzram apply`)
+        #[command(flatten)]
+        restart: ZramRestartArgs,
+        /// Print what it would do and change nothing
+        #[arg(long)]
+        dry_run: bool,
+    },
+}
+
+#[derive(Subcommand)]
 pub enum SnapshotCommands {
     /// List stored snapshots
     List,
@@ -119,12 +150,18 @@ pub enum SnapshotCommands {
     Restore {
         /// Snapshot id, `latest`, or `last-apply`
         id: String,
+        /// Print what it would do and change nothing
+        #[arg(long)]
+        dry_run: bool,
     },
     /// Delete a snapshot (destructive)
     Delete {
         id: String,
         #[arg(long)]
         yes: bool,
+        /// Print what it would do and change nothing
+        #[arg(long)]
+        dry_run: bool,
     },
     /// Prune old snapshots, keeping the newest N
     Prune {
@@ -136,6 +173,9 @@ pub enum SnapshotCommands {
         keep: u32,
         #[arg(long)]
         yes: bool,
+        /// Print what it would do and change nothing
+        #[arg(long)]
+        dry_run: bool,
     },
 }
 
@@ -226,6 +266,9 @@ pub enum ZramCommands {
         now: bool,
         #[command(flatten)]
         restart: ZramRestartArgs,
+        /// Print what it would do and change nothing
+        #[arg(long)]
+        dry_run: bool,
     },
     /// Migrate from legacy zram-tools configuration
     Migrate {
@@ -255,6 +298,9 @@ pub enum SwapfileCommands {
         /// With `--prepare`, create parent directories as needed
         #[arg(long)]
         mkdir: bool,
+        /// Print what it would do and change nothing
+        #[arg(long)]
+        dry_run: bool,
     },
     /// Resize an existing swap file
     Resize {
@@ -264,6 +310,9 @@ pub enum SwapfileCommands {
         /// Apply immediately instead of staging
         #[arg(long)]
         now: bool,
+        /// Print what it would do and change nothing
+        #[arg(long)]
+        dry_run: bool,
     },
     /// Remove a swap file
     Remove {
@@ -271,6 +320,9 @@ pub enum SwapfileCommands {
         /// Apply immediately instead of staging
         #[arg(long)]
         now: bool,
+        /// Print what it would do and change nothing
+        #[arg(long)]
+        dry_run: bool,
     },
     /// Check btrfs nodatacow readiness for a swapfile path
     Check { path: String },

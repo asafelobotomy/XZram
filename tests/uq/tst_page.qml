@@ -5,40 +5,65 @@ import QtTest
 
 Item {
     id: root
-    width: 700
+    width: 800
     height: 700
 
     readonly property url pageUrl: Qt.resolvedUrl("../../uq/pages/xzram/Page.qml")
 
     readonly property var statusDoc: ({
-            swaps: [],
-            zram_devices: [{ name: "zram0", algorithm: "zstd", disk_size_bytes: 8589934592, data_bytes: 3221225472, compressed_bytes: 1073741824, total_bytes: 1181116006, mem_used_max_bytes: 1181116006, mount_point: "[SWAP]" }],
-            memory: { mem_total_kb: 16777216, mem_available_kb: 8388608, swap_total_kb: 8388608, swap_free_kb: 7340032 }
+            swaps: [
+                { name: "/dev/zram0", swap_type: "partition", size_bytes: 8589934592, used_bytes: 1073741824, priority: 100 },
+                { name: "/swap/swapfile", swap_type: "file", size_bytes: 4294967296, used_bytes: 0, priority: 10 }
+            ],
+            zram_devices: [{ name: "<b>zram0</b>", algorithm: "zstd", disk_size_bytes: 8589934592, data_bytes: 3221225472, compressed_bytes: 1073741824, total_bytes: 1181116006, mem_used_max_bytes: 1181116006, mount_point: "[SWAP]" }],
+            memory: { mem_total_kb: 16777216, mem_available_kb: 8388608, swap_total_kb: 8388608, swap_free_kb: 7340032 },
+            pressure: { memory: { some_avg60: 0.0 } }
         })
-    readonly property var zramDoc: ({ device: "zram0", zram_size: "ram / 2", zram_resident_limit: null, compression_algorithm: "zstd", swap_priority: 100, fs_type: null, mount_point: null })
-    readonly property var swapsDoc: [
-        { name: "<b>/dev/zram0</b>‮", swap_type: "partition", size_bytes: 8589934592, used_bytes: 1073741824, priority: 100, source: "active", active: true }
+    readonly property var configDoc: ({
+            zram: { configured: true, device: "zram0", size: "ram / 2", algorithm: "zstd", priority: 100 },
+            tuning: { swappiness: 60, page_cluster: 0, vfs_cache_pressure: 100, watermark_scale_factor: 125, watermark_boost_factor: 0 },
+            pending: false, snapshots: 2
+        })
+    readonly property var snapshotsDoc: [
+        { id: "20260116T101500-pre_apply", created_at: "2026-11-16T10:15:00Z", label: "Before change", trigger: "pre_apply" },
+        { id: "20260115T090000-manual", created_at: "2026-11-15T09:00:00Z", label: "Taken by hand", trigger: "manual" }
+    ]
+    readonly property var planOk: ({ summary: "x", changes: [], would_refuse: false, reason: "" })
+    readonly property var planLowMemory: ({ summary: "x", changes: [], would_refuse: true, reason: "not enough free memory: restarting zram0 brings 3.0 GiB back" })
+    readonly property var doneEvents: [
+        { event: "start", label: "Changing compressed memory" },
+        { event: "progress", label: "Moving what is in swap back into memory", percent: 40, detail: "1.0 GiB left to move" },
+        { event: "done", ok: true, percent: 100 }
     ]
 
-    function reply(doc) {
-        return { value: { json: JSON.stringify(doc) } };
+    function answers() {
+        const out = {
+            "status": { code: 0, output: statusDoc },
+            "config": { code: 0, output: configDoc },
+            "doctor": { code: 3, error: "exit 3", output: { healthy: false, summary: "Healthy, 1 warning", issues: [{ severity: "warning", message: "No userspace OOM killer is active", suggestion: "Install systemd-oomd" }] } },
+            "swapfiles": { code: 0, output: [{ path: "/swap/swapfile", size_mb: 4096, priority: 10 }] },
+            "snapshots": { code: 0, output: snapshotsDoc },
+            "snapshot-create": { code: 0, output: { id: "x" } }
+        };
+        for (const id of ["plan-zram", "plan-zram-boot", "plan-tuning", "plan-zram-off", "plan-zram-off-boot", "plan-swapfile-create", "plan-swapfile-resize", "plan-swapfile-remove", "plan-snapshot-restore", "plan-snapshot-delete", "plan-snapshot-prune", "plan-rollback"])
+            out[id] = { code: 0, output: planOk };
+        for (const id of ["set-zram", "set-zram-boot", "set-tuning", "zram-off", "zram-off-boot", "swapfile-create", "swapfile-resize", "swapfile-remove", "snapshot-restore", "snapshot-delete", "snapshot-prune", "rollback"])
+            out[id] = { code: 0, output: null };
+        return out;
     }
 
-    function answers() {
-        return {
-            GetStatus: reply(statusDoc),
-            GetZramConfig: reply(zramDoc),
-            GetSysctl: reply({ swappiness: 60 }),
-            ListSwaps: reply(swapsDoc),
-            ApplyNowZram: { value: null },
-            ApplyZramWithOptions: { value: null },
-            ApplyNowSysctl: { value: null }
-        };
+    function eventsFor() {
+        const out = {};
+        for (const id of ["set-zram", "set-zram-boot", "set-tuning", "zram-off", "zram-off-boot", "swapfile-create", "swapfile-resize", "swapfile-remove", "snapshot-restore", "snapshot-delete", "snapshot-prune", "rollback"])
+            out[id] = doneEvents;
+        return out;
     }
 
     FakeContext {
         id: fake
-        dbus: root.answers()
+        commands: root.answers()
+        events: root.eventsFor()
+        confirmed: ["set-zram", "set-zram-boot", "set-tuning", "zram-off", "zram-off-boot", "swapfile-create", "swapfile-resize", "swapfile-remove", "snapshot-restore", "snapshot-delete", "snapshot-prune", "rollback"]
     }
 
     Loader {
@@ -57,246 +82,253 @@ Item {
         return null;
     }
 
-    function writes() {
-        return fake.calls.filter(c => c[0] === "call" && c[1].indexOf("Apply") === 0);
+    function find(item, name) {
+        if (item.objectName === name)
+            return item;
+        for (let i = 0; i < item.children.length; ++i) {
+            const hit = find(item.children[i], name);
+            if (hit)
+                return hit;
+        }
+        return null;
+    }
+
+    function runs(id) {
+        return fake.calls.filter(c => c[1] === id);
     }
 
     TestCase {
         name: "MemoryAndSwapPage"
         when: windowShown
 
-        function load() {
+        function load(overrides, skipStatus) {
             fake.calls = [];
+            fake.watches = ({});
+            fake.confirms = true;
+            const commands = root.answers();
+            for (const k in (overrides || {}))
+                commands[k] = overrides[k];
+            fake.commands = commands;
             loader.source = "";
             loader.source = root.pageUrl;
-            verify(loader.status === Loader.Ready, "the page loads");
             loader.item.ctx = fake.ctx;
+            tryVerify(() => (skipStatus || loader.item.status !== null) && loader.item.config !== null && loader.item.snapshots !== null && loader.item.doctor !== null);
+            return loader.item;
         }
 
-        function part(name) {
-            const hit = findChild(loader.item, name);
-            verify(hit, "found " + name);
-            return hit;
+        function noteOf(page, key) {
+            tryVerify(() => page.noteFor(key) !== null);
+            return page.noteFor(key);
         }
 
-        function init() {
-            fake.dbus = root.answers();
-            fake.confirms = true;
-            load();
-            tryVerify(() => loader.item.phase === "ready");
+        function test_reads_everything_when_it_gets_its_context() {
+            const page = load();
+            verify(root.runs("status").length >= 1);
+            verify(fake.calls.some(c => c[0] === "watch" && c[1] === "config"));
+            verify(fake.calls.some(c => c[0] === "watch" && c[1] === "swapfiles"));
+            compare(page.swapfiles.files.length, 1);
+            compare(page.config.tuning["swappiness"], 60);
         }
 
-        function test_reads_on_open() {
-            const methods = fake.calls.filter(c => c[0] === "call").map(c => c[1]).sort();
-            compare(methods, ["GetStatus", "GetSysctl", "GetZramConfig", "ListSwaps"]);
-            verify(findLabel(loader.item, "Memory: 8 GB in use of 16 GB") !== null);
-            verify(findLabel(loader.item, "zram0: zstd, 8 GB, 3 GB stored in 1 GB (3 to 1)") !== null);
-            compare(part("sizeBox").currentIndex, 1);
-            compare(part("sizeBox").currentText, "Half of memory");
-            compare(part("algorithmBox").currentText, "zstd");
-            compare(part("swappinessSpin").value, 60);
-            compare(root.writes().length, 0, "opening the page changes nothing");
+        function test_overview_shows_memory_and_swap() {
+            const page = load();
+            verify(root.findLabel(page, "Memory: 8.0 GiB in use of 16.0 GiB") !== null);
+            verify(root.findLabel(page, "Swap: 1.0 GiB in use of 8.0 GiB") !== null);
+            verify(root.findLabel(page, "Memory pressure: None. Nothing is waiting for memory.") !== null);
+            verify(root.findLabel(page, "3.0 GiB stored in 1.0 GiB (3 to 1)") !== null);
         }
 
-        function test_untrusted_text_is_shown_as_is() {
-            verify(findLabel(loader.item, "<b>/dev/zram0</b>‮: partition, 1 GB used of 8 GB") !== null);
+        function test_text_from_xzram_is_shown_as_it_is() {
+            const page = load();
+            verify(root.findLabel(page, "<b>zram0</b>: zstd, 8.0 GiB") !== null);
         }
 
-        function test_nothing_is_written_before_confirm() {
-            const box = part("sizeBox");
-            box.currentIndex = 3;
-            box.activated(3);
-            compare(root.writes().length, 0);
-            compare(part("confirmDialog").question, "Change the zram size? Swap in use is moved first; this can take a while.");
-            part("confirmDialog").accept();
-            tryVerify(() => root.writes().length === 1);
-            const call = root.writes()[0];
-            compare(call[1], "ApplyNowZram");
-            const sent = JSON.parse(call[2][0]);
-            compare(sent.zram_size, "ram");
-            compare(sent.compression_algorithm, "zstd", "the other fields are kept");
-            compare(sent.swap_priority, 100);
+        function test_health_check_is_read_even_though_it_exits_3() {
+            const page = load();
+            verify(root.findLabel(page, "Healthy, 1 warning") !== null || page.doctor.summary === "Healthy, 1 warning");
+            verify(root.findLabel(page, "Worth a look: No userspace OOM killer is active") !== null);
         }
 
-        function test_algorithm_change_asks_first() {
-            const box = part("algorithmBox");
-            box.currentIndex = 1;
-            box.activated(1);
-            compare(root.writes().length, 0);
-            part("confirmDialog").accept();
-            tryVerify(() => root.writes().length === 1);
-            compare(JSON.parse(root.writes()[0][2][0]).compression_algorithm, "lz4");
+        function test_a_failed_read_says_so() {
+            const page = load({ "status": { error: "xzram: not installed" } }, true);
+            tryVerify(() => page.statusProblem !== "");
+            compare(page.statusProblem, "xzram: not installed");
         }
 
-        function test_cancel_is_silent() {
-            const box = part("sizeBox");
-            box.currentIndex = 3;
-            box.activated(3);
-            part("confirmDialog").reject();
-            compare(root.writes().length, 0);
-            compare(box.currentIndex, 1, "the control goes back to what was read");
-            compare(part("problemLabel").visible, false);
-            compare(part("noticeLabel").visible, false);
-        }
-
-        function test_failed_write_restores() {
-            fake.dbus.ApplyNowZram = { error: "org.freedesktop.DBus.Error.AccessDenied: Not authorized" };
-            const box = part("sizeBox");
-            box.currentIndex = 3;
-            box.activated(3);
-            part("confirmDialog").accept();
-            tryVerify(() => part("problemLabel").visible);
-            compare(part("problemLabel").text, "Not changed. Administrator permission wasn't given.");
-            compare(box.currentIndex, 1, "back to the last value read");
-            // The raw error is behind Advanced details, not shown at first.
-            compare(part("rawDetail").visible, false);
-            part("advancedButton").clicked();
-            verify(part("rawDetail").visible);
-        }
-
-        function test_low_memory_offers_the_next_restart() {
-            fake.dbus.ApplyNowZram = { error: "io.github.XZram.Error.Failed: xzram-helper: validation error: not enough free memory: restarting zram0 brings about 3.5 GiB back into RAM" };
-            compare(part("atBootButton").visible, false);
-            const box = part("sizeBox");
-            box.currentIndex = 3;
-            box.activated(3);
-            part("confirmDialog").accept();
-            tryVerify(() => part("atBootButton").visible);
-            verify(part("problemLabel").text.indexOf("next restart") >= 0);
-            part("atBootButton").clicked();
-            tryVerify(() => root.writes().length === 2);
-            const call = root.writes()[1];
-            compare(call[1], "ApplyZramWithOptions");
-            compare(JSON.parse(call[2][0]).zram_size, "ram");
-            compare(call[2][1], true, "at the next boot only");
-            compare(call[2][2], false, "never forced");
-            tryVerify(() => part("noticeLabel").text === "Saved. It takes effect at the next restart.");
-            compare(part("atBootButton").visible, false);
-        }
-
-        function test_swappiness_applies_on_apply_only() {
-            const spin = part("swappinessSpin");
-            spin.value = 90;
-            compare(root.writes().length, 0, "stepping does not write");
-            part("applySwappiness").clicked();
-            tryVerify(() => root.writes().length === 1);
-            compare(root.writes()[0][1], "ApplyNowSysctl");
-            compare(root.writes()[0][2][0], "{\"swappiness\":90}");
-            tryVerify(() => part("noticeLabel").visible);
-            compare(part("noticeLabel").text, "Swappiness set to 90.");
-        }
-
-        function test_typed_swappiness_applies_without_enter() {
-            const spin = part("swappinessSpin");
-            spin.contentItem.text = "90";
-            compare(spin.value, 60, "typing alone does not commit the SpinBox");
-            verify(part("applySwappiness").enabled, "Apply follows the typed number");
-            part("applySwappiness").clicked();
-            tryVerify(() => root.writes().length === 1);
-            compare(root.writes()[0][2][0], "{\"swappiness\":90}");
-        }
-
-        function test_failed_swappiness_restores() {
-            fake.dbus.ApplyNowSysctl = { error: "org.freedesktop.DBus.Error.AccessDenied: Not authorized" };
-            const spin = part("swappinessSpin");
-            spin.value = 90;
-            part("applySwappiness").clicked();
-            tryVerify(() => part("problemLabel").visible);
-            compare(spin.value, 60);
-        }
-
-        function test_a_slow_write_is_not_a_failure() {
-            fake.dbus.ApplyNowZram = { error: "no answer within 2 s" };
-            const box = part("sizeBox");
+        function test_size_change_is_previewed_then_streamed() {
+            const page = load();
+            const box = root.find(page, "sizeBox");
             box.currentIndex = 0;
             box.activated(0);
-            part("confirmDialog").accept();
-            tryVerify(() => part("noticeLabel").visible);
-            compare(part("noticeLabel").text, "Still working. Check again in a moment.");
-            compare(part("problemLabel").visible, false);
+            const note = noteOf(page, "zram-size");
+            compare(note.message, "Compressed memory size changed.");
+            compare(note.failed, false);
+            compare(root.runs("plan-zram")[0], ["run", "plan-zram", ["zram-size", "ram / 4"]]);
+            compare(root.runs("set-zram")[0], ["stream", "set-zram", ["zram-size", "ram / 4"]]);
+            // The preview is asked for first.
+            verify(fake.calls.indexOf(root.runs("plan-zram")[0]) < fake.calls.indexOf(root.runs("set-zram")[0]));
         }
 
-        function test_activation_error_shown() {
-            fake.dbus = ({
-                    GetStatus: { error: "org.freedesktop.DBus.Error.ServiceUnknown: The name io.github.XZram1 was not provided by any .service files" },
-                    GetZramConfig: { error: "org.freedesktop.DBus.Error.ServiceUnknown" },
-                    GetSysctl: { error: "org.freedesktop.DBus.Error.ServiceUnknown" },
-                    ListSwaps: { error: "org.freedesktop.DBus.Error.ServiceUnknown" }
-                });
-            load();
-            tryVerify(() => loader.item.phase === "unavailable");
-            compare(part("unavailableLabel").text, "XZram isn't answering. It starts when needed, so try again in a moment.");
-            // One retry of each read after the first answer.
-            tryVerify(() => fake.calls.filter(c => c[0] === "call" && c[1] === "GetStatus").length === 2);
-            // It recovers on Refresh.
-            fake.dbus = root.answers();
-            part("refreshButton").clicked();
-            tryVerify(() => loader.item.phase === "ready");
+        function test_cancelling_the_sheet_changes_and_says_nothing() {
+            const page = load();
+            fake.confirms = false;
+            page.changeZram("zram-algorithm", "lz4");
+            tryVerify(() => !page.busy && root.runs("set-zram").length === 1);
+            wait(50);
+            compare(page.noteFor("zram-algorithm"), null);
         }
 
-        function test_other_read_failure_shows_an_error_card() {
-            fake.dbus.GetSysctl = { error: "something odd" };
-            load();
-            tryVerify(() => loader.item.phase === "error");
-            verify(part("readError").visible);
-            compare(part("applySwappiness").enabled, false);
+        function test_not_enough_memory_offers_the_next_restart() {
+            const page = load({ "plan-zram": { code: 0, output: root.planLowMemory } });
+            page.changeZram("zram-size", "ram");
+            const note = noteOf(page, "zram-size");
+            compare(note.kind, "memory");
+            compare(root.runs("set-zram").length, 0, "nothing was sent");
+            verify(page.offer !== null, "the next restart is offered");
+            compare(page.offer.command, "set-zram-boot");
+            page.takeOffer();
+            tryVerify(() => root.runs("set-zram-boot").length === 1);
+            compare(root.runs("set-zram-boot")[0], ["stream", "set-zram-boot", ["zram-size", "ram"]]);
+            compare(noteOf(page, "zram-size").message, "Saved. It takes effect at the next restart.");
         }
 
-        function test_no_zram_config_disables_the_controls() {
-            fake.dbus.GetZramConfig = root.reply(null);
-            load();
-            tryVerify(() => loader.item.phase === "ready" && part("notSetUp").visible);
-            compare(part("sizeBox").enabled, false);
-            compare(part("algorithmBox").enabled, false);
+        function test_a_refusal_after_the_preview_is_worded() {
+            const events = [{ event: "start", label: "x" }, { event: "error", ok: false, kind: "memory", error: "not enough free memory: …" }];
+            fake.events = Object.assign({}, root.eventsFor(), { "set-zram": events });
+            fake.commands = Object.assign({}, root.answers(), { "set-zram": { code: 1, error: "xzram: not enough free memory" } });
+            const page = load({ "set-zram": { code: 1, error: "xzram: not enough free memory" } });
+            fake.events = Object.assign({}, root.eventsFor(), { "set-zram": events });
+            page.changeZram("zram-size", "ram");
+            const note = noteOf(page, "zram-size");
+            compare(note.failed, true);
+            compare(note.kind, "memory");
+            fake.events = root.eventsFor();
         }
 
-        function test_combos_follow_a_changed_config_across_refresh() {
-            const changed = JSON.parse(JSON.stringify(root.zramDoc));
-            changed.zram_size = "min(ram / 2, 4096)";
-            changed.compression_algorithm = "lz4";
-            fake.dbus.GetZramConfig = root.reply(changed);
-            part("refreshButton").clicked();
-            tryVerify(() => part("sizeBox").currentText === "Custom: min(ram / 2, 4096)");
-            compare(part("algorithmBox").currentText, "lz4");
-            // And back to a preset: the box must not fall to the first row.
-            fake.dbus.GetZramConfig = root.reply(root.zramDoc);
-            part("refreshButton").clicked();
-            tryVerify(() => part("sizeBox").currentText === "Half of memory");
-            compare(part("algorithmBox").currentText, "zstd");
+        function test_a_bad_value_is_never_sent() {
+            const page = load();
+            page.changeTuning("swappiness", "999");
+            compare(page.noteFor("swappiness").failed, true);
+            compare(root.runs("set-tuning").length, 0);
+            page.changeZram("zram-size", "-1");
+            compare(root.runs("plan-zram").length, 0);
         }
 
-        function test_the_write_uses_a_fresh_read_of_the_config() {
-            const box = part("sizeBox");
-            box.currentIndex = 3;
-            box.activated(3);
-            // Someone changed the priority elsewhere after the page opened.
-            const newer = JSON.parse(JSON.stringify(root.zramDoc));
-            newer.swap_priority = 50;
-            fake.dbus.GetZramConfig = root.reply(newer);
-            part("confirmDialog").accept();
-            tryVerify(() => root.writes().length === 1);
-            compare(JSON.parse(root.writes()[0][2][0]).swap_priority, 50);
+        function test_swappiness_is_applied_from_its_box() {
+            const page = load();
+            const spin = root.find(page, "spin-swappiness");
+            const apply = root.find(page, "apply-swappiness");
+            verify(!apply.enabled, "nothing to apply while the box shows what is in force");
+            spin.value = 100;
+            tryVerify(() => apply.enabled);
+            apply.clicked();
+            tryVerify(() => root.runs("set-tuning").length === 1);
+            compare(root.runs("set-tuning")[0], ["stream", "set-tuning", ["swappiness", "100"]]);
+            compare(noteOf(page, "swappiness").message, "Swappiness set to 100.");
         }
 
-        function test_a_failed_open_is_a_soft_notice() {
-            const real = fake.ctx;
-            loader.item.ctx = Object.assign({}, real, { openApp: (id, cb) => Qt.callLater(() => cb({ error: "no such app" })) });
-            part("moreButton").clicked();
-            tryVerify(() => part("noticeLabel").visible);
-            compare(part("noticeLabel").text, "Couldn't open XZram.");
-            compare(part("moreButton").visible, false);
+        function test_nothing_set_up_offers_to_set_it_up() {
+            const none = { zram: { configured: false, device: null, size: null, algorithm: null, priority: null }, tuning: root.configDoc.tuning, pending: false, snapshots: 0 };
+            const page = load({ "config": { code: 0, output: none } });
+            verify(root.find(page, "notSetUp") !== null);
+            root.find(page, "setUpButton").clicked();
+            tryVerify(() => root.runs("plan-zram").length === 1);
+            compare(root.runs("plan-zram")[0][2], ["zram-algorithm", "zstd"]);
         }
 
-        function test_more_in_xzram_opens_the_app() {
-            part("moreButton").clicked();
-            compare(fake.calls[fake.calls.length - 1], ["openApp", "io.github.XZram.desktop"]);
-            tryVerify(() => part("moreButton").visible);
+        function test_turning_compressed_memory_off() {
+            const page = load();
+            root.find(page, "turnOffButton").clicked();
+            tryVerify(() => root.runs("zram-off").length === 1);
+            compare(noteOf(page, "zram-off").message, "Compressed memory is off.");
         }
 
-        function test_highlight_scrolls_without_writing() {
-            loader.item.highlight = "swaps";
-            compare(loader.item.highlight, "swaps");
-            compare(root.writes().length, 0);
+        function test_a_swap_file_is_created_in_mib() {
+            const page = load();
+            root.find(page, "createButton").clicked();
+            tryVerify(() => root.runs("swapfile-create").length === 1);
+            compare(root.runs("plan-swapfile-create")[0][2], ["4096", "/swap/swapfile"]);
+            compare(root.runs("swapfile-create")[0][2], ["4096", "/swap/swapfile"]);
+        }
+
+        function test_a_swap_file_is_removed() {
+            const page = load();
+            root.find(page, "remove-/swap/swapfile").clicked();
+            tryVerify(() => root.runs("swapfile-remove").length === 1);
+            compare(root.runs("swapfile-remove")[0][2], ["/swap/swapfile"]);
+        }
+
+        function test_a_swap_file_is_resized() {
+            const page = load();
+            root.find(page, "resize-/swap/swapfile").clicked();
+            const field = root.find(page, "resizeField");
+            compare(field.text, "4");
+            field.text = "8";
+            root.find(page, "resizeApply").clicked();
+            tryVerify(() => root.runs("swapfile-resize").length === 1);
+            compare(root.runs("swapfile-resize")[0][2], ["8192", "/swap/swapfile"]);
+        }
+
+        function test_a_snapshot_is_restored_after_its_preview() {
+            const page = load();
+            root.find(page, "restore-20260115T090000-manual").clicked();
+            tryVerify(() => root.runs("snapshot-restore").length === 1);
+            compare(root.runs("plan-snapshot-restore")[0][2], ["20260115T090000-manual"]);
+        }
+
+        function test_the_last_change_is_undone_with_a_rollback() {
+            const page = load();
+            const button = root.find(page, "rollbackButton");
+            verify(button.enabled, "there is a snapshot from before a change");
+            button.clicked();
+            tryVerify(() => root.runs("rollback").length === 1);
+        }
+
+        function test_rollback_needs_a_snapshot_from_before_a_change() {
+            const manual = [snapshotsOnly()[1]];
+            const page = load({ "snapshots": { code: 0, output: manual } });
+            verify(!root.find(page, "rollbackButton").enabled);
+        }
+
+        function snapshotsOnly() {
+            return root.snapshotsDoc;
+        }
+
+        function test_old_snapshots_are_pruned() {
+            const page = load();
+            root.find(page, "pruneButton").clicked();
+            tryVerify(() => root.runs("snapshot-prune").length === 1);
+            compare(root.runs("snapshot-prune")[0][2], ["50"]);
+        }
+
+        function test_taking_a_snapshot_does_not_ask() {
+            const page = load();
+            root.find(page, "snapshotNow").clicked();
+            compare(noteOf(page, "snapshot-new").message, "Snapshot taken.");
+        }
+
+        function test_only_one_change_runs_at_a_time() {
+            const page = load();
+            page.workingKey = "zram-size";
+            page.changeTuning("swappiness", "90");
+            compare(root.runs("set-tuning").length, 0);
+            page.workingKey = "";
+        }
+
+        function test_a_change_re_reads_what_it_moved() {
+            const page = load();
+            const before = root.runs("status").length;
+            page.changeTuning("page-cluster", "0");
+            tryVerify(() => root.runs("status").length > before);
+        }
+
+        function test_a_followed_file_change_updates_the_page() {
+            const page = load();
+            const next = JSON.parse(JSON.stringify(root.configDoc));
+            next.tuning.swappiness = 150;
+            fake.commands = Object.assign({}, fake.commands, { "config": { code: 0, output: next } });
+            fake.change("config");
+            tryVerify(() => page.config.tuning["swappiness"] === 150);
         }
     }
 }

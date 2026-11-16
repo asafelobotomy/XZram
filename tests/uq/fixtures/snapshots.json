@@ -1,0 +1,24 @@
+[
+  {
+    "id": "20260116T101500-pre_apply",
+    "created_at": "2026-11-16T10:15:00Z",
+    "label": "Before change",
+    "trigger": "pre_apply",
+    "state_hash": "x",
+    "xzram_version": "0.6.0",
+    "artifacts": {},
+    "swapfiles": [],
+    "zram_devices": []
+  },
+  {
+    "id": "20260115T090000-manual",
+    "created_at": "2026-11-15T09:00:00Z",
+    "label": "Taken by hand",
+    "trigger": "manual",
+    "state_hash": "y",
+    "xzram_version": "0.6.0",
+    "artifacts": {},
+    "swapfiles": [],
+    "zram_devices": []
+  }
+]

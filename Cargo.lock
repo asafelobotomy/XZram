@@ -1029,6 +1029,7 @@ dependencies = [
  "assert_cmd",
  "clap",
  "clap_complete",
+ "fs2",
  "predicates",
  "serde",
  "serde_json",

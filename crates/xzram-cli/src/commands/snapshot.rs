@@ -4,11 +4,17 @@ use crate::args::SnapshotCommands;
 use crate::dbus_client::{self, ServiceUnavailable};
 use crate::print::confirm;
 use crate::privileged::run_privileged;
+use crate::progress::{self, Watch};
 use crate::snapshot_ops::{
     resolve_snapshot_id, run_snapshot_create_dbus, run_snapshot_create_pkexec,
 };
 
-pub(crate) fn run(command: SnapshotCommands, json: bool, dbus: bool) -> anyhow::Result<()> {
+pub(crate) fn run(
+    command: SnapshotCommands,
+    json: bool,
+    dbus: bool,
+    ndjson: bool,
+) -> anyhow::Result<()> {
     match command {
         SnapshotCommands::List => {
             let list = crate::store_read::list_snapshots()?;
@@ -45,35 +51,55 @@ pub(crate) fn run(command: SnapshotCommands, json: bool, dbus: bool) -> anyhow::
                 println!("Created snapshot: {} ({})", meta.label, meta.id);
             }
         }
-        SnapshotCommands::Restore { id } => {
+        SnapshotCommands::Restore { id, dry_run } => {
+            if dry_run {
+                return super::dry_run::snapshot_restore(&id, json);
+            }
             let snapshot_id = resolve_snapshot_id(&id)?;
-            run_privileged(
-                dbus,
-                "snapshot.restore",
-                &serde_json::json!({ "id": snapshot_id }).to_string(),
+            let payload = serde_json::json!({ "id": snapshot_id }).to_string();
+            progress::run(
+                ndjson,
+                "Restoring the snapshot",
+                Watch::AllSwap,
+                serde_json::json!({}),
+                || run_privileged(dbus, "snapshot.restore", &payload),
             )?;
         }
-        SnapshotCommands::Delete { id, yes } => {
+        SnapshotCommands::Delete { id, yes, dry_run } => {
+            if dry_run {
+                return super::dry_run::snapshot_delete(&id, json);
+            }
             if !yes && !confirm("Delete snapshot? This cannot be undone.")? {
                 println!("Cancelled");
                 return Ok(());
             }
-            run_privileged(
-                dbus,
-                "snapshot.delete",
-                &serde_json::json!({ "id": id }).to_string(),
+            let payload = serde_json::json!({ "id": id }).to_string();
+            progress::run(
+                ndjson,
+                "Deleting the snapshot",
+                Watch::Nothing,
+                serde_json::json!({}),
+                || run_privileged(dbus, "snapshot.delete", &payload),
             )?;
-            println!("Deleted snapshot {id}");
+            if !ndjson {
+                println!("Deleted snapshot {id}");
+            }
         }
-        SnapshotCommands::Prune { keep, yes } => {
+        SnapshotCommands::Prune { keep, yes, dry_run } => {
+            if dry_run {
+                return super::dry_run::snapshot_prune(keep, json);
+            }
             if !yes && !confirm(&format!("Prune snapshots, keeping newest {keep}?"))? {
                 println!("Cancelled");
                 return Ok(());
             }
-            run_privileged(
-                dbus,
-                "snapshot.prune",
-                &serde_json::json!({ "keep": keep }).to_string(),
+            let payload = serde_json::json!({ "keep": keep }).to_string();
+            progress::run(
+                ndjson,
+                "Deleting old snapshots",
+                Watch::Nothing,
+                serde_json::json!({}),
+                || run_privileged(dbus, "snapshot.prune", &payload),
             )?;
         }
     }

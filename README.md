@@ -174,6 +174,15 @@ xzram status              # all swap devices, zram stats, priorities, memory/io 
 xzram doctor              # health checks; headline "System healthy" / "Healthy, N warnings" / "Issues found: ..."
 xzram detect              # distro, backend, installed packages
 
+# One setting at a time (what the uQ Settings page uses)
+xzram config show [--json]                         # zram size/compression/priority and kernel tuning in effect
+xzram config set swappiness 100 [--dry-run]        # keys: zram-size zram-algorithm zram-priority swappiness
+                                                   #   page-cluster vfs-cache-pressure watermark-scale-factor
+                                                   #   watermark-boost-factor; zram keys take --at-boot / --force
+# --dry-run (also on zram disable, swapfile create|resize|remove, snapshot restore|delete|prune, rollback)
+#   prints what would change and changes nothing; with --json: {summary, changes, would_refuse, reason}
+# --ndjson prints start / progress / done events (one JSON object per line) while a change runs
+
 # zram
 xzram zram show
 xzram zram set [--device zram0] [--size EXPR] [--algorithm ALGO] [--priority N] [--now] [--at-boot|--force]

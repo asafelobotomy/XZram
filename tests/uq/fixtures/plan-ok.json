@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "summary": "Change compressed memory size",
+  "changes": [
+    {
+      "group": "Compressed memory",
+      "label": "Compressed memory size: ram / 4 \u2192 ram / 2",
+      "detail": "Applied now: the device is restarted.",
+      "reversible": true
+    },
+    {
+      "group": "Memory",
+      "label": "Swap in use moves back into memory first",
+      "bytes": 3221225472,
+      "reversible": true
+    }
+  ],
+  "would_refuse": false,
+  "reason": ""
+}

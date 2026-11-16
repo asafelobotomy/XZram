@@ -1,0 +1,20 @@
+{
+  "healthy": true,
+  "errors": 0,
+  "warnings": 2,
+  "summary": "Healthy, 2 warnings",
+  "issues": [
+    {
+      "severity": "warning",
+      "code": "non_systemd",
+      "message": "Init system is 'unknown', not systemd",
+      "suggestion": "XZram v1 targets systemd-based distros"
+    },
+    {
+      "severity": "warning",
+      "code": "no_oom_protection",
+      "message": "No userspace OOM killer is active; when RAM and swap run out the desktop freezes until the kernel OOM killer fires",
+      "suggestion": "Install systemd-oomd (or earlyoom), then run 'xzram defaults apply'"
+    }
+  ]
+}

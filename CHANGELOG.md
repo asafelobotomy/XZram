@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- uQ Settings **Memory and swap** page rebuilt on `uq_api = 3`: five tabs (Overview, Compressed memory, Tuning, Swap files, Snapshots) laid out like Settings' own pages. It now reaches swap files (create, resize, remove) and snapshots (take, restore, delete, trim, undo the last change), shows the health check, and every change shows what it will do, asks first and streams a progress bar. Everything goes through the `xzram` command line instead of D-Bus
+- `xzram config show|set`: the settings people usually change (`zram-size`, `zram-algorithm`, `zram-priority`, `swappiness`, `page-cluster`, `vfs-cache-pressure`, `watermark-scale-factor`, `watermark-boost-factor`), one key at a time, with the whole zram configuration sent back so other fields are never reset. `--dry-run`, `--at-boot` and `--force` work as for `zram set`
+- `--dry-run` on `zram disable`, `swapfile create|resize|remove`, `snapshot restore|delete|prune` and `rollback`: prints the plan (`--json`: `{summary, changes[{group,label,detail,bytes,reversible}], would_refuse, reason}`, the shape uQ shows in its confirmation sheet) and changes nothing; a plan that would be refused still exits 0
+- `--ndjson` (global): while a change runs, one JSON object per line (`start`, `progress` with the share of swap already moved back into memory, then `done` or `error` with a `kind` of `memory`, `denied` or `other`). The helper's own output is kept out of `--json` and `--ndjson` output
 - `xzram defaults apply --at-boot` / `--force`: the memory guard's refusal named these flags, but `defaults apply` didn't accept them
 - D-Bus `ApplyZramDisableWithOptions(b at_boot, b force) → as`, so D-Bus clients can get past the memory guard when disabling zram (the CLI no longer falls back to pkexec for this)
 - GUI: when Apply or Apply recommended defaults is refused for lack of free memory, offer **Apply at next boot** or **Restart anyway**; success dialogs show the CLI's messages (the at-boot note, the force warning)

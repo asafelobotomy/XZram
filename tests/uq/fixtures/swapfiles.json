@@ -1,0 +1,7 @@
+[
+  {
+    "path": "/swap/swapfile",
+    "size_mb": 4096,
+    "priority": 10
+  }
+]

@@ -23,6 +23,9 @@ _xzram() {
             xzram,apply)
                 cmd="xzram__subcmd__apply"
                 ;;
+            xzram,config)
+                cmd="xzram__subcmd__config"
+                ;;
             xzram,daemon)
                 cmd="xzram__subcmd__daemon"
                 ;;
@@ -61,6 +64,24 @@ _xzram() {
                 ;;
             xzram,zram)
                 cmd="xzram__subcmd__zram"
+                ;;
+            xzram__subcmd__config,help)
+                cmd="xzram__subcmd__config__subcmd__help"
+                ;;
+            xzram__subcmd__config,set)
+                cmd="xzram__subcmd__config__subcmd__set"
+                ;;
+            xzram__subcmd__config,show)
+                cmd="xzram__subcmd__config__subcmd__show"
+                ;;
+            xzram__subcmd__config__subcmd__help,help)
+                cmd="xzram__subcmd__config__subcmd__help__subcmd__help"
+                ;;
+            xzram__subcmd__config__subcmd__help,set)
+                cmd="xzram__subcmd__config__subcmd__help__subcmd__set"
+                ;;
+            xzram__subcmd__config__subcmd__help,show)
+                cmd="xzram__subcmd__config__subcmd__help__subcmd__show"
                 ;;
             xzram__subcmd__daemon,help)
                 cmd="xzram__subcmd__daemon__subcmd__help"
@@ -107,6 +128,9 @@ _xzram() {
             xzram__subcmd__help,apply)
                 cmd="xzram__subcmd__help__subcmd__apply"
                 ;;
+            xzram__subcmd__help,config)
+                cmd="xzram__subcmd__help__subcmd__config"
+                ;;
             xzram__subcmd__help,daemon)
                 cmd="xzram__subcmd__help__subcmd__daemon"
                 ;;
@@ -145,6 +169,12 @@ _xzram() {
                 ;;
             xzram__subcmd__help,zram)
                 cmd="xzram__subcmd__help__subcmd__zram"
+                ;;
+            xzram__subcmd__help__subcmd__config,set)
+                cmd="xzram__subcmd__help__subcmd__config__subcmd__set"
+                ;;
+            xzram__subcmd__help__subcmd__config,show)
+                cmd="xzram__subcmd__help__subcmd__config__subcmd__show"
                 ;;
             xzram__subcmd__help__subcmd__daemon,start)
                 cmd="xzram__subcmd__help__subcmd__daemon__subcmd__start"
@@ -411,7 +441,7 @@ _xzram() {
 
     case "${cmd}" in
         xzram)
-            opts="-h -V --json --dbus --help --version status detect doctor zram swapfile swap sysctl pending daemon apply defaults rollback snapshot help"
+            opts="-h -V --json --dbus --ndjson --help --version status config detect doctor zram swapfile swap sysctl pending daemon apply defaults rollback snapshot help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 1 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -425,7 +455,7 @@ _xzram() {
             return 0
             ;;
         xzram__subcmd__apply)
-            opts="-h --at-boot --force --json --dbus --help"
+            opts="-h --at-boot --force --json --dbus --ndjson --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -438,8 +468,106 @@ _xzram() {
             COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
             return 0
             ;;
+        xzram__subcmd__config)
+            opts="-h --json --dbus --ndjson --help show set help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__config__subcmd__help)
+            opts="show set help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__config__subcmd__help__subcmd__help)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__config__subcmd__help__subcmd__set)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__config__subcmd__help__subcmd__show)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__config__subcmd__set)
+            opts="-h --at-boot --force --dry-run --json --dbus --ndjson --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__config__subcmd__show)
+            opts="-h --json --dbus --ndjson --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
         xzram__subcmd__daemon)
-            opts="-h --json --dbus --help start help"
+            opts="-h --json --dbus --ndjson --help start help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -495,7 +623,7 @@ _xzram() {
             return 0
             ;;
         xzram__subcmd__daemon__subcmd__start)
-            opts="-h --json --dbus --help"
+            opts="-h --json --dbus --ndjson --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -509,7 +637,7 @@ _xzram() {
             return 0
             ;;
         xzram__subcmd__defaults)
-            opts="-h --json --dbus --help recommend stage apply optimize-linked help"
+            opts="-h --json --dbus --ndjson --help recommend stage apply optimize-linked help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -523,7 +651,7 @@ _xzram() {
             return 0
             ;;
         xzram__subcmd__defaults__subcmd__apply)
-            opts="-h --yes --zram-scale --swap-scale --at-boot --force --json --dbus --help"
+            opts="-h --yes --zram-scale --swap-scale --at-boot --force --json --dbus --ndjson --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -629,7 +757,7 @@ _xzram() {
             return 0
             ;;
         xzram__subcmd__defaults__subcmd__optimize__subcmd__linked)
-            opts="-h --anchor --seed-file --json --dbus --help"
+            opts="-h --anchor --seed-file --json --dbus --ndjson --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -651,7 +779,7 @@ _xzram() {
             return 0
             ;;
         xzram__subcmd__defaults__subcmd__recommend)
-            opts="-h --zram-scale --swap-scale --json --dbus --help"
+            opts="-h --zram-scale --swap-scale --json --dbus --ndjson --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -673,7 +801,7 @@ _xzram() {
             return 0
             ;;
         xzram__subcmd__defaults__subcmd__stage)
-            opts="-h --zram-scale --swap-scale --json --dbus --help"
+            opts="-h --zram-scale --swap-scale --json --dbus --ndjson --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -695,7 +823,7 @@ _xzram() {
             return 0
             ;;
         xzram__subcmd__detect)
-            opts="-h --json --dbus --help"
+            opts="-h --json --dbus --ndjson --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -709,7 +837,7 @@ _xzram() {
             return 0
             ;;
         xzram__subcmd__doctor)
-            opts="-h --json --dbus --help"
+            opts="-h --json --dbus --ndjson --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -723,7 +851,7 @@ _xzram() {
             return 0
             ;;
         xzram__subcmd__help)
-            opts="status detect doctor zram swapfile swap sysctl pending daemon apply defaults rollback snapshot help"
+            opts="status config detect doctor zram swapfile swap sysctl pending daemon apply defaults rollback snapshot help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -739,6 +867,48 @@ _xzram() {
         xzram__subcmd__help__subcmd__apply)
             opts=""
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__help__subcmd__config)
+            opts="show set"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__help__subcmd__config__subcmd__set)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        xzram__subcmd__help__subcmd__config__subcmd__show)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
             fi
@@ -1325,7 +1495,7 @@ _xzram() {
             return 0
             ;;
         xzram__subcmd__pending)
-            opts="-h --json --dbus --help show clear help"
+            opts="-h --json --dbus --ndjson --help show clear help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1339,7 +1509,7 @@ _xzram() {
             return 0
             ;;
         xzram__subcmd__pending__subcmd__clear)
-            opts="-h --json --dbus --help"
+            opts="-h --json --dbus --ndjson --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1409,7 +1579,7 @@ _xzram() {
             return 0
             ;;
         xzram__subcmd__pending__subcmd__show)
-            opts="-h --json --dbus --help"
+            opts="-h --json --dbus --ndjson --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1423,7 +1593,7 @@ _xzram() {
             return 0
             ;;
         xzram__subcmd__rollback)
-            opts="-h --json --dbus --help"
+            opts="-h --dry-run --json --dbus --ndjson --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1437,7 +1607,7 @@ _xzram() {
             return 0
             ;;
         xzram__subcmd__snapshot)
-            opts="-h --json --dbus --help list create restore delete prune help"
+            opts="-h --json --dbus --ndjson --help list create restore delete prune help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1451,7 +1621,7 @@ _xzram() {
             return 0
             ;;
         xzram__subcmd__snapshot__subcmd__create)
-            opts="-h --label --trigger --json --dbus --help"
+            opts="-h --label --trigger --json --dbus --ndjson --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1473,7 +1643,7 @@ _xzram() {
             return 0
             ;;
         xzram__subcmd__snapshot__subcmd__delete)
-            opts="-h --yes --json --dbus --help"
+            opts="-h --yes --dry-run --json --dbus --ndjson --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1585,7 +1755,7 @@ _xzram() {
             return 0
             ;;
         xzram__subcmd__snapshot__subcmd__list)
-            opts="-h --json --dbus --help"
+            opts="-h --json --dbus --ndjson --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1599,7 +1769,7 @@ _xzram() {
             return 0
             ;;
         xzram__subcmd__snapshot__subcmd__prune)
-            opts="-h --keep --yes --json --dbus --help"
+            opts="-h --keep --yes --dry-run --json --dbus --ndjson --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1617,7 +1787,7 @@ _xzram() {
             return 0
             ;;
         xzram__subcmd__snapshot__subcmd__restore)
-            opts="-h --json --dbus --help"
+            opts="-h --dry-run --json --dbus --ndjson --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1631,7 +1801,7 @@ _xzram() {
             return 0
             ;;
         xzram__subcmd__status)
-            opts="-h --json --dbus --help"
+            opts="-h --json --dbus --ndjson --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1645,7 +1815,7 @@ _xzram() {
             return 0
             ;;
         xzram__subcmd__swap)
-            opts="-h --json --dbus --help list on off drain-overflow help"
+            opts="-h --json --dbus --ndjson --help list on off drain-overflow help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1659,7 +1829,7 @@ _xzram() {
             return 0
             ;;
         xzram__subcmd__swap__subcmd__drain__subcmd__overflow)
-            opts="-h --force --dry-run --json --dbus --help"
+            opts="-h --force --dry-run --json --dbus --ndjson --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1757,7 +1927,7 @@ _xzram() {
             return 0
             ;;
         xzram__subcmd__swap__subcmd__list)
-            opts="-h --json --dbus --help"
+            opts="-h --json --dbus --ndjson --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1771,7 +1941,7 @@ _xzram() {
             return 0
             ;;
         xzram__subcmd__swap__subcmd__off)
-            opts="-h --json --dbus --help"
+            opts="-h --json --dbus --ndjson --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1785,7 +1955,7 @@ _xzram() {
             return 0
             ;;
         xzram__subcmd__swap__subcmd__on)
-            opts="-h --json --dbus --help"
+            opts="-h --json --dbus --ndjson --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1799,7 +1969,7 @@ _xzram() {
             return 0
             ;;
         xzram__subcmd__swapfile)
-            opts="-h --json --dbus --help list create resize remove check prepare help"
+            opts="-h --json --dbus --ndjson --help list create resize remove check prepare help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1813,7 +1983,7 @@ _xzram() {
             return 0
             ;;
         xzram__subcmd__swapfile__subcmd__check)
-            opts="-h --json --dbus --help"
+            opts="-h --json --dbus --ndjson --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1827,7 +1997,7 @@ _xzram() {
             return 0
             ;;
         xzram__subcmd__swapfile__subcmd__create)
-            opts="-h --size-mb --priority --now --prepare --mkdir --json --dbus --help"
+            opts="-h --size-mb --priority --now --prepare --mkdir --dry-run --json --dbus --ndjson --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1961,7 +2131,7 @@ _xzram() {
             return 0
             ;;
         xzram__subcmd__swapfile__subcmd__list)
-            opts="-h --json --dbus --help"
+            opts="-h --json --dbus --ndjson --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1975,7 +2145,7 @@ _xzram() {
             return 0
             ;;
         xzram__subcmd__swapfile__subcmd__prepare)
-            opts="-h --mkdir --json --dbus --help"
+            opts="-h --mkdir --json --dbus --ndjson --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -1989,7 +2159,7 @@ _xzram() {
             return 0
             ;;
         xzram__subcmd__swapfile__subcmd__remove)
-            opts="-h --now --json --dbus --help"
+            opts="-h --now --dry-run --json --dbus --ndjson --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2003,7 +2173,7 @@ _xzram() {
             return 0
             ;;
         xzram__subcmd__swapfile__subcmd__resize)
-            opts="-h --size-mb --now --json --dbus --help"
+            opts="-h --size-mb --now --dry-run --json --dbus --ndjson --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2021,7 +2191,7 @@ _xzram() {
             return 0
             ;;
         xzram__subcmd__sysctl)
-            opts="-h --json --dbus --help show set help"
+            opts="-h --json --dbus --ndjson --help show set help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2091,7 +2261,7 @@ _xzram() {
             return 0
             ;;
         xzram__subcmd__sysctl__subcmd__set)
-            opts="-h --swappiness --watermark-boost-factor --watermark-scale-factor --page-cluster --vfs-cache-pressure --dirty-bytes --dirty-background-bytes --zram-defaults --now --json --dbus --help"
+            opts="-h --swappiness --watermark-boost-factor --watermark-scale-factor --page-cluster --vfs-cache-pressure --dirty-bytes --dirty-background-bytes --zram-defaults --now --json --dbus --ndjson --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2133,7 +2303,7 @@ _xzram() {
             return 0
             ;;
         xzram__subcmd__sysctl__subcmd__show)
-            opts="-h --json --dbus --help"
+            opts="-h --json --dbus --ndjson --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2147,7 +2317,7 @@ _xzram() {
             return 0
             ;;
         xzram__subcmd__zram)
-            opts="-h --json --dbus --help show set disable migrate help"
+            opts="-h --json --dbus --ndjson --help show set disable migrate help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2161,7 +2331,7 @@ _xzram() {
             return 0
             ;;
         xzram__subcmd__zram__subcmd__disable)
-            opts="-h --now --at-boot --force --json --dbus --help"
+            opts="-h --now --at-boot --force --dry-run --json --dbus --ndjson --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2259,7 +2429,7 @@ _xzram() {
             return 0
             ;;
         xzram__subcmd__zram__subcmd__migrate)
-            opts="-h --now --json --dbus --help"
+            opts="-h --now --json --dbus --ndjson --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2273,7 +2443,7 @@ _xzram() {
             return 0
             ;;
         xzram__subcmd__zram__subcmd__set)
-            opts="-h --device --size --algorithm --priority --now --at-boot --force --json --dbus --help"
+            opts="-h --device --size --algorithm --priority --now --at-boot --force --json --dbus --ndjson --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -2303,7 +2473,7 @@ _xzram() {
             return 0
             ;;
         xzram__subcmd__zram__subcmd__show)
-            opts="-h --json --dbus --help"
+            opts="-h --json --dbus --ndjson --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
