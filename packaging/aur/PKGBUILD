@@ -17,7 +17,7 @@ _srcname=XZram
 source=("$_srcname-$pkgver.tar.gz::https://github.com/asafelobotomy/XZram/archive/refs/tags/v$pkgver.tar.gz")
 # Pinned from the published v$pkgver tag archive (release CI: scripts/ci-aur-package.sh
 # AUR_MODE=release). Re-pin on every version bump.
-sha256sums=('0000000000000000000000000000000000000000000000000000000000000000')
+sha256sums=('e6f5aaef75a280a000b68d6f0f0fc9e0c4d6645e3100bad7ef186e687686e7ce')
 
 prepare() {
   cd "$_srcname-$pkgver"
