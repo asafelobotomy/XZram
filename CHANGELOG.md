@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-16
+
 ### Added
 - uQ Settings **Memory and swap** page rebuilt on `uq_api = 3`: five tabs (Overview, Compressed memory, Tuning, Swap files, Snapshots) laid out like Settings' own pages. It now reaches swap files (create, resize, remove) and snapshots (take, restore, delete, trim, undo the last change), shows the health check, and every change shows what it will do, asks first and streams a progress bar. Everything goes through the `xzram` command line instead of D-Bus
 - `xzram config show|set`: the settings people usually change (`zram-size`, `zram-algorithm`, `zram-priority`, `swappiness`, `page-cluster`, `vfs-cache-pressure`, `watermark-scale-factor`, `watermark-boost-factor`), one key at a time, with the whole zram configuration sent back so other fields are never reset. `--dry-run`, `--at-boot` and `--force` work as for `zram set`
@@ -258,7 +260,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Staged apply, zram/swapfile/sysctl management, doctor, snapshots
 - Packaging stubs (Arch PKGBUILD, Fedora spec, Debian)
 
-[Unreleased]: https://github.com/asafelobotomy/XZram/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/asafelobotomy/XZram/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/asafelobotomy/XZram/compare/v0.6.0...v0.7.0
+[0.6.0]: https://github.com/asafelobotomy/XZram/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/asafelobotomy/XZram/compare/v0.4.3...v0.5.0
 [0.4.3]: https://github.com/asafelobotomy/XZram/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/asafelobotomy/XZram/compare/v0.4.1...v0.4.2

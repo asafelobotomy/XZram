@@ -1,5 +1,5 @@
 Name:           xzram
-Version:        0.6.0
+Version:        0.7.0
 Release:        1%{?dist}
 Summary:        Cross-distro Linux swap management
 
@@ -75,6 +75,8 @@ make install-files DESTDIR=%{buildroot}
 %systemd_postun xzramd.service
 
 %changelog
+* Mon Nov 16 2026 XZram contributors <xzram@example.com> - 0.7.0-1
+- uQ Settings page rebuilt; config show/set, --dry-run plans and --ndjson progress in the CLI
 * Fri Nov 13 2026 XZram contributors <xzram@example.com> - 0.6.0-1
 - Saturated zram, memory guard, drain-overflow, btrfs swapfile placement
 

@@ -14,6 +14,11 @@
   <project_license>GPL-3.0-or-later</project_license>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.7.0" date="2026-11-16">
+      <description>
+        <p>Rebuilds the uQ Settings page (swap files, snapshots, health, confirmation sheets with progress) and adds xzram config show/set, --dry-run plans and --ndjson progress to the command line.</p>
+      </description>
+    </release>
     <release version="0.6.0" date="2026-11-13">
       <description>
         <p>Grows a saturated zram instead of reporting it healthy, checks free memory before resizing zram (or defers to the next boot), adds drain-overflow, larger conservative zram defaults for 11 GiB and up, and refuses to put a swapfile in a snapshotted btrfs subvolume.</p>
