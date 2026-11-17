@@ -1,4 +1,5 @@
 #include "doctorwidget.h"
+#include "uqtheme.h"
 
 #include "formatutils.h"
 #include "jsonloader.h"
@@ -21,8 +22,7 @@ DoctorWidget::DoctorWidget(QWidget *parent) : QWidget(parent) {
 
     m_detectStrip = new QLabel(this);
     m_detectStrip->setWordWrap(true);
-    m_detectStrip->setStyleSheet(
-        QStringLiteral("color: #495057; background: #e9ecef; border-radius: 4px; padding: 6px;"));
+    UqTheme::setRole(m_detectStrip, "strip");
     m_detectStrip->hide();
     outer->addWidget(m_detectStrip);
 
@@ -69,8 +69,7 @@ void DoctorWidget::setDetectionJson(const QString &json) {
 
 void DoctorWidget::clearIssues() {
     m_header->setText(tr("No diagnostics yet"));
-    m_header->setStyleSheet(
-        QStringLiteral("background: #e9ecef; border-radius: 4px; padding: 6px;"));
+    UqTheme::setRole(m_header, "strip");
 
     while (QLayoutItem *item = m_issuesLayout->takeAt(0)) {
         if (QWidget *widget = item->widget()) {
@@ -91,16 +90,13 @@ QWidget *DoctorWidget::makeIssueCard(const QJsonObject &issue) {
     auto *layout = new QVBoxLayout(card);
     layout->setContentsMargins(10, 8, 10, 8);
 
-    QString bg = QStringLiteral("#d1ecf1");
-    QString fg = QStringLiteral("#0c5460");
+    const char *role = "info";
     if (severity == QLatin1String("warning")) {
-        bg = QStringLiteral("#fff3cd");
-        fg = QStringLiteral("#856404");
+        role = "warn";
     } else if (severity == QLatin1String("error")) {
-        bg = QStringLiteral("#f8d7da");
-        fg = QStringLiteral("#721c24");
+        role = "error";
     }
-    card->setStyleSheet(QStringLiteral("background: %1; color: %2; border-radius: 6px;").arg(bg, fg));
+    UqTheme::setRole(card, role);
 
     auto *title = new QLabel(
         QStringLiteral("<b>%1</b> — %2")
@@ -159,8 +155,7 @@ void DoctorWidget::setDoctorJson(const QString &json) {
     const QJsonObject root = JsonLoader::parseObject(json, &error);
     if (root.contains(QStringLiteral("error"))) {
         m_header->setText(root.value(QStringLiteral("error")).toString());
-        m_header->setStyleSheet(
-            QStringLiteral("background: #f8d7da; color: #721c24; border-radius: 4px; padding: 6px;"));
+        UqTheme::setRole(m_header, "error");
         return;
     }
 
@@ -172,16 +167,13 @@ void DoctorWidget::setDoctorJson(const QString &json) {
     const QString summary = root.value(QStringLiteral("summary")).toString();
     if (healthy && warnings == 0) {
         m_header->setText(tr("System healthy"));
-        m_header->setStyleSheet(
-            QStringLiteral("background: #d4edda; color: #155724; border-radius: 4px; padding: 6px;"));
+        UqTheme::setRole(m_header, "ok");
     } else if (healthy) {
         m_header->setText(summary.isEmpty() ? tr("Healthy, %n warning(s)", nullptr, warnings) : summary);
-        m_header->setStyleSheet(
-            QStringLiteral("background: #fff3cd; color: #856404; border-radius: 4px; padding: 6px;"));
+        UqTheme::setRole(m_header, "warn");
     } else {
         m_header->setText(summary.isEmpty() ? tr("%1 issue(s) found").arg(issues.size()) : summary);
-        m_header->setStyleSheet(
-            QStringLiteral("background: #f8d7da; color: #721c24; border-radius: 4px; padding: 6px;"));
+        UqTheme::setRole(m_header, "error");
     }
 
     m_issuesLayout->takeAt(m_issuesLayout->count() - 1);

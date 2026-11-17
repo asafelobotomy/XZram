@@ -1,4 +1,5 @@
 #include "sysctlwidget.h"
+#include "uqtheme.h"
 
 #include "jsonloader.h"
 #include "privilegedjob.h"
@@ -26,7 +27,7 @@ SysctlWidget::SysctlWidget(QWidget *parent) : QWidget(parent) {
            "apply from the pending banner."),
         this);
     intro->setWordWrap(true);
-    intro->setStyleSheet(QStringLiteral("color: #495057;"));
+    UqTheme::setRole(intro, "muted");
     layout->addWidget(intro);
 
     auto *group = new QGroupBox(tr("VM tuning"), this);

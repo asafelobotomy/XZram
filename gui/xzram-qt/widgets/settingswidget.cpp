@@ -1,4 +1,5 @@
 #include "settingswidget.h"
+#include "uqtheme.h"
 
 #include "xzramcli.h"
 
@@ -29,7 +30,7 @@ SettingsWidget::SettingsWidget(QWidget *parent) : QWidget(parent) {
            "xzramd is optional for other clients."),
         this);
     intro->setWordWrap(true);
-    intro->setStyleSheet(QStringLiteral("color: #495057;"));
+    UqTheme::setRole(intro, "muted");
     layout->addWidget(intro);
 
     auto *prefs = new QGroupBox(tr("Preferences"), this);

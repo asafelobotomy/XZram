@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- GUI follows the uQ theme: it reads `~/.local/state/uq/theme/tokens.json` (palette, UI font and size), applies it with the Fusion style, and re-applies live when uQ switches theme, with no restart. The hard-coded status colours are gone; health chips, doctor cards and banners take their ok/warning/error colours from the theme. Without that file (not running uQ) the system palette is kept; `XZRAM_THEME=system` forces that
+
 ## [0.7.0] - 2026-11-16
 
 ### Added

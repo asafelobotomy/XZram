@@ -1,4 +1,5 @@
 #include "dashboardwidget.h"
+#include "uqtheme.h"
 
 #include "formatutils.h"
 #include "jsonloader.h"
@@ -15,6 +16,10 @@
 #include <QPushButton>
 #include <QTableWidget>
 #include <QVBoxLayout>
+
+namespace {
+constexpr int kInactiveRole = Qt::UserRole + 1;
+}
 
 DashboardWidget::DashboardWidget(QWidget *parent) : QWidget(parent) {
     auto *layout = new QVBoxLayout(this);
@@ -60,8 +65,7 @@ DashboardWidget::DashboardWidget(QWidget *parent) : QWidget(parent) {
 
     m_detectStrip = new QLabel(this);
     m_detectStrip->setWordWrap(true);
-    m_detectStrip->setStyleSheet(
-        QStringLiteral("color: #495057; background: #e9ecef; border-radius: 4px; padding: 6px;"));
+    UqTheme::setRole(m_detectStrip, "strip");
     layout->addWidget(m_detectStrip);
 
     auto *tableGroup = new QGroupBox(tr("Swap overview"), this);
@@ -82,7 +86,24 @@ DashboardWidget::DashboardWidget(QWidget *parent) : QWidget(parent) {
     tableLayout->addWidget(m_swapTable);
     layout->addWidget(tableGroup, 1);
 
+    if (auto *theme = UqTheme::instance()) {
+        connect(theme, &UqTheme::changed, this, &DashboardWidget::recolourRows);
+    }
     clearState();
+}
+
+// Inactive rows are flagged by data, not coloured at creation, so they follow theme changes.
+void DashboardWidget::recolourRows() {
+    auto *theme = UqTheme::instance();
+    if (!theme) {
+        return;
+    }
+    for (int row = 0; row < m_swapTable->rowCount(); ++row) {
+        QTableWidgetItem *item = m_swapTable->item(row, 2);
+        if (item && item->data(kInactiveRole).toBool()) {
+            item->setForeground(QBrush(theme->color(QStringLiteral("warning"))));
+        }
+    }
 }
 
 void DashboardWidget::clearState() {
@@ -99,21 +120,17 @@ void DashboardWidget::clearState() {
 void DashboardWidget::updateHealthChip(bool healthy, int issueCount, int warnings, const QString &summary) {
     if (healthy && warnings == 0) {
         m_healthChip->setText(tr("System healthy"));
-        m_healthChip->setStyleSheet(
-            QStringLiteral("background-color: #d4edda; color: #155724; border-radius: 4px; padding: 4px;"));
+        UqTheme::setRole(m_healthChip, "ok");
     } else if (healthy) {
         // Healthy (no errors) but with warnings, e.g. zram full and spilling to disk.
         m_healthChip->setText(summary.isEmpty() ? tr("Healthy, %n warning(s)", nullptr, warnings) : summary);
-        m_healthChip->setStyleSheet(
-            QStringLiteral("background-color: #fff3cd; color: #856404; border-radius: 4px; padding: 4px;"));
+        UqTheme::setRole(m_healthChip, "warn");
     } else if (issueCount > 0) {
         m_healthChip->setText(summary.isEmpty() ? tr("%1 issue(s) found").arg(issueCount) : summary);
-        m_healthChip->setStyleSheet(
-            QStringLiteral("background-color: #f8d7da; color: #721c24; border-radius: 4px; padding: 4px;"));
+        UqTheme::setRole(m_healthChip, "error");
     } else {
         m_healthChip->setText(tr("Issues detected"));
-        m_healthChip->setStyleSheet(
-            QStringLiteral("background-color: #f8d7da; color: #721c24; border-radius: 4px; padding: 4px;"));
+        UqTheme::setRole(m_healthChip, "error");
     }
 }
 
@@ -206,9 +223,10 @@ void DashboardWidget::setSwapsJson(const QString &json) {
         m_swapTable->setItem(row, 1, new QTableWidgetItem(FormatUtils::humanizeEnum(type)));
         auto *statusItem = new QTableWidgetItem(status);
         if (!active) {
-            statusItem->setForeground(QBrush(QColor(QStringLiteral("#856404"))));
+            statusItem->setData(kInactiveRole, true);
         }
         m_swapTable->setItem(row, 2, statusItem);
+        recolourRows();
         auto *sizeItem = new QTableWidgetItem(sizeText);
         sizeItem->setToolTip(sizeText);
         m_swapTable->setItem(row, 3, sizeItem);

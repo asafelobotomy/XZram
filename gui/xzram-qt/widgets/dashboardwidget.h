@@ -24,6 +24,7 @@ signals:
 
 private:
     void clearState();
+    void recolourRows();
     void updateHealthChip(bool healthy, int issueCount, int warnings, const QString &summary);
 
     QLabel *m_memLabel;

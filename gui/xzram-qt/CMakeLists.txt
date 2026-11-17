@@ -10,6 +10,7 @@ set(SOURCES
     refreshrunner.cpp
     formatutils.cpp
     jsonloader.cpp
+    uqtheme.cpp
     linkedoptimize.cpp
     resources.qrc
     widgets/pendingbanner.cpp
@@ -36,6 +37,7 @@ set(HEADERS
     refreshrunner.h
     formatutils.h
     jsonloader.h
+    uqtheme.h
     linkedoptimize.h
     widgets/pendingbanner.h
     widgets/dashboardwidget.h
