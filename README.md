@@ -17,7 +17,7 @@ Linux distributions. It includes a Qt6 GUI and system D-Bus daemon (`xzramd`).
 - **Sysctl tuning** — swappiness, watermark, and page-cluster settings
 - **Polkit integration** — granular privileged operations (no blanket sudo)
 - **D-Bus daemon** — `xzramd` on `io.github.XZram1` for `--dbus` / other clients; D-Bus activation starts it on demand (native GUI does not auto-start or require it)
-- **Qt6 GUI** — dashboard, zram, swap files, sysctl, doctor, snapshots, and settings (CLI/pkexec-first; daemon optional)
+- **Qt6 GUI** — follows the uQ theme (live); dashboard, zram, swap files, sysctl, doctor, snapshots, and settings (CLI/pkexec-first; daemon optional)
 - **uQ Settings page** — on [uQ](https://github.com/asafelobotomy/uq) systems, a "Memory and swap" page under Apps: memory and swap in use, zram size and compression, swappiness, and the swap list. It can change the zram size and algorithm and swappiness (through xzramd). Optional: install `uq`; see [`uq/README.md`](uq/README.md)
 - **Configuration snapshots** — automatic backups before every apply; versioned restore (`app_open` is manual)
 

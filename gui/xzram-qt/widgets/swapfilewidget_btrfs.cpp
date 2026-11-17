@@ -1,4 +1,5 @@
 #include "swapfilewidget.h"
+#include "uqtheme.h"
 
 #include "jsonloader.h"
 #include "privilegedjob.h"
@@ -75,8 +76,7 @@ void SwapfileWidget::updateBtrfsStatus(const QString &json) {
     const QJsonObject root = JsonLoader::parseObject(json, &error);
     if (root.contains(QStringLiteral("error"))) {
         m_btrfsStatus->setText(root.value(QStringLiteral("error")).toString());
-        m_btrfsStatus->setStyleSheet(
-            QStringLiteral("color: #721c24; background: #f8d7da; padding: 8px; border-radius: 4px;"));
+        UqTheme::setRole(m_btrfsStatus, "error");
         m_btrfsStatus->show();
         return;
     }
@@ -85,11 +85,9 @@ void SwapfileWidget::updateBtrfsStatus(const QString &json) {
     const QString message = JsonLoader::optionalString(root, QStringLiteral("message"));
     m_btrfsStatus->setText(message);
     if (ready) {
-        m_btrfsStatus->setStyleSheet(
-            QStringLiteral("color: #155724; background: #d4edda; padding: 8px; border-radius: 4px;"));
+        UqTheme::setRole(m_btrfsStatus, "ok");
     } else {
-        m_btrfsStatus->setStyleSheet(
-            QStringLiteral("color: #856404; background: #fff3cd; padding: 8px; border-radius: 4px;"));
+        UqTheme::setRole(m_btrfsStatus, "warn");
     }
     m_btrfsStatus->show();
 }

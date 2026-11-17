@@ -1,4 +1,5 @@
 #include "zramwidget.h"
+#include "uqtheme.h"
 
 #include "formatutils.h"
 #include "jsonloader.h"
@@ -26,7 +27,7 @@ ZramWidget::ZramWidget(QWidget *parent) : QWidget(parent) {
            "then apply from the pending banner at the top."),
         this);
     intro->setWordWrap(true);
-    intro->setStyleSheet(QStringLiteral("color: #495057;"));
+    UqTheme::setRole(intro, "muted");
     layout->addWidget(intro);
 
     auto *statsGroup = new QGroupBox(tr("Live device stats"), this);
@@ -38,8 +39,7 @@ ZramWidget::ZramWidget(QWidget *parent) : QWidget(parent) {
 
     m_mismatchWarning = new QLabel(this);
     m_mismatchWarning->setWordWrap(true);
-    m_mismatchWarning->setStyleSheet(
-        QStringLiteral("color: #856404; background: #fff3cd; padding: 8px; border-radius: 4px;"));
+    UqTheme::setRole(m_mismatchWarning, "warn");
     m_mismatchWarning->hide();
     layout->addWidget(m_mismatchWarning);
 

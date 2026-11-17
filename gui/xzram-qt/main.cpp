@@ -1,4 +1,5 @@
 #include "mainwindow.h"
+#include "uqtheme.h"
 
 #include <QApplication>
 #include <QIcon>
@@ -11,6 +12,8 @@ int main(int argc, char *argv[]) {
     QApplication::setApplicationVersion(QStringLiteral(XZRAM_QT_VERSION));
     QApplication::setDesktopFileName(QStringLiteral("io.github.XZram"));
     QApplication::setWindowIcon(QIcon(QStringLiteral(":/icons/xzram-icon.png")));
+
+    UqTheme::install(&app);
 
     MainWindow window;
     window.show();

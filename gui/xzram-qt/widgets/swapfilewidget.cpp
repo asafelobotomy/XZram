@@ -1,4 +1,5 @@
 #include "swapfilewidget.h"
+#include "uqtheme.h"
 
 #include "jsonloader.h"
 #include "privilegedjob.h"
@@ -29,13 +30,12 @@ SwapfileWidget::SwapfileWidget(QWidget *parent) : QWidget(parent) {
            "remove, then use Apply now in the banner at the top."),
         this);
     m_introLabel->setWordWrap(true);
-    m_introLabel->setStyleSheet(QStringLiteral("color: #495057;"));
+    UqTheme::setRole(m_introLabel, "muted");
     layout->addWidget(m_introLabel);
 
     m_btrfsBanner = new QLabel(this);
     m_btrfsBanner->setWordWrap(true);
-    m_btrfsBanner->setStyleSheet(
-        QStringLiteral("background: #fff3cd; color: #856404; padding: 8px; border-radius: 4px;"));
+    UqTheme::setRole(m_btrfsBanner, "warn");
     m_btrfsBanner->hide();
     layout->addWidget(m_btrfsBanner);
 

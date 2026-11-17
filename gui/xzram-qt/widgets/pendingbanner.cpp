@@ -1,4 +1,5 @@
 #include "pendingbanner.h"
+#include "uqtheme.h"
 
 #include <QHBoxLayout>
 #include <QJsonArray>
@@ -61,8 +62,7 @@ PendingBanner::PendingBanner(QWidget *parent) : QWidget(parent) {
     layout->addWidget(m_applyButton);
     layout->addWidget(m_clearButton);
 
-    setStyleSheet(QStringLiteral(
-        "PendingBanner { background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; }"));
+    // Coloured by the application stylesheet (UqTheme), so it follows theme changes.
     hide();
 
     connect(m_applyButton, &QPushButton::clicked, this, &PendingBanner::applyRequested);
