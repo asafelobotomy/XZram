@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-11-17
+
 ### Changed
 - GUI follows the uQ theme: it reads `~/.local/state/uq/theme/tokens.json` (palette, UI font and size), applies it with the Fusion style, and re-applies live when uQ switches theme, with no restart. The hard-coded status colours are gone; health chips, doctor cards and banners take their ok/warning/error colours from the theme. Without that file (not running uQ) the system palette is kept; `XZRAM_THEME=system` forces that
 
@@ -263,7 +265,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Staged apply, zram/swapfile/sysctl management, doctor, snapshots
 - Packaging stubs (Arch PKGBUILD, Fedora spec, Debian)
 
-[Unreleased]: https://github.com/asafelobotomy/XZram/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/asafelobotomy/XZram/compare/v0.7.1...HEAD
+[0.7.1]: https://github.com/asafelobotomy/XZram/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/asafelobotomy/XZram/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/asafelobotomy/XZram/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/asafelobotomy/XZram/compare/v0.4.3...v0.5.0
