@@ -1,3 +1,9 @@
+xzram (0.7.1-1) unstable; urgency=medium
+
+  * GUI follows the uQ theme and re-themes live
+
+ -- XZram contributors <xzram@example.com>  Tue, 17 Nov 2026 12:00:00 +0000
+
 xzram (0.7.0-1) unstable; urgency=medium
 
   * uQ Settings page rebuilt: swap files, snapshots, health check, plans
