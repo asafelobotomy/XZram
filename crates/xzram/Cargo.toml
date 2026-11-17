@@ -8,7 +8,6 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-anyhow.workspace = true
 fs2.workspace = true
 libc = "0.2"
 serde.workspace = true
