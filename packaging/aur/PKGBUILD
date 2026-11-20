@@ -5,8 +5,8 @@
 
 pkgbase=xzram
 pkgname=('xzram' 'xzram-gui')
-pkgver=0.7.1
-pkgrel=2
+pkgver=0.7.2
+pkgrel=1
 pkgdesc="Cross-distro Linux swap management (zram, swap files, sysctl tuning)"
 arch=('x86_64' 'aarch64')
 url="https://github.com/asafelobotomy/XZram"

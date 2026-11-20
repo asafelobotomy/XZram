@@ -1,5 +1,5 @@
 Name:           xzram
-Version:        0.7.1
+Version:        0.7.2
 Release:        1%{?dist}
 Summary:        Cross-distro Linux swap management
 
@@ -75,6 +75,8 @@ make install-files DESTDIR=%{buildroot}
 %systemd_postun xzramd.service
 
 %changelog
+* Fri Nov 20 2026 XZram contributors <xzram@example.com> - 0.7.2-1
+- Update clap, clap_complete and zbus
 * Tue Nov 17 2026 XZram contributors <xzram@example.com> - 0.7.1-1
 - GUI follows the uQ theme and re-themes live
 * Mon Nov 16 2026 XZram contributors <xzram@example.com> - 0.7.0-1

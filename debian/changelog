@@ -1,3 +1,9 @@
+xzram (0.7.2-1) unstable; urgency=medium
+
+  * Update clap, clap_complete and zbus
+
+ -- XZram contributors <xzram@example.com>  Fri, 20 Nov 2026 12:00:00 +0000
+
 xzram (0.7.1-1) unstable; urgency=medium
 
   * GUI follows the uQ theme and re-themes live
