@@ -90,6 +90,9 @@ DashboardWidget::DashboardWidget(QWidget *parent) : QWidget(parent) {
         connect(theme, &UqTheme::changed, this, &DashboardWidget::recolourRows);
     }
     clearState();
+    // Until doctor answers: never "healthy" before anything was checked.
+    m_healthChip->setText(tr("Checking health…"));
+    UqTheme::setRole(m_healthChip, "info");
 }
 
 // Inactive rows are flagged by data, not coloured at creation, so they follow theme changes.
@@ -114,7 +117,6 @@ void DashboardWidget::clearState() {
     m_zramCard->setText(tr("No active ZRAM devices"));
     m_swapTable->setRowCount(0);
     m_detectStrip->setText(tr("Detection: unavailable"));
-    updateHealthChip(true, 0, 0, QString());
 }
 
 void DashboardWidget::updateHealthChip(bool healthy, int issueCount, int warnings, const QString &summary) {
@@ -240,6 +242,10 @@ void DashboardWidget::setDoctorJson(const QString &json) {
     QString error;
     const QJsonObject root = JsonLoader::parseObject(json, &error);
     if (root.contains(QStringLiteral("error"))) {
+        // The health check couldn't run (e.g. the xzram CLI is missing): say so, as the
+        // Doctor tab does, instead of keeping an earlier or default verdict.
+        m_healthChip->setText(tr("Health check failed: %1").arg(root.value(QStringLiteral("error")).toString()));
+        UqTheme::setRole(m_healthChip, "error");
         return;
     }
     const bool healthy = JsonLoader::optionalBool(root, QStringLiteral("healthy"), true);
