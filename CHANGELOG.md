@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.3] - 2026-11-20
+
+### Fixed
+- GUI: the dashboard's health chip said "System healthy" at start and kept saying it when the health check couldn't run (for example with no `xzram` CLI). It now says "Checking health…" until the check answers, and shows the error when it fails, as the Doctor tab does.
+
 ## [0.7.2] - 2026-11-20
 
 ### Changed
