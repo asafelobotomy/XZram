@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- AppStream metadata names its categories (System, Settings) and its developer, so `appstreamcli validate` passes on its own and software centres can file XZram.
+
 ## [0.7.3] - 2026-11-20
 
 ### Fixed
