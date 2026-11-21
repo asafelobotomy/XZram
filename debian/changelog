@@ -1,3 +1,10 @@
+xzram (0.7.4-1) unstable; urgency=medium
+
+  * GUI: follows the uQ theme through uQ's shared uq-theme module
+  * Desktop entry: one main menu category
+
+ -- XZram contributors <xzram@example.com>  Sat, 21 Nov 2026 16:00:00 +0000
+
 xzram (0.7.3-1) unstable; urgency=medium
 
   * GUI: no "System healthy" before or without a health check
