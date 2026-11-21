@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.4] - 2026-11-21
+
 ### Changed
 
 - The GUI follows the uQ theme through uQ's shared uq-theme module (`gui/xzram-qt/vendor/uq-theme`, uq-theme 1.0.0) instead of its own file watch, and also catches uQ swapping the whole theme folder.
@@ -284,7 +286,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Staged apply, zram/swapfile/sysctl management, doctor, snapshots
 - Packaging stubs (Arch PKGBUILD, Fedora spec, Debian)
 
-[Unreleased]: https://github.com/asafelobotomy/XZram/compare/v0.7.2...HEAD
+[Unreleased]: https://github.com/asafelobotomy/XZram/compare/v0.7.4...HEAD
+[0.7.4]: https://github.com/asafelobotomy/XZram/compare/v0.7.3...v0.7.4
 [0.7.2]: https://github.com/asafelobotomy/XZram/compare/v0.7.1...v0.7.2
 [0.7.1]: https://github.com/asafelobotomy/XZram/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/asafelobotomy/XZram/compare/v0.6.0...v0.7.0
