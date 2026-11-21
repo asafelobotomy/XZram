@@ -11,6 +11,7 @@ set(SOURCES
     formatutils.cpp
     jsonloader.cpp
     uqtheme.cpp
+    vendor/uq-theme/uqtheme.cpp
     linkedoptimize.cpp
     resources.qrc
     widgets/pendingbanner.cpp
@@ -38,6 +39,7 @@ set(HEADERS
     formatutils.h
     jsonloader.h
     uqtheme.h
+    vendor/uq-theme/uqtheme.h
     linkedoptimize.h
     widgets/pendingbanner.h
     widgets/dashboardwidget.h

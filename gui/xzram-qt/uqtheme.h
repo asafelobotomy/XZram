@@ -5,15 +5,18 @@
 #include <QHash>
 #include <QObject>
 #include <QString>
+#include <QVariantMap>
 
 class QApplication;
-class QFileSystemWatcher;
-class QTimer;
 class QWidget;
+namespace uqtheme {
+class Watcher;
+}
 
-// Follows the uQ desktop theme. uqd renders ~/.local/state/uq/theme/tokens.json; this reads it,
-// applies a palette (Fusion style, so every control follows the palette) plus the UI font,
-// and re-applies whenever the file changes, so a running window re-themes live.
+// Follows the uQ desktop theme. uqd renders ~/.local/state/uq/theme/tokens.json; uQ's shared
+// uq-theme module (vendor/uq-theme, copied unchanged from uQ's native/uq-theme) reads and watches
+// it, and this applies a palette (Fusion style, so every control follows the palette) plus the UI
+// font, and re-applies whenever the tokens change, so a running window re-themes live.
 //
 // Without a tokens file (not running under uQ) or with XZRAM_THEME=system the system palette
 // is kept and the semantic colours are derived from it.
@@ -47,14 +50,12 @@ signals:
 private:
     explicit UqTheme(QApplication *app);
     void reload();
-    bool loadTokens();
+    bool applyTokens();
     void applySystem();
-    void rewatch();
 
     QApplication *m_app;
-    QFileSystemWatcher *m_watcher;
-    QTimer *m_debounce;
-    QString m_applied;  // raw tokens text last applied, to skip no-op reloads
+    uqtheme::Watcher *m_tokens;
+    QVariantMap m_applied;  // tokens last applied, to skip no-op reloads
     QHash<QString, QColor> m_colors;
     QString m_defaultStyle;
     QFont m_defaultFont;
