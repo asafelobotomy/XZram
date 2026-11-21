@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The GUI follows the uQ theme through uQ's shared uq-theme module (`gui/xzram-qt/vendor/uq-theme`, uq-theme 1.0.0) instead of its own file watch, and also catches uQ swapping the whole theme folder.
+- The desktop entry lists one main menu category (`System;Monitor;`), so menus no longer show XZram twice.
+
 ### Fixed
 
 - AppStream metadata names its categories (System, Settings) and its developer, so `appstreamcli validate` passes on its own and software centres can file XZram.
