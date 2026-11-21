@@ -133,6 +133,9 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      # the vendored uq-theme (uQ's native/uq-theme) is exactly the pinned release
+      - run: scripts/check-uq-theme.sh 1.0.0 gui/xzram-qt/vendor/uq-theme/uqtheme.h gui/xzram-qt/vendor/uq-theme/uqtheme.cpp
+
       - name: Install Qt6 and build
         run: |
           sudo apt-get update

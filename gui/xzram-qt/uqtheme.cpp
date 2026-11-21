@@ -1,17 +1,11 @@
 #include "uqtheme.h"
+#include "vendor/uq-theme/uqtheme.h"
 
 #include <QApplication>
-#include <QDir>
-#include <QFile>
-#include <QFileSystemWatcher>
 #include <QFontDatabase>
-#include <QJsonDocument>
-#include <QJsonObject>
 #include <QPalette>
-#include <QStandardPaths>
 #include <QStyle>
 #include <QStyleFactory>
-#include <QTimer>
 #include <QWidget>
 
 namespace {
@@ -38,13 +32,7 @@ UqTheme *UqTheme::install(QApplication *app) {
     return g_instance;
 }
 
-QString UqTheme::tokensPath() {
-    QString state = qEnvironmentVariable("XDG_STATE_HOME");
-    if (state.isEmpty()) {
-        state = QDir::homePath() + QStringLiteral("/.local/state");
-    }
-    return state + QStringLiteral("/uq/theme/tokens.json");
-}
+QString UqTheme::tokensPath() { return uqtheme::tokensPath("XZRAM_UQ_TOKENS"); }
 
 QColor UqTheme::mix(const QColor &a, const QColor &b, qreal t) {
     return QColor::fromRgbF(a.redF() + (b.redF() - a.redF()) * t,
@@ -83,58 +71,23 @@ QColor UqTheme::color(const QString &token) const {
 UqTheme::UqTheme(QApplication *app) : QObject(app), m_app(app) {
     m_defaultStyle = app->style()->objectName();
     m_defaultFont = app->font();
-    m_watcher = new QFileSystemWatcher(this);
-    m_debounce = new QTimer(this);
-    m_debounce->setSingleShot(true);
-    m_debounce->setInterval(120);
-    connect(m_debounce, &QTimer::timeout, this, &UqTheme::reload);
-    // uqd rewrites by rename, which drops a file watch: watch the directory as well, and
-    // re-arm both after every event.
-    connect(m_watcher, &QFileSystemWatcher::fileChanged, m_debounce, qOverload<>(&QTimer::start));
-    connect(m_watcher, &QFileSystemWatcher::directoryChanged, m_debounce,
-            qOverload<>(&QTimer::start));
+    // uq-theme follows the file (and uqd's swap of the whole theme folder) with a file watch
+    m_tokens = new uqtheme::Watcher(tokensPath(), this);
+    connect(m_tokens, &uqtheme::Watcher::tokensChanged, this, &UqTheme::reload);
     reload();
 }
 
-void UqTheme::rewatch() {
-    const QString path = tokensPath();
-    const QString dir = QFileInfo(path).absolutePath();
-    // Watch the nearest existing ancestor so a theme dir created later is noticed too.
-    QString watchDir = dir;
-    while (!QDir(watchDir).exists() && watchDir.length() > 1) {
-        watchDir = QFileInfo(watchDir).absolutePath();
+bool UqTheme::applyTokens() {
+    const QVariantMap t = m_tokens->tokens();
+    if (!t.value(QStringLiteral("present")).toBool()) {
+        return false;  // no uQ, or not a whole theme: keep what is applied
     }
-    const QStringList have = m_watcher->files() + m_watcher->directories();
-    if (!have.isEmpty()) {
-        m_watcher->removePaths(have);
-    }
-    m_watcher->addPath(watchDir);
-    if (QFile::exists(path)) {
-        m_watcher->addPath(path);
-    }
-}
-
-bool UqTheme::loadTokens() {
-    QFile file(tokensPath());
-    if (!file.open(QIODevice::ReadOnly)) {
-        return false;
-    }
-    const QByteArray raw = file.readAll();
-    const QJsonObject root = QJsonDocument::fromJson(raw).object();
-    const QJsonObject colors = root.value(QStringLiteral("colors")).toObject();
-    static const QStringList required = {
-        QStringLiteral("bg"),   QStringLiteral("surface"), QStringLiteral("text"),
-        QStringLiteral("accent"), QStringLiteral("error")};
-    for (const QString &key : required) {
-        if (!QColor(colors.value(key).toString()).isValid()) {
-            return false;  // half-written or foreign file: keep what is applied
-        }
-    }
-    if (QString::fromUtf8(raw) == m_applied && !m_system) {
+    if (t == m_applied && !m_system) {
         return true;
     }
-    m_applied = QString::fromUtf8(raw);
+    m_applied = t;
     m_system = false;
+    const QVariantMap colors = t.value(QStringLiteral("colors")).toMap();
     m_colors.clear();
     for (auto it = colors.begin(); it != colors.end(); ++it) {
         const QColor c(it.value().toString());
@@ -183,13 +136,12 @@ bool UqTheme::loadTokens() {
     }
     m_app->setPalette(p);
 
-    const QJsonObject fonts = root.value(QStringLiteral("fonts")).toObject();
-    const QString family = fonts.value(QStringLiteral("ui")).toString();
+    const QString family = t.value(QStringLiteral("fontUi")).toString();
     QFont font = m_defaultFont;
     if (!family.isEmpty() && QFontDatabase::families().contains(family)) {
         font.setFamily(family);
     }
-    if (const int size = fonts.value(QStringLiteral("size")).toInt(); size > 0) {
+    if (const int size = t.value(QStringLiteral("fontSize")).toInt(); size > 0) {
         font.setPointSize(size);
     }
     m_app->setFont(font);
@@ -220,10 +172,9 @@ void UqTheme::applySystem() {
 void UqTheme::reload() {
     const bool optOut = qEnvironmentVariable("XZRAM_THEME") == QLatin1String("system");
     const bool hadTokens = !m_applied.isEmpty();
-    const bool ok = !optOut && loadTokens();
+    const bool ok = !optOut && applyTokens();
     if (!ok && !hadTokens) {
         applySystem();
     }
-    rewatch();
     emit changed();
 }
