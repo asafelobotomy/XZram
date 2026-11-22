@@ -61,10 +61,8 @@ jobs:
 
       - name: Clippy
         run: cargo clippy --all-targets --locked -- -D warnings
-      - name: uq-diag is the pinned release, and the problem codes match uq/diag/xzram.toml
-        run: |
-          scripts/check-uq-diag.sh 1.0.1 crates/xzram/src/uq_diag.rs
-          scripts/check-diag-codes.sh uq/diag/xzram.toml crates
+      - name: uQ's kits (uq/native.toml) are the pinned releases, and the problem codes match uq/diag/xzram.toml
+        run: scripts/check-uq-native.sh
 
       - name: LOC limit (400)
         run: ./scripts/check-loc.sh
@@ -136,9 +134,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      # the vendored uq-theme (uQ's native/uq-theme) is exactly the pinned release
-      - run: scripts/check-uq-theme.sh 1.0.0 gui/xzram-qt/vendor/uq-theme/uqtheme.h gui/xzram-qt/vendor/uq-theme/uqtheme.cpp
 
       - name: Install Qt6 and build
         run: |

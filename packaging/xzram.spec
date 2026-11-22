@@ -1,5 +1,5 @@
 Name:           xzram
-Version:        0.7.5
+Version:        0.7.6
 Release:        1%{?dist}
 Summary:        Cross-distro Linux swap management
 
@@ -76,6 +76,9 @@ make install-files DESTDIR=%{buildroot}
 %systemd_postun xzramd.service
 
 %changelog
+* Sun Nov 22 2026 XZram contributors <xzram@example.com> - 0.7.6-1
+- The window follows the uQ theme through uQ's shared uq-theme 1.1.0
+
 * Sun Nov 22 2026 XZram contributors <xzram@example.com> - 0.7.5-1
 - Problems show in uQ: uQ's log format, XZRAM-001..007 codes, crash records (uq-diag)
 

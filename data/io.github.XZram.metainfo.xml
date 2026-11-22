@@ -20,6 +20,11 @@
   <project_license>GPL-3.0-or-later</project_license>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.7.6" date="2026-11-22">
+      <description>
+        <p>Follows the uQ theme through uQ's shared uq-theme 1.1.0.</p>
+      </description>
+    </release>
     <release version="0.7.5" date="2026-11-22">
       <description>
         <p>Problems and crashes show up in uQ's Settings, explained in plain words.</p>
