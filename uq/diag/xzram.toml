@@ -1,0 +1,54 @@
+# XZram's problem codes for uQ (`uqctl log`, `uqctl explain`, Settings › Problems). Installed as
+# /usr/share/uq/diag/xzram.toml. A code never changes meaning: set `retired = true` on one nothing
+# logs any more, and give a new problem the next number.
+app = "XZram"
+system_units = ["xzramd.service"]
+
+[[code]]
+id = "XZRAM-001"
+severity = "warn"
+title = "XZram ignored an error-file setting"
+means = "XZram's helper was given a place to write its error message that it doesn't trust, so it wrote it to the usual place instead. Nothing else changes."
+fix = "Nothing to do. If you set XZRAM_ERROR_FILE yourself, point it at a file in a folder only root can write."
+
+[[code]]
+id = "XZRAM-002"
+severity = "warn"
+title = "XZram couldn't pass on an error message"
+means = "A change failed and XZram's helper couldn't write why for the app or uQ Settings to show, so the message may be missing."
+fix = "Run `xzram status` to see the current state, and `xzram apply` again in a terminal to read the error."
+
+[[code]]
+id = "XZRAM-003"
+severity = "warn"
+title = "Old XZram snapshots couldn't be cleared"
+means = "XZram keeps a snapshot of your swap setup before each change and removes the oldest; it couldn't remove them this time. They only take a little space."
+fix = "Run `xzram snapshot prune` to clear them, or `xzram snapshot list` to see them."
+
+[[code]]
+id = "XZRAM-004"
+severity = "error"
+title = "A swap snapshot couldn't be restored"
+means = "XZram tried to put back an earlier swap setup and it failed part way. It turned swap back on, but the setup may be a mix of old and new."
+fix = "Run `xzram status` to see what is in use, then `xzram doctor`. Restoring the snapshot again usually finishes the job."
+
+[[code]]
+id = "XZRAM-005"
+severity = "error"
+title = "A swap change failed and was undone"
+means = "XZram couldn't apply your new swap or zram settings, so it put back the snapshot taken just before. Your pending changes are kept so you can fix them and try again."
+fix = "Open XZram (or uQ Settings' Memory and swap page) to see the error, change what it names, and apply again."
+
+[[code]]
+id = "XZRAM-006"
+severity = "error"
+title = "A failed swap change couldn't be undone"
+means = "A change failed, and putting back the earlier setup failed too, so swap may be set up only part way."
+fix = "Run `xzram doctor` and `xzram snapshot restore` with the snapshot it names. Reboot if swap is off and nothing else helps."
+
+[[code]]
+id = "XZRAM-007"
+severity = "error"
+title = "An XZram change failed"
+means = "XZram's helper, which makes the changes as root, stopped with an error, so the change you asked for wasn't made."
+fix = "Open XZram to read the error, or run the same change with `xzram apply` in a terminal."

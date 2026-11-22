@@ -23,7 +23,6 @@ tokio = { version = "1", features = [
     "time",
 ] }
 tracing.workspace = true
-tracing-subscriber.workspace = true
 xzram = { path = "../xzram" }
 zbus = { version = "6.2.1", features = ["tokio"] }
 zbus_polkit = "6.0.0"

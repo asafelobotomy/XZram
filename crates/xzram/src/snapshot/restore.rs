@@ -47,7 +47,7 @@ pub fn restore_snapshot(id: &str) -> Result<ApplyResult> {
         }
         // Past swapoff, a failed step would otherwise leave the machine with no swap.
         let notes = steps::reactivate_swap_after_failure();
-        warn!(error = %err, ?notes, "snapshot restore failed; re-enabled swap");
+        warn!(error = %err, ?notes, "[XZRAM-004] snapshot restore failed; re-enabled swap");
         let note = if notes.is_empty() {
             "swap was turned back on from the configuration now on disk".to_string()
         } else {

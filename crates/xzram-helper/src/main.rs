@@ -7,7 +7,6 @@ use std::process;
 use clap::Parser;
 use serde::Deserialize;
 use tracing::info;
-use tracing_subscriber::EnvFilter;
 use xzram::apply::{
     self, apply, apply_pending, apply_pending_with, clear_pending, stage, stage_then_apply,
     stage_then_apply_with, stage_with_optional_prepare, ApplyOptions, ApplyRequest, PendingConfig,
@@ -30,11 +29,8 @@ struct Args {
 
 fn main() {
     env_guard::scrub_dev_overrides();
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("warn")),
-        )
-        .init();
+    // uQ's log format and a crash record on a panic (uQ's native/uq-diag).
+    xzram::uq_diag::init("xzram-helper", "warn");
 
     let args = Args::parse();
 
@@ -47,7 +43,11 @@ fn main() {
     if let Err(e) = result {
         let msg = format!("xzram-helper: {e}");
         errors.write(&msg);
-        eprintln!("{msg}");
+        if xzram::uq_diag::Style::detect() == xzram::uq_diag::Style::Journal {
+            tracing::error!("[XZRAM-007] {e}");
+        } else {
+            eprintln!("{msg}");
+        }
         process::exit(1);
     }
 }
