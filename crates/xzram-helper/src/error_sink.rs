@@ -31,7 +31,7 @@ impl ErrorSink {
         match validate_error_file(&path).and_then(|()| check_parent_dir(&path)) {
             Ok(()) => Self::PerRun(path),
             Err(e) => {
-                warn!(path = %path.display(), "ignoring {ERROR_FILE_ENV}: {e}");
+                warn!(path = %path.display(), "[XZRAM-001] ignoring {ERROR_FILE_ENV}: {e}");
                 Self::Global
             }
         }
@@ -51,7 +51,7 @@ impl ErrorSink {
         match self {
             Self::PerRun(path) => {
                 if let Err(e) = xzram::fsutil::atomic_write(path, message.as_bytes(), 0o600) {
-                    warn!(path = %path.display(), "could not write per-run error file: {e}");
+                    warn!(path = %path.display(), "[XZRAM-002] could not write per-run error file: {e}");
                     apply::write_last_error(message);
                 }
             }

@@ -49,11 +49,11 @@ pub fn apply_pending_with(opts: ApplyOptions) -> Result<ApplyResult> {
 /// Returns `err` (same variant, so callers' error classification still works) extended with
 /// the rollback outcome. pending.json is left in place so the user can fix and retry.
 fn rollback_after_failure(err: XzramError, snapshot_id: &str) -> XzramError {
-    warn!(error = %err, snapshot = snapshot_id, "apply failed; rolling back");
+    warn!(error = %err, snapshot = snapshot_id, "[XZRAM-005] apply failed; rolling back");
     let outcome = match snapshot::restore_snapshot(snapshot_id) {
         Ok(_) => format!("rolled back to pre-apply snapshot {snapshot_id}"),
         Err(rollback_err) => {
-            error!(error = %rollback_err, "automatic rollback failed");
+            error!(error = %rollback_err, "[XZRAM-006] automatic rollback failed");
             format!(
                 "automatic rollback to snapshot {snapshot_id} FAILED: {rollback_err}; \
                  restore it manually with 'xzram snapshot restore {snapshot_id}'"

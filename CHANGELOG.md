@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.5] - 2026-11-22
+
+### Added
+
+- **XZram's problems show in uQ.** xzramd, the helper and the CLI use uQ's shared uq-diag module (`crates/xzram/src/uq_diag.rs`, uq-diag 1.0.1): under systemd they log in uQ's format so the journal files warnings as warnings, a panic leaves a crash record, and every warning and error has a code (`XZRAM-001` to `XZRAM-007`: a failed change and its rollback, a snapshot that couldn't be restored, and others) that `uqctl explain` and uQ Settings' Problems page explain in plain words from `/usr/share/uq/diag/xzram.toml`. CI checks the vendored copy and that the codes and the list agree.
+
 ## [0.7.4] - 2026-11-21
 
 ### Changed
@@ -286,7 +292,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Staged apply, zram/swapfile/sysctl management, doctor, snapshots
 - Packaging stubs (Arch PKGBUILD, Fedora spec, Debian)
 
-[Unreleased]: https://github.com/asafelobotomy/XZram/compare/v0.7.4...HEAD
+[Unreleased]: https://github.com/asafelobotomy/XZram/compare/v0.7.5...HEAD
+[0.7.5]: https://github.com/asafelobotomy/XZram/compare/v0.7.4...v0.7.5
 [0.7.4]: https://github.com/asafelobotomy/XZram/compare/v0.7.3...v0.7.4
 [0.7.2]: https://github.com/asafelobotomy/XZram/compare/v0.7.1...v0.7.2
 [0.7.1]: https://github.com/asafelobotomy/XZram/compare/v0.7.0...v0.7.1

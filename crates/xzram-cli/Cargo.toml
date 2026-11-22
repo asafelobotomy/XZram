@@ -18,7 +18,6 @@ fs2.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tracing.workspace = true
-tracing-subscriber.workspace = true
 xzram = { path = "../xzram" }
 zbus = { version = "6.2.1", features = ["tokio"] }
 

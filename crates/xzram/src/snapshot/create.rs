@@ -80,7 +80,7 @@ pub fn create_snapshot(
         write_index_unlocked(&index)?;
         // Every apply adds one; keep the store bounded (failing to prune isn't fatal).
         if let Err(e) = super::index::prune_unlocked(super::types::DEFAULT_KEEP) {
-            tracing::warn!(error = %e, "could not prune old snapshots");
+            tracing::warn!(error = %e, "[XZRAM-003] could not prune old snapshots");
         }
 
         info!(id = %meta.id, trigger = %trigger.as_str(), "created snapshot");

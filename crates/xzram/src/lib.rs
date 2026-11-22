@@ -18,6 +18,9 @@ pub mod status;
 pub mod swap_partition;
 pub mod swapfile_btrfs;
 pub mod sysctl;
+// uQ's log format and crash records (uQ's native/uq-diag; don't edit, copy a new release over).
+#[rustfmt::skip]
+pub mod uq_diag;
 pub mod validation;
 pub mod which;
 pub mod zswap;

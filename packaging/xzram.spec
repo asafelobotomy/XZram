@@ -1,5 +1,5 @@
 Name:           xzram
-Version:        0.7.4
+Version:        0.7.5
 Release:        1%{?dist}
 Summary:        Cross-distro Linux swap management
 
@@ -57,6 +57,7 @@ make install-files DESTDIR=%{buildroot}
 %{_datadir}/dbus-1/system.d/io.github.XZram.conf
 %{_datadir}/dbus-1/system-services/io.github.XZram1.service
 %{_datadir}/uq/settings/pages/xzram/
+%{_datadir}/uq/diag/xzram.toml
 
 %files gui
 %doc docs/GUI-PHASE2.md
@@ -75,6 +76,9 @@ make install-files DESTDIR=%{buildroot}
 %systemd_postun xzramd.service
 
 %changelog
+* Sun Nov 22 2026 XZram contributors <xzram@example.com> - 0.7.5-1
+- Problems show in uQ: uQ's log format, XZRAM-001..007 codes, crash records (uq-diag)
+
 * Sat Nov 21 2026 XZram contributors <xzram@example.com> - 0.7.4-1
 - GUI: follows the uQ theme through uQ's shared uq-theme module; one main desktop category
 * Fri Nov 20 2026 XZram contributors <xzram@example.com> - 0.7.3-1

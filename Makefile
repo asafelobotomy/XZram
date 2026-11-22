@@ -71,6 +71,7 @@ install-cli-files: check-install-paths
 	install -Dm644 data/io.github.XZram.conf $(DESTDIR)$(DATADIR)/dbus-1/system.d/io.github.XZram.conf
 	install -Dm644 data/dbus-1/system-services/io.github.XZram1.service $(DESTDIR)$(DATADIR)/dbus-1/system-services/io.github.XZram1.service
 	install -Dm644 -t $(DESTDIR)$(DATADIR)/uq/settings/pages/xzram uq/pages/xzram/*
+	install -Dm644 -t $(DESTDIR)$(DATADIR)/uq/diag uq/diag/xzram.toml
 
 # Full install including Qt GUI and desktop metadata.
 install: build build-gui
@@ -105,6 +106,7 @@ uninstall: check-install-paths
 	rm -f $(DESTDIR)$(DATADIR)/polkit-1/actions/io.github.xzram.policy
 	rm -f $(DESTDIR)$(DATADIR)/bash-completion/completions/xzram
 	rm -rf $(DESTDIR)$(DATADIR)/uq/settings/pages/xzram
+	rm -f $(DESTDIR)$(DATADIR)/uq/diag/xzram.toml
 	rm -f $(DESTDIR)$(DATADIR)/applications/io.github.XZram.desktop
 	rm -f $(DESTDIR)$(DATADIR)/metainfo/io.github.XZram.metainfo.xml
 	rm -f $(DESTDIR)$(DATADIR)/icons/hicolor/*/apps/io.github.XZram.png

@@ -1008,7 +1008,7 @@ dependencies = [
 
 [[package]]
 name = "xzram"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "fs2",
  "libc",
@@ -1018,11 +1018,12 @@ dependencies = [
  "tempfile",
  "thiserror",
  "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
 name = "xzram-cli"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -1033,14 +1034,13 @@ dependencies = [
  "serde",
  "serde_json",
  "tracing",
- "tracing-subscriber",
  "xzram",
  "zbus",
 ]
 
 [[package]]
 name = "xzram-helper"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "assert_cmd",
  "clap",
@@ -1050,20 +1050,18 @@ dependencies = [
  "serde_json",
  "tempfile",
  "tracing",
- "tracing-subscriber",
  "xzram",
 ]
 
 [[package]]
 name = "xzramd"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "anyhow",
  "serde",
  "serde_json",
  "tokio",
  "tracing",
- "tracing-subscriber",
  "xzram",
  "zbus",
  "zbus_polkit",
