@@ -1,4 +1,4 @@
-// uq-theme 1.0.0
+// uq-theme 1.1.0
 //
 // uQ's theme tokens ($XDG_STATE_HOME/uq/theme/tokens.json, written by uqd) for a Qt 6 app, and a
 // live follow of that file. Vendor uqtheme.h and uqtheme.cpp unchanged (see uQ's
@@ -8,7 +8,10 @@
 // reads (and the same as uq_theme.rs):
 //
 //   {present, name, variant, colors{bg, surface, ...}, radius, gapIn, gapOut, borderWidth,
-//    fontUi, fontMono, fontSize, iconTheme}
+//    fontUi, fontMono, fontSize, iconTheme, motion{fast, base, slow, reduce}}
+//
+// motion (1.1.0) is in ms and all 0 when the user turned on Reduce motion; a uQ older than 0.3.36
+// writes none, so it is uQ's defaults (100, 140, 220) then.
 //
 // or {present: false} when uQ isn't there, the file doesn't parse, or a colour is missing or not
 // #rrggbb / #rrggbbaa (half a theme looks worse than the desktop's own).
@@ -22,7 +25,7 @@
 
 namespace uqtheme {
 
-inline constexpr const char *version = "1.0.0";
+inline constexpr const char *version = "1.1.0";
 
 /// $<overrideVar> when set (tests and screenshots point it at a fixture), else
 /// $XDG_STATE_HOME/uq/theme/tokens.json, else ~/.local/state/uq/theme/tokens.json.

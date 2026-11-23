@@ -1,4 +1,4 @@
-// uq-theme 1.0.0 (see uqtheme.h)
+// uq-theme 1.1.0 (see uqtheme.h)
 #include "uqtheme.h"
 
 #include <QDir>
@@ -51,6 +51,9 @@ QVariantMap parse(const QByteArray &text)
         const QJsonValue x = o.value(QLatin1String(key));
         return x.isDouble() && x.toDouble() >= 0 ? std::min(x.toInt(def), max) : def;
     };
+    const QJsonObject motion = v.value(QStringLiteral("motion")).toObject();
+    const bool reduce = motion.value(QStringLiteral("reduce")).toBool(false);
+    const auto ms = [&](const char *key, int def) { return reduce ? 0 : num(motion, key, def, 1000); };
     const bool light = v.value(QStringLiteral("variant")).toString() == QLatin1String("light");
     return {
         {QStringLiteral("present"), true},
@@ -66,6 +69,11 @@ QVariantMap parse(const QByteArray &text)
         {QStringLiteral("fontSize"), num(fonts, "size", 0, 32)},
         {QStringLiteral("iconTheme"),
          v.value(QStringLiteral("icons")).toObject().value(QStringLiteral("theme")).toString()},
+        {QStringLiteral("motion"),
+         QVariantMap{{QStringLiteral("fast"), ms("fast", 100)},
+                     {QStringLiteral("base"), ms("base", 140)},
+                     {QStringLiteral("slow"), ms("slow", 220)},
+                     {QStringLiteral("reduce"), reduce}}},
     };
 }
 

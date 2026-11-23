@@ -1,3 +1,9 @@
+xzram (0.7.6-1) unstable; urgency=medium
+
+  * The window follows the uQ theme through uQ's shared uq-theme 1.1.0
+
+ -- XZram contributors <xzram@example.com>  Sun, 22 Nov 2026 23:30:00 +0000
+
 xzram (0.7.5-1) unstable; urgency=medium
 
   * Problems show in uQ: uQ's log format, XZRAM-001..007 codes, crash records (uq-diag)

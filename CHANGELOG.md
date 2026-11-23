@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.6] - 2026-11-22
+
+### Changed
+
+- The GUI moves to uQ's uq-theme 1.1.0 (`gui/xzram-qt/vendor/uq-theme`), which also reads uQ's Reduce motion setting from the theme tokens. CI checks every vendored uQ kit with uQ's single `scripts/check-uq-native.sh` and `uq/native.toml`, replacing the three separate check scripts.
+
 ## [0.7.5] - 2026-11-22
 
 ### Added
