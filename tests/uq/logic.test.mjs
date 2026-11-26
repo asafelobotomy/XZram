@@ -1,4 +1,4 @@
-// Tests for uq/pages/xzram/logic.js and page.toml. Run: node --test 'tests/uq/*.test.mjs'
+// Tests for uq/pages/xzram/logic.js, plans.js and page.toml. Run: node --test 'tests/uq/*.test.mjs'
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import { test } from "node:test";
@@ -6,7 +6,8 @@ import { loadLogic } from "./load-logic.mjs";
 import { parseToml } from "./toml-lite.mjs";
 
 const pageDir = new URL("../../uq/pages/xzram/", import.meta.url);
-const L = loadLogic(new URL("logic.js", pageDir));
+// logic.js reads and checks; plans.js words plans and progress. One API for the tests.
+const L = { ...loadLogic(new URL("logic.js", pageDir)), ...loadLogic(new URL("plans.js", pageDir)) };
 const manifest = parseToml(readFileSync(new URL("page.toml", pageDir), "utf8"));
 // Values made inside the vm context have another prototype; compare plain copies.
 const plain = (v) => JSON.parse(JSON.stringify(v));
