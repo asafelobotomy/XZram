@@ -19,6 +19,8 @@ source=("$_srcname-$pkgver.tar.gz::https://github.com/asafelobotomy/XZram/archiv
 # AUR_MODE=release). Re-pin on every version bump.
 sha256sums=('0000000000000000000000000000000000000000000000000000000000000000')
 
+conflicts+=('uq<0.3.41')  # uq-compat: from uQ's compat/family.toml
+
 prepare() {
   cd "$_srcname-$pkgver"
   export CARGO_HOME="${CARGO_HOME:-$srcdir/cargo-home}"
@@ -66,7 +68,7 @@ package_xzram() {
 }
 
 package_xzram-gui() {
-  depends=('xzram' 'qt6-base' 'hicolor-icon-theme')
+  depends=("xzram=$pkgver-$pkgrel" 'qt6-base' 'hicolor-icon-theme')
   pkgdesc="Qt6 GUI for XZram swap management"
 
   cd "$_srcname-$pkgver"

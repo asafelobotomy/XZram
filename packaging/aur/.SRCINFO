@@ -13,6 +13,7 @@ pkgbase = xzram
 	makedepends = polkit
 	makedepends = systemd
 	makedepends = util-linux
+	conflicts = uq<0.3.41
 	source = XZram-0.7.6.tar.gz::https://github.com/asafelobotomy/XZram/archive/refs/tags/v0.7.6.tar.gz
 	sha256sums = 0000000000000000000000000000000000000000000000000000000000000000
 
@@ -29,6 +30,6 @@ pkgname = xzram
 
 pkgname = xzram-gui
 	pkgdesc = Qt6 GUI for XZram swap management
-	depends = xzram
+	depends = xzram=0.7.6-1
 	depends = qt6-base
 	depends = hicolor-icon-theme
