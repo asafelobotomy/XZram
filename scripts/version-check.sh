@@ -40,7 +40,8 @@ aur_pkgbuild=packaging/aur/PKGBUILD
 aur_srcinfo=packaging/aur/.SRCINFO
 
 pkgbuild_sums() { # print sha256sums entries from a PKGBUILD on stdin
-  sed -n "/^sha256sums=(/,/)/p" | grep -Eo "'[^']*'|\"[^\"]*\"" | tr -d "'\""
+  # The array ends at the first ')', on its own line or a later one.
+  awk '/^sha256sums=\(/ { on = 1 } on { print } on && /\)/ { exit }' | grep -Eo "'[^']*'|\"[^\"]*\"" | tr -d "'\""
 }
 pb_pkgver="$(sed -n 's/^pkgver=//p' "$aur_pkgbuild" | head -1)"
 si_pkgver="$(sed -n 's/^[[:space:]]*pkgver = //p' "$aur_srcinfo" | head -1)"
