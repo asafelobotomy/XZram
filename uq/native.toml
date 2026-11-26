@@ -9,3 +9,7 @@ version = "1.0.1"
 files = ["crates/xzram/src/uq_diag.rs"]
 codes = "uq/diag/xzram.toml"
 sources = ["crates"]
+
+[uq-loc]
+version = "1.0.0"
+files = ["scripts/check-loc.sh"]

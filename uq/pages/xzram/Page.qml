@@ -8,6 +8,7 @@ import QtQuick.Controls as QQC2
 import QtQuick.Layouts
 import org.uq.settings
 import "logic.js" as Logic
+import "plans.js" as Plans
 
 SettingsPage {
     id: page
@@ -167,7 +168,7 @@ SettingsPage {
     // Changing
 
     function setNote(key, note) {
-        page.notes = Logic.withNote(page.notes, key, note);
+        page.notes = Plans.withNote(page.notes, key, note);
     }
 
     /// Checks the arguments, then starts the row `key`. False (and a note) when they're wrong.
@@ -176,7 +177,7 @@ SettingsPage {
             return false;
         const why = Logic.argsProblem(command, args);
         page.offer = null;
-        page.setNote(key, why === "" ? null : Logic.problem(why));
+        page.setNote(key, why === "" ? null : Plans.problem(why));
         return why === "";
     }
 
@@ -194,7 +195,7 @@ SettingsPage {
         page.ctx.command.stream(command, args, ev => {
             if (page.life.gone)
                 return;
-            const shown = Logic.progressOf(ev);
+            const shown = Plans.progressOf(ev);
             if (shown)
                 page.progress = shown;
             else if (ev && (ev.event === "done" || ev.event === "error"))
@@ -204,7 +205,7 @@ SettingsPage {
                 return;
             page.workingKey = "";
             if (!Logic.isCancelled(result)) {
-                page.setNote(key, Logic.outcome(last, result, doneText));
+                page.setNote(key, Plans.outcome(last, result, doneText));
                 page.refreshAll();
             }
             if (after)
@@ -226,11 +227,11 @@ SettingsPage {
             if (page.life.gone)
                 return;
             page.workingKey = "";
-            const plan = Logic.parsePlan(result);
+            const plan = Plans.parsePlan(result);
             if (!plan.ok) {
-                page.setNote(key, Logic.problem(plan.error));
+                page.setNote(key, Plans.problem(plan.error));
             } else if (plan.refuse) {
-                page.setNote(key, { message: Logic.refusalText(plan), failed: true, kind: plan.memory ? "memory" : "other", detail: plan.reason });
+                page.setNote(key, { message: Plans.refusalText(plan), failed: true, kind: plan.memory ? "memory" : "other", detail: plan.reason });
                 if (plan.memory && offer)
                     page.offer = { key: key, command: offer.command, args: offer.args, done: offer.done };
             } else {
@@ -256,18 +257,18 @@ SettingsPage {
         const args = [key, value];
         page.checked(key, "plan-zram", args,
             { command: "set-zram-boot", args: args, done: page.savedForBoot },
-            () => page.stream(key, "set-zram", args, Logic.doneText(key, value), after), after);
+            () => page.stream(key, "set-zram", args, Plans.doneText(key, value), after), after);
     }
 
     function changeTuning(key, value, after) {
         const why = Logic.checkTuning(key, value);
         if (why !== "") {
-            page.setNote(key, Logic.problem(why));
+            page.setNote(key, Plans.problem(why));
             if (after)
                 after();
             return;
         }
-        page.stream(key, "set-tuning", [key, String(value).trim()], Logic.doneText(key, String(value).trim()), after);
+        page.stream(key, "set-tuning", [key, String(value).trim()], Plans.doneText(key, String(value).trim()), after);
     }
 
     function turnZramOff() {
@@ -280,7 +281,7 @@ SettingsPage {
     function createSwapfile(path, gb) {
         const why = Logic.checkSwapfile(path, gb);
         if (why !== "") {
-            page.setNote("swapfile-new", Logic.problem(why));
+            page.setNote("swapfile-new", Plans.problem(why));
             return false;
         }
         const args = [Logic.mibOf(gb), path];
@@ -293,7 +294,7 @@ SettingsPage {
         const key = "swapfile:" + path;
         const why = Logic.checkSwapSize(gb);
         if (why !== "") {
-            page.setNote(key, Logic.problem(why));
+            page.setNote(key, Plans.problem(why));
             return false;
         }
         const args = [Logic.mibOf(gb), path];
@@ -339,7 +340,7 @@ SettingsPage {
             const ok = !!result && result.code === 0;
             page.setNote("snapshot-new", ok
                 ? { message: "Snapshot taken.", failed: false, kind: "done", detail: "" }
-                : Logic.failure("other", Logic.clip(result ? (result.error || "") : "", 400)));
+                : Plans.failure("other", Logic.clip(result ? (result.error || "") : "", 400)));
             page.readSnapshots();
         });
     }
@@ -375,44 +376,8 @@ SettingsPage {
         }
     ]
 
-    SettingsTab {
-        title: "Overview"
-        iconName: "utilities-system-monitor"
-
-        SettingsCard {
-            title: "Memory and swap"
-            iconName: "media-flash"
-            help: "What is in use right now. It updates every few seconds while this tab is open."
-            wide: true
-            Layout.fillWidth: true
-
-            OverviewSection {
-                host: page
-                Layout.fillWidth: true
-            }
-        }
-        SettingsCard {
-            title: "Compressed memory"
-            iconName: "package-x-generic"
-            help: "Swap that lives in memory and is compressed, which is faster than a disk."
-            Layout.fillWidth: true
-
-            ZramDevices {
-                host: page
-                Layout.fillWidth: true
-            }
-        }
-        SettingsCard {
-            title: "Health"
-            iconName: "dialog-information"
-            help: "XZram looks for settings that would make the computer freeze when memory runs out."
-            Layout.fillWidth: true
-
-            HealthSection {
-                host: page
-                Layout.fillWidth: true
-            }
-        }
+    OverviewTab {
+        host: page
     }
 
     SettingsTab {
