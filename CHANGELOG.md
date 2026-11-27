@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- xzramd moves to zbus_polkit 7.0.0. Its polkit `Subject` now borrows from the D-Bus message header; who gets checked is unchanged (the method caller).
+
 ## [0.7.6] - 2026-11-22
 
 ### Changed
