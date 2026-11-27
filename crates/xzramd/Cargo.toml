@@ -25,7 +25,7 @@ tokio = { version = "1", features = [
 tracing.workspace = true
 xzram = { path = "../xzram" }
 zbus = { version = "6.2.1", features = ["tokio"] }
-zbus_polkit = "6.0.0"
+zbus_polkit = "7.0.0"
 
 [dev-dependencies]
 zbus = { version = "6.2.1", features = ["tokio"] }
